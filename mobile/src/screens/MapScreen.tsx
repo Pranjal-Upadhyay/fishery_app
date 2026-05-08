@@ -9,7 +9,9 @@ import {
   ScrollView as RNScrollView,
   TextInput as RNTextInput,
   Modal as RNModal,
-  FlatList as RNFlatList
+  FlatList as RNFlatList,
+  Image as RNImage,
+  Linking as RNLinking,
 } from 'react-native';
 
 const View = RNView as any;
@@ -20,6 +22,8 @@ const ScrollView = RNScrollView as any;
 const TextInput = RNTextInput as any;
 const Modal = RNModal as any;
 const FlatList = RNFlatList as any;
+const Image = RNImage as any;
+const Linking = RNLinking as any;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -414,18 +418,58 @@ export default function MapScreen() {
   const relevantDistricts = allDistrictCodes.sort();
   const selectedStateName = statesList.find(s => s.value === stateCode)?.label || stateCode || 'Select State';
 
+  // Open coordinates in native Maps app
+  const openInMaps = () => {
+    if (!location) return;
+    const { latitude, longitude } = location.coords;
+    const label = address ? encodeURIComponent(address) : 'Selected+Location';
+    const url = `https://maps.google.com/?q=${latitude},${longitude}(${label})&z=14`;
+    Linking.openURL(url).catch(() => {
+      Linking.openURL(`geo:${latitude},${longitude}?q=${latitude},${longitude}`);
+    });
+  };
+
+  // Static OSM tile shown when Google Maps tiles are blank
+  const osmStaticUrl = location
+    ? `https://staticmap.openstreetmap.de/staticmap.php?center=${location.coords.latitude},${location.coords.longitude}&zoom=14&size=640x320&markers=${location.coords.latitude},${location.coords.longitude},red`
+    : null;
+
   // Map fallback UI (used both when MapView unavailable and inside ErrorBoundary)
-  const mapFallback = (
+  const mapFallback = location ? (
+    <View style={[styles.loadingMap, { borderRadius: theme.borderRadius.lg, padding: 0, overflow: 'hidden' }]}>
+      {osmStaticUrl ? (
+        <>
+          <Image
+            source={{ uri: osmStaticUrl }}
+            style={{ width: '100%', height: '100%', position: 'absolute' }}
+            resizeMode="cover"
+          />
+          <View style={styles.mapOverlayBar}>
+            <View style={styles.mapOverlayCoords}>
+              <Ionicons name="location" size={14} color="#fff" />
+              <Text style={styles.mapOverlayCoordsText}>
+                {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.mapOverlayBtn} onPress={openInMaps}>
+              <Ionicons name="navigate" size={13} color="#fff" />
+              <Text style={styles.mapOverlayBtnText}>Open in Maps</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <>
+          <Ionicons name="map-outline" size={48} color={theme.colors.primary} />
+          <Text style={[styles.loadingText, { textAlign: 'center', marginTop: 12 }]}>Map not available</Text>
+        </>
+      )}
+    </View>
+  ) : (
     <View style={[styles.loadingMap, { borderRadius: theme.borderRadius.lg }]}>
       <Ionicons name="map-outline" size={48} color={theme.colors.primary} />
       <Text style={[styles.loadingText, { textAlign: 'center', marginTop: 12 }]}>
         {mapAvailable ? 'Map view unavailable' : 'Map not available in this build'}
       </Text>
-      {location && (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 6 }}>
-          📍 {location.coords.latitude.toFixed(5)}, {location.coords.longitude.toFixed(5)}
-        </Text>
-      )}
     </View>
   );
 
@@ -438,42 +482,43 @@ export default function MapScreen() {
         </View>
 
         <View style={styles.mapContainer}>
-          {location && MapView ? (
-            // Cause A fix: ErrorBoundary ensures a MapView crash stays contained
+          {isGettingLocation && !location ? (
+            <View style={styles.loadingMap}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Acquiring GPS Signal...</Text>
+            </View>
+          ) : location && MapView ? (
+            // Try native Google MapView; if blank/crashed, ErrorBoundary shows OSM fallback
             <MapErrorBoundary fallback={mapFallback}>
               <MapView
                 style={styles.map}
                 initialRegion={{
                   latitude: location.coords.latitude,
                   longitude: location.coords.longitude,
-                  latitudeDelta: 0.0922,
-                  longitudeDelta: 0.0421,
+                  latitudeDelta: 0.045,
+                  longitudeDelta: 0.02,
                 }}
                 showsUserLocation={hasLocationPermission}
-                showsMyLocationButton={hasLocationPermission}
+                showsMyLocationButton={false}
                 onPress={handleMapPress}
               >
                 {Marker && (
                   <Marker
                     coordinate={{ latitude: location.coords.latitude, longitude: location.coords.longitude }}
-                    title="Selected Location"
+                    title={address || 'Selected Location'}
                     draggable
                     onDragEnd={handleMapPress}
                   />
                 )}
               </MapView>
+              {/* "Open in Maps" button always visible on top of MapView */}
+              <TouchableOpacity style={styles.openMapsBtn} onPress={openInMaps}>
+                <Ionicons name="navigate-outline" size={14} color="#fff" />
+                <Text style={styles.openMapsBtnText}>Open in Maps</Text>
+              </TouchableOpacity>
             </MapErrorBoundary>
           ) : (
-            <View style={styles.loadingMap}>
-              {isGettingLocation ? (
-                <>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                  <Text style={styles.loadingText}>Acquiring GPS Signal...</Text>
-                </>
-              ) : (
-                mapFallback
-              )}
-            </View>
+            mapFallback
           )}
         </View>
 
@@ -709,7 +754,64 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface
+    backgroundColor: theme.colors.surface,
+  },
+  mapOverlayBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  mapOverlayCoords: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  mapOverlayCoordsText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  mapOverlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  mapOverlayBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  openMapsBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  openMapsBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   loadingText: {
     marginTop: theme.spacing.md,

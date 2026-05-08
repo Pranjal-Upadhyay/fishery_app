@@ -202,14 +202,22 @@ export default function SpeciesScreen() {
         />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filtersRow}
+        style={{ flexGrow: 0 }}
+      >
         {CATEGORY_FILTERS.map((filter) => (
           <TouchableOpacity
             key={filter}
             style={[styles.filterChip, activeFilter === filter && styles.filterChipActive]}
             onPress={() => setActiveFilter(filter)}
+            activeOpacity={0.75}
           >
-            <Text style={[styles.filterChipText, activeFilter === filter && styles.filterChipTextActive]}>{filter}</Text>
+            <Text style={[styles.filterChipText, activeFilter === filter && styles.filterChipTextActive]}>
+              {filter}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -283,47 +291,52 @@ const getStyles = (theme: any) => StyleSheet.create({
   },
   searchBar: {
     marginHorizontal: 16,
-    height: 48,
-    borderRadius: 24,
+    marginBottom: 4,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: theme.colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
   },
   searchInput: {
     flex: 1,
     color: theme.colors.textPrimary,
     fontSize: 15,
+    fontWeight: '500',
   },
   filtersRow: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    gap: 8,
   },
   filterChip: {
-    height: 34,
-    borderRadius: 17,
-    paddingHorizontal: 14,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
+    height: 36,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 60,
+    flexShrink: 0,
   },
   filterChipActive: {
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
   },
   filterChipText: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.textPrimary,
     fontWeight: '700',
-    fontSize: 12,
+    fontSize: 13,
   },
   filterChipTextActive: {
-    color: theme.colors.textInverse,
+    color: '#FFFFFF',
   },
   listContent: {
     padding: 16,
