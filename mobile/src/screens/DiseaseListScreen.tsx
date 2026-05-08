@@ -6,17 +6,79 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import { diseaseService } from '../services/apiService';
+import { resolveDiseaseImage } from '../utils/diseaseImages';
 
 const CATEGORIES = ['ALL', 'BACTERIAL', 'VIRAL', 'PARASITIC', 'FUNGAL', 'ENVIRONMENTAL'] as const;
 
-const getPlaceholderImage = (category: string) => {
-  switch(category) {
-    case 'BACTERIAL': return 'https://images.unsplash.com/photo-1534043464124-3be32fe000c9?auto=format&fit=crop&q=80&w=300';
-    case 'VIRAL': return 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&q=80&w=300';
-    case 'PARASITIC': return 'https://images.unsplash.com/photo-1518903565074-ce441584c379?auto=format&fit=crop&q=80&w=300';
-    case 'FUNGAL': return 'https://images.unsplash.com/photo-1498654200943-1088dd4438ae?auto=format&fit=crop&q=80&w=300';
-    default: return 'https://images.unsplash.com/photo-1524704654690-b56c05c78a00?auto=format&fit=crop&q=80&w=300';
-  }
+const SEVERITY_ICON: Record<string, string> = {
+  HIGH: 'alert-circle',
+  MEDIUM: 'warning',
+  LOW: 'information-circle',
+};
+
+const DiseaseCard = ({
+  item,
+  styles,
+  theme,
+  onPress,
+}: {
+  item: any;
+  styles: any;
+  theme: any;
+  onPress: () => void;
+}) => {
+  const [imageError, setImageError] = useState(false);
+  const imgUri = resolveDiseaseImage({
+    slug: item.slug,
+    category: item.category,
+    image_url: item.image_url,
+  });
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.88}>
+      {imgUri && !imageError ? (
+        <Image
+          source={{ uri: imgUri }}
+          style={styles.cardImage}
+          resizeMode="cover"
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <View style={styles.cardImageFallback}>
+          <Ionicons name="bug-outline" size={40} color={theme.colors.primary} />
+          <Text style={styles.cardImageFallbackText}>{item.category}</Text>
+        </View>
+      )}
+      <View style={styles.cardContent}>
+        <View style={styles.row}>
+          <Text style={styles.name}>{item.name}</Text>
+          <View style={[
+            styles.severityBadge,
+            item.severity === 'HIGH' ? styles.high : item.severity === 'MEDIUM' ? styles.medium : styles.low,
+          ]}>
+            <Ionicons
+              name={(SEVERITY_ICON[item.severity] || 'information-circle') as any}
+              size={11}
+              color={item.severity === 'HIGH' ? theme.colors.error : item.severity === 'MEDIUM' ? theme.colors.accent : theme.colors.success}
+            />
+            <Text style={[
+              styles.severityText,
+              item.severity === 'HIGH' ? styles.highText : item.severity === 'MEDIUM' ? styles.mediumText : styles.lowText,
+            ]}>
+              {item.severity}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.meta}>{item.category}</Text>
+        <Text style={styles.species}>
+          Affected: {(item.affected_species || []).slice(0, 3).join(', ') || 'Various species'}
+        </Text>
+        <Text style={styles.preview} numberOfLines={2}>
+          {(item.symptoms || []).slice(0, 3).join(' • ')}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 };
 
 export default function DiseaseListScreen() {
@@ -95,28 +157,12 @@ export default function DiseaseListScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={<Text style={styles.emptyText}>No disease record found for this filter.</Text>}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('DiseaseDetail', { disease: item })}>
-              <Image 
-                source={{ uri: item.image_url || getPlaceholderImage(item.category) }} 
-                style={styles.cardImage} 
-              />
-              <View style={styles.cardContent}>
-                <View style={styles.row}>
-                  <Text style={styles.name}>{item.name}</Text>
-                  <Text style={[
-                    styles.severity,
-                    item.severity === 'HIGH' ? styles.high : item.severity === 'MEDIUM' ? styles.medium : styles.low,
-                  ]}>
-                    {item.severity}
-                  </Text>
-                </View>
-                <Text style={styles.meta}>{item.category}</Text>
-                <Text style={styles.species}>Affected Species: {(item.affected_species || []).join(', ') || 'Various species'}</Text>
-                <Text style={styles.preview} numberOfLines={2}>
-                  {(item.symptoms || []).slice(0, 3).join(' • ')}
-                </Text>
-              </View>
-            </TouchableOpacity>
+            <DiseaseCard
+              item={item}
+              styles={styles}
+              theme={theme}
+              onPress={() => navigation.navigate('DiseaseDetail', { disease: item })}
+            />
           )}
         />
       )}
@@ -162,14 +208,40 @@ const getStyles = (theme: any) => StyleSheet.create({
     marginBottom: 10,
     overflow: 'hidden',
   },
-  cardImage: { width: '100%', height: 130, resizeMode: 'cover' },
+  cardImage: { width: '100%', height: 150, resizeMode: 'cover' },
+  cardImageFallback: {
+    width: '100%',
+    height: 150,
+    backgroundColor: theme.colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cardImageFallbackText: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   cardContent: { padding: 14 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   name: { color: theme.colors.textPrimary, fontWeight: '800', fontSize: 16, flex: 1 },
-  severity: { fontWeight: '800', fontSize: 12, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
-  high: { color: theme.colors.error, backgroundColor: `${theme.colors.error}22` },
-  medium: { color: theme.colors.accent, backgroundColor: `${theme.colors.accent}22` },
-  low: { color: theme.colors.success, backgroundColor: `${theme.colors.success}22` },
+  severityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  severityText: { fontWeight: '800', fontSize: 11 },
+  high: { backgroundColor: `${theme.colors.error}22` },
+  medium: { backgroundColor: `${theme.colors.accent}22` },
+  low: { backgroundColor: `${theme.colors.success}22` },
+  highText: { color: theme.colors.error },
+  mediumText: { color: theme.colors.accent },
+  lowText: { color: theme.colors.success },
   meta: { color: theme.colors.textSecondary, marginTop: 5, fontWeight: '700', fontSize: 12 },
   species: { color: theme.colors.textSecondary, marginTop: 4, fontWeight: '600', fontSize: 12 },
   preview: { color: theme.colors.textSecondary, marginTop: 8, lineHeight: 20 },
