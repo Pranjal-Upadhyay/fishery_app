@@ -35,3 +35,6 @@ yarn-error.log*
 .windsurfrules
 .mcp.json
 .opencode.json
+
+# Stitch design reference folder (local only)
+stitch_aquafarm_intelligence_platform/

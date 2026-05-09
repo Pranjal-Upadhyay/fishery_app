@@ -544,7 +544,7 @@ export default function MapScreen() {
               <Text style={styles.label}>State</Text>
               <TouchableOpacity style={styles.pickerButton} onPress={() => setIsStateOpen(true)}>
                 <Text style={styles.pickerText}>{selectedStateName}</Text>
-                <Ionicons name="chevron-down" size={20} color="#666" />
+                <Ionicons name="chevron-down" size={20} color={theme.colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -552,7 +552,7 @@ export default function MapScreen() {
               <Text style={styles.label}>District</Text>
               <TouchableOpacity style={styles.pickerButton} onPress={() => setIsDistrictOpen(true)}>
                 <Text style={styles.pickerText}>{districtCode || 'Select'}</Text>
-                <Ionicons name="chevron-down" size={20} color="#666" />
+                <Ionicons name="chevron-down" size={20} color={theme.colors.textMuted} />
               </TouchableOpacity>
             </View>
           </View>
@@ -561,7 +561,7 @@ export default function MapScreen() {
             <Text style={styles.label}>Water Source</Text>
             <TouchableOpacity style={styles.pickerButton} onPress={() => setIsWaterOpen(true)}>
               <Text style={styles.pickerText}>{WATER_SOURCES.find(s => s.value === waterSource)?.label}</Text>
-              <Ionicons name="chevron-down" size={20} color="#666" />
+              <Ionicons name="chevron-down" size={20} color={theme.colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -584,9 +584,9 @@ export default function MapScreen() {
             disabled={isLoading || !location}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={theme.colors.textInverse} />
             ) : (
-              <Ionicons name="analytics-outline" size={24} color="#fff" />
+              <Ionicons name="analytics-outline" size={24} color={theme.colors.textInverse} />
             )}
             <Text style={styles.buttonText}>
               {isLoading ? 'Analyzing...' : (t('maps.checkSuitability') || 'Analyze Environment')}
@@ -774,7 +774,7 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     gap: 4,
   },
   mapOverlayCoordsText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -790,7 +790,7 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.3)',
   },
   mapOverlayBtnText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -809,7 +809,7 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
   },
   openMapsBtnText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -864,11 +864,12 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16
   },
   label: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.textMuted,
     marginBottom: 8,
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   pickerButton: {
     flexDirection: 'row',
@@ -878,7 +879,7 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: isDark ? '#1e1e1e' : '#fafafa'
+    backgroundColor: theme.colors.surfaceLow,
   },
   pickerText: {
     fontSize: 16,
@@ -890,7 +891,7 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: isDark ? '#1e1e1e' : '#fafafa',
+    backgroundColor: theme.colors.surfaceLow,
     fontSize: 16,
     color: theme.colors.textPrimary
   },
@@ -959,11 +960,12 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: theme.colors.border
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: theme.colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.textMuted,
     marginBottom: 12,
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   },
   systemItem: {
     flexDirection: 'row',
@@ -987,14 +989,16 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     marginTop: 8
   },
   tag: {
-    backgroundColor: isDark ? '#4A1C1C' : '#FEE2E2',
+    backgroundColor: theme.colors.errorSoft,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 6
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: `${theme.colors.error}33`,
   },
   tagText: {
     fontSize: 12,
-    color: isDark ? '#FCA5A5' : '#B91C1C',
+    color: theme.colors.error,
     fontWeight: '500'
   },
   smallText: {
