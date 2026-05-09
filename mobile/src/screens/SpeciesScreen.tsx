@@ -49,52 +49,75 @@ const SpeciesCard = ({ species, onPress, theme, styles }: { species: any; onPres
   const category = (d.category || '').replace(/_/g, ' ') || 'Species';
 
   const imageSource = getSpeciesImageUri(d.scientific_name, d.image_url);
+  const hasImage = imageSource && !imageError;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.88}>
-      {imageSource && !imageError ? (
-        <Image
-          source={imageSource}
-          style={styles.image}
-          resizeMode="cover"
-          onError={() => setImageError(true)}
-        />
-      ) : (
-        <View style={styles.imageFallback}>
-          <Ionicons name="fish" size={42} color={theme.colors.primary} />
+      {/* Hero image with gradient overlay */}
+      <View style={styles.imageContainer}>
+        {hasImage ? (
+          <Image
+            source={imageSource}
+            style={styles.image}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <View style={styles.imageFallback}>
+            <Ionicons name="fish" size={48} color={theme.colors.primary} />
+          </View>
+        )}
+        <View style={styles.imageGradient} />
+        {/* Species name overlaid on image */}
+        <View style={styles.imageOverlay}>
+          <Text style={styles.speciesNameOverlay} numberOfLines={1}>{commonName}</Text>
+          <Text style={styles.scientificNameOverlay} numberOfLines={1}>{d.scientific_name}</Text>
         </View>
-      )}
+        {/* Category chip on image */}
+        <View style={styles.categoryChip}>
+          <Text style={styles.categoryChipText}>{category}</Text>
+        </View>
+      </View>
+
+      {/* Stats grid + CTA */}
       <View style={styles.cardBody}>
-        <View style={styles.cardTopRow}>
-          <Text style={styles.speciesName}>{commonName}</Text>
-          <View style={styles.categoryChip}>
-            <Text style={styles.categoryChipText}>{category}</Text>
+        {/* 2-col stat grid: each cell is a surfaceLow rounded card */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statCell}>
+            <Ionicons name="thermometer-outline" size={13} color={theme.colors.primary} />
+            <Text style={styles.statLabel}>TEMP</Text>
+            <Text style={styles.statValue}>
+              {temp.min != null ? `${temp.min}–${temp.max}°C` : '–'}
+            </Text>
+          </View>
+          <View style={styles.statCell}>
+            <Ionicons name="water-outline" size={13} color={theme.colors.primary} />
+            <Text style={styles.statLabel}>pH</Text>
+            <Text style={styles.statValue}>
+              {params.ph_range?.min != null ? `${params.ph_range.min}–${params.ph_range.max}` : '–'}
+            </Text>
+          </View>
+          <View style={styles.statCell}>
+            <Ionicons name="water" size={13} color={theme.colors.primary} />
+            <Text style={styles.statLabel}>SALINITY</Text>
+            <Text style={styles.statValue}>
+              {params.salinity_tolerance_ppt?.max != null
+                ? `${params.salinity_tolerance_ppt.min || 0}–${params.salinity_tolerance_ppt.max}ppt`
+                : '–'}
+            </Text>
+          </View>
+          <View style={styles.statCell}>
+            <Ionicons name="layers-outline" size={13} color={theme.colors.primary} />
+            <Text style={styles.statLabel}>CATEGORY</Text>
+            <Text style={styles.statValue} numberOfLines={1}>
+              {category || '–'}
+            </Text>
           </View>
         </View>
-        <Text style={styles.scientificName}>{d.scientific_name}</Text>
-        <View style={styles.statsRow}>
-          {params.ph_range?.min != null && (
-            <View style={styles.statItem}>
-              <Ionicons name="water-outline" size={12} color={theme.colors.primary} />
-              <Text style={styles.statText}>pH {params.ph_range.min}-{params.ph_range.max}</Text>
-            </View>
-          )}
-          {temp.min != null && (
-            <View style={styles.statItem}>
-              <Ionicons name="thermometer-outline" size={12} color={theme.colors.primary} />
-              <Text style={styles.statText}>{temp.min}°-{temp.max}°C</Text>
-            </View>
-          )}
-          {params.salinity_tolerance_ppt?.max != null && (
-            <View style={styles.statItem}>
-              <Ionicons name="water" size={12} color={theme.colors.primary} />
-              <Text style={styles.statText}>Salinity {params.salinity_tolerance_ppt.min || 0}-{params.salinity_tolerance_ppt.max}ppt</Text>
-            </View>
-          )}
-        </View>
-        <TouchableOpacity style={styles.ctaButton} onPress={onPress}>
+
+        <TouchableOpacity style={styles.ctaButton} onPress={onPress} activeOpacity={0.82}>
           <Text style={styles.ctaText}>View Species Profile</Text>
-          <Ionicons name="arrow-forward" size={16} color={theme.colors.textInverse} />
+          <Ionicons name="arrow-forward" size={15} color={theme.colors.textInverse} />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -109,6 +132,7 @@ export default function SpeciesScreen() {
   const [speciesList, setSpeciesList] = useState<any[]>([]);
   const [filtered, setFiltered] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
@@ -119,15 +143,12 @@ export default function SpeciesScreen() {
     try {
       const res = await speciesService.getAll();
       if (res.success && res.data) {
-        // Only accept the result if it has more than the 3-item offline fallback
-        // (fallback items have ids like 'sp_1', real DB rows have UUIDs)
         const isFallback = res.data.length <= 3 && res.data[0]?.id?.startsWith('sp_');
         if (!isFallback) {
           setSpeciesList(res.data);
           setFiltered(res.data);
           setLoadError(null);
         } else if (speciesList.length === 0) {
-          // Only show offline data if we have nothing better cached
           setSpeciesList(res.data);
           setFiltered(res.data);
           setLoadError('Showing offline data. Pull down to refresh when connected.');
@@ -179,6 +200,7 @@ export default function SpeciesScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleWrap}>
           <View style={styles.headerIcon}>
@@ -191,17 +213,30 @@ export default function SpeciesScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchBar}>
-        <Ionicons name="search-outline" size={18} color={theme.colors.textMuted} />
+      {/* Search bar — rounded-full, height 48, surfaceLow bg, primary border on focus */}
+      <View style={[styles.searchBar, searchFocused && styles.searchBarFocused]}>
+        <Ionicons
+          name="search-outline"
+          size={18}
+          color={searchFocused ? theme.colors.primary : theme.colors.textMuted}
+        />
         <TextInput
           style={styles.searchInput}
           placeholder="Search fish or shrimp species..."
           placeholderTextColor={theme.colors.textMuted}
           value={search}
           onChangeText={setSearch}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
         />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
+      {/* Filter chips — pill shape */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -222,6 +257,13 @@ export default function SpeciesScreen() {
         ))}
       </ScrollView>
 
+      {/* Section header — uppercase, textMuted, letterSpacing 2 */}
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionHeader}>
+          {filtered.length} {filtered.length === 1 ? 'SPECIES' : 'SPECIES'}
+        </Text>
+      </View>
+
       {loadError ? (
         <View style={styles.errorBanner}>
           <Ionicons name="cloud-offline-outline" size={16} color={theme.colors.accent} />
@@ -232,7 +274,14 @@ export default function SpeciesScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} tintColor={theme.colors.primary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <SpeciesCard
             theme={theme}
@@ -256,7 +305,9 @@ export default function SpeciesScreen() {
 const getStyles = (theme: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   center: { justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 12, color: theme.colors.textSecondary },
+  loadingText: { marginTop: 12, color: theme.colors.textSecondary, fontSize: 14 },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -272,29 +323,37 @@ const getStyles = (theme: any) => StyleSheet.create({
   headerIcon: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   headerTitle: {
     color: theme.colors.textPrimary,
     fontSize: 22,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
   filterButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  // Search bar — rounded-full, height 48, surfaceLow bg, 1.5 border, primary border on focus
   searchBar: {
     marginHorizontal: 16,
     marginBottom: 4,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: theme.colors.surface,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surfaceLow,
     borderWidth: 1.5,
     borderColor: theme.colors.border,
     flexDirection: 'row',
@@ -302,12 +361,17 @@ const getStyles = (theme: any) => StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
   },
+  searchBarFocused: {
+    borderColor: theme.colors.primary,
+  },
   searchInput: {
     flex: 1,
     color: theme.colors.textPrimary,
     fontSize: 15,
     fontWeight: '500',
   },
+
+  // Filter chips — pill, active=primary bg+textInverse, inactive=surfaceAlt+border+textSecondary
   filtersRow: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -315,8 +379,8 @@ const getStyles = (theme: any) => StyleSheet.create({
     gap: 8,
   },
   filterChip: {
-    height: 36,
-    borderRadius: 18,
+    height: 34,
+    borderRadius: theme.borderRadius.full,
     paddingHorizontal: 16,
     backgroundColor: theme.colors.surfaceAlt,
     borderWidth: 1.5,
@@ -331,18 +395,34 @@ const getStyles = (theme: any) => StyleSheet.create({
     borderColor: theme.colors.primary,
   },
   filterChipText: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.textSecondary,
     fontWeight: '700',
     fontSize: 13,
   },
   filterChipTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.textInverse,
   },
+
+  // Section header — uppercase, textMuted, letterSpacing 2, fontSize 11, fontWeight 700
+  sectionHeaderRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+  },
+  sectionHeader: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+
   listContent: {
     padding: 16,
     paddingTop: 2,
     paddingBottom: 110,
   },
+
+  // Species card — hero image (150px) with gradient overlay
   card: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
@@ -350,85 +430,132 @@ const getStyles = (theme: any) => StyleSheet.create({
     borderColor: theme.colors.border,
     overflow: 'hidden',
     marginBottom: 16,
+    ...theme.shadows.sm,
+  },
+  imageContainer: {
+    height: 150,
+    position: 'relative',
   },
   image: {
     width: '100%',
-    height: 180,
+    height: '100%',
   },
   imageFallback: {
-    height: 180,
+    width: '100%',
+    height: '100%',
     backgroundColor: theme.colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardBody: {
-    padding: 16,
+  // Gradient overlay at bottom of hero image
+  imageGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 90,
+    backgroundColor: theme.isDark ? 'rgba(11,19,38,0.68)' : 'rgba(14,25,50,0.58)',
   },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
+  // Species name + scientific name overlaying the image bottom
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 10,
+    left: 14,
+    right: 60,
   },
-  speciesName: {
-    flex: 1,
+  speciesNameOverlay: {
     color: theme.colors.textPrimary,
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.2,
   },
+  scientificNameOverlay: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  // Category chip on image (top-right)
   categoryChip: {
-    borderRadius: 8,
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.secondaryLight,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.secondary,
   },
   categoryChipText: {
     color: theme.colors.secondary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  scientificName: {
-    color: theme.colors.textMuted,
-    fontStyle: 'italic',
-    marginTop: 4,
+
+  // Card body
+  cardBody: {
+    padding: 14,
   },
-  statsRow: {
-    marginTop: 14,
+
+  // 2-col stat grid: each cell is a surfaceLow rounded card with gap
+  statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 6,
+    marginBottom: 12,
   },
-  statText: {
-    color: theme.colors.textSecondary,
-    fontWeight: '600',
+  statCell: {
+    flex: 1,
+    minWidth: '45%',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    gap: 3,
+    backgroundColor: theme.colors.surfaceLow,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  statLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    color: theme.colors.textPrimary,
     fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
+
+  // "View Species Profile" aqua CTA button
   ctaButton: {
-    marginTop: 16,
-    height: 46,
-    borderRadius: 14,
+    height: 44,
+    borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   ctaText: {
     color: theme.colors.textInverse,
     fontWeight: '800',
     fontSize: 14,
   },
+
+  // Error banner
   errorBanner: {
     marginHorizontal: 16,
     marginBottom: 8,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surfaceAlt,
     borderWidth: 1,
     borderColor: theme.colors.accent,
@@ -442,6 +569,8 @@ const getStyles = (theme: any) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+
+  // Empty state
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -449,5 +578,6 @@ const getStyles = (theme: any) => StyleSheet.create({
   emptyText: {
     color: theme.colors.textMuted,
     marginTop: 12,
+    fontSize: 14,
   },
 });

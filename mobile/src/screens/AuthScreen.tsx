@@ -9,6 +9,8 @@ import {
     Alert,
     ScrollView,
     Image,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
@@ -53,6 +55,7 @@ function normalizeStateCode(value: string): string | null {
 
 export default function AuthScreen({ onLoginSuccess }: Props) {
     const { theme } = useTheme();
+    const c = theme.colors;
     const styles = getStyles(theme);
 
     const [isLogin, setIsLogin] = useState(true);
@@ -62,6 +65,7 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
     const [stateCode, setStateCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
 
     const handleSubmit = async () => {
         if (!phone || !password) {
@@ -70,7 +74,6 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
         }
 
         let formattedPhone = phone.trim();
-        // If they did not provide a country code, prepend +91 automatically
         if (!formattedPhone.startsWith('+')) {
             formattedPhone = '+91' + formattedPhone;
         }
@@ -111,153 +114,214 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-            <View style={styles.topBar}>
-                <Ionicons name="fish" size={20} color={theme.colors.textInverse} />
-                <Text style={styles.topBarTitle}>Fishing God</Text>
-                <View style={{ width: 20 }} />
-            </View>
-
-            <View style={styles.heroImage}>
-                <Image 
-                    source={require('../../assets/icon.png')} 
-                    style={styles.logoImage}
-                    resizeMode="contain"
-                />
-            </View>
-
-            <View style={styles.content}>
-                <Text style={styles.title}>Welcome to Fishing God</Text>
-                <Text style={styles.subtitle}>Premium aquaculture management for modern farmers</Text>
-
-                <View style={styles.tabs}>
-                    <TouchableOpacity
-                        style={[styles.tab, isLogin && styles.tabActive]}
-                        onPress={() => setIsLogin(true)}
-                    >
-                        <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>Login</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tab, !isLogin && styles.tabActive]}
-                        onPress={() => setIsLogin(false)}
-                    >
-                        <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>Sign Up</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.form}>
-                    {!isLogin && (
-                        <>
-                            <Field
-                                icon="person-outline"
-                                label="Full Name"
-                                placeholder="John Doe"
-                                value={name}
-                                onChangeText={setName}
-                                theme={theme}
-                                styles={styles}
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+            <View style={styles.gradientBg}>
+                <ScrollView
+                    contentContainerStyle={styles.container}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Logo area */}
+                    <View style={styles.logoSection}>
+                        <View style={styles.logoRing}>
+                            <Image
+                                source={require('../../assets/icon.png')}
+                                style={styles.logoImage}
+                                resizeMode="contain"
                             />
-                            <Field
-                                icon="location-outline"
-                                label="State (India)"
-                                placeholder="Select your state"
-                                value={stateCode}
-                                onChangeText={setStateCode}
-                                theme={theme}
-                                styles={styles}
-                            />
-                        </>
-                    )}
-
-                    <Field
-                        icon="phone-portrait-outline"
-                        label="Phone Number"
-                        placeholder="+91 00000 00000"
-                        value={phone}
-                        onChangeText={setPhone}
-                        keyboardType="phone-pad"
-                        theme={theme}
-                        styles={styles}
-                    />
-
-                    <Field
-                        icon="lock-closed-outline"
-                        label="Password"
-                        placeholder="Enter password"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry={!showPassword}
-                        theme={theme}
-                        styles={styles}
-                        rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                        onRightIconPress={() => setShowPassword(!showPassword)}
-                    />
-
-                    {isLogin && (
-                        <TouchableOpacity style={styles.forgotWrap}>
-                            <Text style={styles.forgotText}>Forgot Password?</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} disabled={loading}>
-                        {loading ? (
-                            <ActivityIndicator color={theme.colors.textInverse} />
-                        ) : (
-                            <>
-                                <Text style={styles.primaryButtonText}>{isLogin ? 'Sign In' : 'Create Account'}</Text>
-                                <Ionicons name="arrow-forward" size={18} color={theme.colors.textInverse} />
-                            </>
-                        )}
-                    </TouchableOpacity>
-
-                    <View style={styles.dividerRow}>
-                        <View style={styles.divider} />
-                        <Text style={styles.dividerText}>{isLogin ? 'OR SIGN UP' : 'ALREADY HAVE AN ACCOUNT?'}</Text>
-                        <View style={styles.divider} />
+                        </View>
+                        <Text style={styles.appName}>Fishing God</Text>
+                        <Text style={styles.appTagline}>Premium aquaculture management</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.secondaryButton} onPress={() => setIsLogin(!isLogin)}>
-                        <Ionicons
-                            name={isLogin ? 'person-add-outline' : 'log-in-outline'}
-                            size={18}
-                            color={theme.colors.primary}
-                        />
-                        <Text style={styles.secondaryButtonText}>
-                            {isLogin ? 'Create New Account' : 'Switch To Login'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+                    {/* Glass card */}
+                    <View style={styles.card}>
+                        {/* Tab switcher */}
+                        <View style={styles.tabs}>
+                            <TouchableOpacity
+                                style={[styles.tab, isLogin && styles.tabActive]}
+                                onPress={() => setIsLogin(true)}
+                            >
+                                <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>
+                                    Sign In
+                                </Text>
+                                {isLogin && <View style={styles.tabIndicator} />}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.tab, !isLogin && styles.tabActive]}
+                                onPress={() => setIsLogin(false)}
+                            >
+                                <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>
+                                    Sign Up
+                                </Text>
+                                {!isLogin && <View style={styles.tabIndicator} />}
+                            </TouchableOpacity>
+                        </View>
 
-            <Text style={styles.footer}>
-                By continuing, you agree to our Terms of Service and Privacy Policy
-            </Text>
-        </ScrollView>
+                        {/* Form fields */}
+                        <View style={styles.form}>
+                            {!isLogin && (
+                                <>
+                                    <GhostField
+                                        label="Full Name"
+                                        icon="person-outline"
+                                        placeholder="John Doe"
+                                        value={name}
+                                        onChangeText={setName}
+                                        fieldKey="name"
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        theme={theme}
+                                        styles={styles}
+                                    />
+                                    <GhostField
+                                        label="State"
+                                        icon="location-outline"
+                                        placeholder="e.g. Bihar or BR"
+                                        value={stateCode}
+                                        onChangeText={setStateCode}
+                                        fieldKey="state"
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        theme={theme}
+                                        styles={styles}
+                                    />
+                                </>
+                            )}
+
+                            <GhostField
+                                label="Phone Number"
+                                icon="phone-portrait-outline"
+                                placeholder="+91 00000 00000"
+                                value={phone}
+                                onChangeText={setPhone}
+                                keyboardType="phone-pad"
+                                fieldKey="phone"
+                                focusedField={focusedField}
+                                setFocusedField={setFocusedField}
+                                theme={theme}
+                                styles={styles}
+                            />
+
+                            <GhostField
+                                label="Password"
+                                icon="lock-closed-outline"
+                                placeholder="Enter password"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                                fieldKey="password"
+                                focusedField={focusedField}
+                                setFocusedField={setFocusedField}
+                                theme={theme}
+                                styles={styles}
+                                rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                                onRightIconPress={() => setShowPassword(!showPassword)}
+                            />
+
+                            {isLogin && (
+                                <TouchableOpacity style={styles.forgotWrap}>
+                                    <Text style={styles.forgotText}>Forgot Password?</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Primary CTA */}
+                            <TouchableOpacity
+                                style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+                                onPress={handleSubmit}
+                                disabled={loading}
+                                activeOpacity={0.85}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color={c.textInverse} />
+                                ) : (
+                                    <>
+                                        <Text style={styles.primaryButtonText}>
+                                            {isLogin ? 'Sign In' : 'Create Account'}
+                                        </Text>
+                                        <Ionicons name="arrow-forward" size={18} color={c.textInverse} />
+                                    </>
+                                )}
+                            </TouchableOpacity>
+
+                            {/* Divider */}
+                            <View style={styles.dividerRow}>
+                                <View style={styles.divider} />
+                                <Text style={styles.dividerText}>
+                                    {isLogin ? 'NEW HERE?' : 'HAVE AN ACCOUNT?'}
+                                </Text>
+                                <View style={styles.divider} />
+                            </View>
+
+                            {/* Secondary link */}
+                            <TouchableOpacity
+                                style={styles.secondaryButton}
+                                onPress={() => setIsLogin(!isLogin)}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name={isLogin ? 'person-add-outline' : 'log-in-outline'}
+                                    size={17}
+                                    color={c.primary}
+                                />
+                                <Text style={styles.secondaryButtonText}>
+                                    {isLogin ? 'Create New Account' : 'Switch to Sign In'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <Text style={styles.footer}>
+                        By continuing, you agree to our Terms of Service and Privacy Policy
+                    </Text>
+                </ScrollView>
+            </View>
+        </KeyboardAvoidingView>
     );
 }
 
-function Field({
-    icon,
+// ── Ghost field component ────────────────────────────────────────────────────
+function GhostField({
     label,
+    icon,
+    fieldKey,
+    focusedField,
+    setFocusedField,
     theme,
     styles,
     rightIcon,
     onRightIconPress,
     ...props
 }: any) {
+    const c = theme.colors;
+    const isFocused = focusedField === fieldKey;
     return (
         <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>{label}</Text>
-            <View style={styles.field}>
-                <Ionicons name={icon} size={18} color={theme.colors.textMuted} />
+            <View
+                style={[
+                    styles.fieldRow,
+                    isFocused && styles.fieldRowFocused,
+                ]}
+            >
+                <Ionicons
+                    name={icon}
+                    size={18}
+                    color={isFocused ? c.primary : c.textMuted}
+                />
                 <TextInput
-                    style={styles.input}
-                    placeholderTextColor={theme.colors.textMuted}
+                    style={styles.fieldInput}
+                    placeholderTextColor={c.textMuted}
+                    onFocus={() => setFocusedField(fieldKey)}
+                    onBlur={() => setFocusedField(null)}
                     {...props}
                 />
                 {rightIcon && (
                     <TouchableOpacity onPress={onRightIconPress} style={{ padding: 4 }}>
-                        <Ionicons name={rightIcon} size={20} color={theme.colors.textMuted} />
+                        <Ionicons name={rightIcon} size={20} color={c.textMuted} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -265,164 +329,220 @@ function Field({
     );
 }
 
-const getStyles = (theme: any) => StyleSheet.create({
-    container: {
-        flexGrow: 1,
-        backgroundColor: theme.colors.background,
-    },
-    topBar: {
-        height: 56,
-        backgroundColor: theme.colors.primaryDark,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 18,
-    },
-    topBarTitle: {
-        color: theme.colors.textInverse,
-        fontSize: 16,
-        fontWeight: '800',
-    },
-    heroImage: {
-        height: 180,
-        backgroundColor: theme.colors.primaryDark,
-        overflow: 'hidden',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    logoImage: {
-        width: 100,
-        height: 100,
-    },
-    content: {
-        paddingHorizontal: 20,
-        paddingTop: 28,
-    },
-    title: {
-        ...theme.typography.h2,
-        textAlign: 'center',
-    },
-    subtitle: {
-        ...theme.typography.body,
-        textAlign: 'center',
-        color: theme.colors.textSecondary,
-        marginTop: 8,
-        marginBottom: 20,
-    },
-    tabs: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
-        marginBottom: 20,
-    },
-    tab: {
-        flex: 1,
-        paddingBottom: 12,
-        alignItems: 'center',
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-    },
-    tabActive: {
-        borderBottomColor: theme.colors.primary,
-    },
-    tabText: {
-        color: theme.colors.textMuted,
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    tabTextActive: {
-        color: theme.colors.textPrimary,
-    },
-    form: {
-        gap: 14,
-        paddingBottom: 28,
-    },
-    fieldWrap: {
-        gap: 8,
-    },
-    fieldLabel: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: theme.colors.textSecondary,
-    },
-    field: {
-        height: 56,
-        borderRadius: theme.borderRadius.lg,
-        backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        paddingHorizontal: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    input: {
-        flex: 1,
-        color: theme.colors.textPrimary,
-        fontSize: 16,
-    },
-    forgotWrap: {
-        alignItems: 'flex-end',
-        marginTop: -4,
-    },
-    forgotText: {
-        color: theme.colors.primary,
-        fontWeight: '700',
-        fontSize: 13,
-    },
-    primaryButton: {
-        height: 56,
-        borderRadius: theme.borderRadius.lg,
-        backgroundColor: theme.colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'row',
-        gap: 8,
-        marginTop: 4,
-    },
-    primaryButtonText: {
-        color: theme.colors.textInverse,
-        fontSize: 18,
-        fontWeight: '800',
-    },
-    dividerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginTop: 2,
-    },
-    divider: {
-        flex: 1,
-        height: 1,
-        backgroundColor: theme.colors.border,
-    },
-    dividerText: {
-        color: theme.colors.textMuted,
-        fontSize: 11,
-        fontWeight: '800',
-    },
-    secondaryButton: {
-        height: 54,
-        borderRadius: theme.borderRadius.lg,
-        backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'row',
-        gap: 8,
-    },
-    secondaryButtonText: {
-        color: theme.colors.primary,
-        fontSize: 17,
-        fontWeight: '800',
-    },
-    footer: {
-        color: theme.colors.textMuted,
-        textAlign: 'center',
-        fontSize: 12,
-        lineHeight: 18,
-        paddingHorizontal: 28,
-        paddingBottom: 28,
-    },
-});
+// ── Styles ───────────────────────────────────────────────────────────────────
+const getStyles = (theme: any) => {
+    const c = theme.colors;
+    const r = theme.borderRadius;
+    return StyleSheet.create({
+        gradientBg: {
+            flex: 1,
+            backgroundColor: c.background,
+        },
+        container: {
+            flexGrow: 1,
+            paddingHorizontal: 20,
+            paddingBottom: 32,
+            paddingTop: 56,
+        },
+        // Logo
+        logoSection: {
+            alignItems: 'center',
+            marginBottom: 32,
+        },
+        logoRing: {
+            width: 88,
+            height: 88,
+            borderRadius: 44,
+            borderWidth: 2,
+            borderColor: c.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: c.primaryLight,
+            marginBottom: 14,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: theme.isDark ? 0.5 : 0.2,
+            shadowRadius: 20,
+            elevation: 8,
+        },
+        logoImage: {
+            width: 64,
+            height: 64,
+        },
+        appName: {
+            fontSize: 26,
+            fontWeight: '800',
+            color: c.textPrimary,
+            letterSpacing: -0.5,
+        },
+        appTagline: {
+            fontSize: 13,
+            color: c.textMuted,
+            marginTop: 4,
+            letterSpacing: 0.3,
+        },
+        // Glass card
+        card: {
+            backgroundColor: theme.isDark ? c.glass : c.surface,
+            borderRadius: r.xl,
+            borderWidth: 1,
+            borderColor: theme.isDark ? c.borderGlass : c.border,
+            overflow: 'hidden',
+            ...(theme.isDark
+                ? {
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 12 },
+                    shadowOpacity: 0.45,
+                    shadowRadius: 24,
+                    elevation: 10,
+                }
+                : {
+                    shadowColor: '#0b1326',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 20,
+                    elevation: 5,
+                }),
+        },
+        // Tabs
+        tabs: {
+            flexDirection: 'row',
+            borderBottomWidth: 1,
+            borderBottomColor: c.border,
+        },
+        tab: {
+            flex: 1,
+            paddingVertical: 16,
+            alignItems: 'center',
+            position: 'relative',
+        },
+        tabActive: {},
+        tabText: {
+            fontSize: 14,
+            fontWeight: '700',
+            color: c.textMuted,
+        },
+        tabTextActive: {
+            color: c.primary,
+        },
+        tabIndicator: {
+            position: 'absolute',
+            bottom: -1,
+            left: '20%',
+            right: '20%',
+            height: 2,
+            borderRadius: 1,
+            backgroundColor: c.primary,
+        },
+        // Form
+        form: {
+            padding: 20,
+            gap: 14,
+        },
+        fieldWrap: {
+            gap: 6,
+        },
+        fieldLabel: {
+            fontSize: 12,
+            fontWeight: '700',
+            color: c.textSecondary,
+            letterSpacing: 0.5,
+            textTransform: 'uppercase',
+        },
+        fieldRow: {
+            height: 52,
+            borderRadius: r.md,
+            backgroundColor: theme.isDark ? c.surfaceAlt : c.surfaceLow,
+            borderWidth: 1,
+            borderColor: c.border,
+            paddingHorizontal: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+        },
+        fieldRowFocused: {
+            borderColor: c.primary,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: theme.isDark ? 0.35 : 0.2,
+            shadowRadius: 8,
+            elevation: 4,
+        },
+        fieldInput: {
+            flex: 1,
+            color: c.textPrimary,
+            fontSize: 15,
+        },
+        forgotWrap: {
+            alignSelf: 'flex-end',
+            marginTop: -4,
+        },
+        forgotText: {
+            color: c.primary,
+            fontWeight: '700',
+            fontSize: 13,
+        },
+        primaryButton: {
+            height: 54,
+            borderRadius: r.lg,
+            backgroundColor: c.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
+            marginTop: 4,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.35,
+            shadowRadius: 12,
+            elevation: 6,
+        },
+        primaryButtonDisabled: {
+            opacity: 0.65,
+        },
+        primaryButtonText: {
+            color: c.textInverse,
+            fontSize: 16,
+            fontWeight: '800',
+        },
+        dividerRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+        },
+        divider: {
+            flex: 1,
+            height: 1,
+            backgroundColor: c.border,
+        },
+        dividerText: {
+            color: c.textMuted,
+            fontSize: 11,
+            fontWeight: '800',
+            letterSpacing: 1,
+        },
+        secondaryButton: {
+            height: 52,
+            borderRadius: r.md,
+            borderWidth: 1.5,
+            borderColor: c.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
+        },
+        secondaryButtonText: {
+            color: c.primary,
+            fontSize: 15,
+            fontWeight: '700',
+        },
+        footer: {
+            color: c.textMuted,
+            textAlign: 'center',
+            fontSize: 11,
+            lineHeight: 17,
+            paddingHorizontal: 20,
+            marginTop: 24,
+        },
+    });
+};

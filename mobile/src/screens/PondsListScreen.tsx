@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Image } from 'react-native';
+import {
+    View, Text, StyleSheet, FlatList, TouchableOpacity,
+    Alert, Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -10,6 +13,138 @@ import { Q } from '@nozbe/watermelondb';
 import withObservables from '@nozbe/with-observables';
 import { fetchSpeciesLookup, getSpeciesDisplay, SpeciesLookup } from '../utils/speciesLookup';
 import * as ImagePicker from 'expo-image-picker';
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+const formatStockingDate = (timestamp?: number) => {
+    if (!timestamp) return null;
+    return new Date(timestamp).toLocaleDateString('en-IN', {
+        day: 'numeric', month: 'short', year: 'numeric',
+    });
+};
+
+// ─── PondCard ────────────────────────────────────────────────────────────────
+
+function PondCard({
+    item, theme, styles, speciesLookup,
+    onEdit, onDelete, onPickImage,
+}: {
+    item: Pond;
+    theme: any;
+    styles: ReturnType<typeof getStyles>;
+    speciesLookup: SpeciesLookup;
+    onEdit: () => void;
+    onDelete: () => void;
+    onPickImage: () => void;
+}) {
+    const species = getSpeciesDisplay(item.speciesId, speciesLookup);
+    const stockingDate = formatStockingDate(item.stockingDate);
+    const isActive = (item.status || '').toUpperCase() === 'ACTIVE';
+
+    return (
+        <View style={styles.card}>
+            {/* ── Hero image section ── */}
+            <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={onPickImage}
+                style={styles.heroWrapper}
+            >
+                {item.imageUri ? (
+                    <Image source={{ uri: item.imageUri }} style={styles.heroImage} />
+                ) : (
+                    <View style={styles.heroPlaceholder}>
+                        <Ionicons name="camera-outline" size={32} color={theme.colors.textMuted} />
+                        <Text style={styles.heroPlaceholderText}>Tap to add pond photo</Text>
+                    </View>
+                )}
+                {/* gradient overlay — simulated with layered semi-transparent Views */}
+                <View style={styles.heroGradient} pointerEvents="none">
+                    <View style={styles.heroGradientInner} />
+                </View>
+                <View style={styles.heroOverlayContent}>
+                    <Text style={styles.heroTitle} numberOfLines={1}>{item.name}</Text>
+                    <View style={[styles.statusBadge, isActive ? styles.statusBadgeActive : styles.statusBadgeFallow]}>
+                        <Text style={[styles.statusBadgeText, isActive ? styles.statusBadgeTextActive : styles.statusBadgeTextFallow]}>
+                            {(item.status || 'UNKNOWN').toUpperCase()}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* camera update chip – only when image exists */}
+                {item.imageUri ? (
+                    <View style={styles.cameraChip}>
+                        <Ionicons name="camera" size={13} color="#fff" />
+                        <Text style={styles.cameraChipText}>Update</Text>
+                    </View>
+                ) : null}
+            </TouchableOpacity>
+
+            {/* ── Card body ── */}
+            <View style={styles.cardBody}>
+                {/* Section: Stats row */}
+                <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>AREA</Text>
+                        <Text style={styles.statValue}>{item.areaHectares ?? '—'}<Text style={styles.statUnit}> ha</Text></Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>SOURCE</Text>
+                        <Text style={styles.statValue}>{item.waterSourceType || '—'}</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>SYSTEM</Text>
+                        <Text style={styles.statValue}>{item.systemType || '—'}</Text>
+                    </View>
+                </View>
+
+                {/* Section: Species */}
+                {species ? (
+                    <View style={styles.infoRow}>
+                        <Ionicons name="fish-outline" size={14} color={theme.colors.primary} />
+                        <Text style={styles.infoLabel}>{species.label}</Text>
+                        {species.scientificName && species.scientificName !== species.label ? (
+                            <Text style={styles.infoMeta}>({species.scientificName})</Text>
+                        ) : null}
+                    </View>
+                ) : (
+                    <View style={styles.infoRow}>
+                        <Ionicons name="fish-outline" size={14} color={theme.colors.textMuted} />
+                        <Text style={styles.infoMeta}>Species not added yet</Text>
+                    </View>
+                )}
+
+                {/* Section: Stocking date */}
+                {stockingDate ? (
+                    <View style={styles.infoRow}>
+                        <Ionicons name="calendar-outline" size={14} color={theme.colors.primary} />
+                        <Text style={styles.infoMeta}>Stocked {stockingDate}</Text>
+                    </View>
+                ) : (
+                    <View style={styles.infoRow}>
+                        <Ionicons name="calendar-outline" size={14} color={theme.colors.textMuted} />
+                        <Text style={styles.infoMeta}>Add stocking date to unlock harvest tracking</Text>
+                    </View>
+                )}
+
+                {/* ── Action row ── */}
+                <View style={styles.actionRow}>
+                    <TouchableOpacity style={styles.editButton} onPress={onEdit}>
+                        <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
+                        <Text style={styles.editButtonText}>Edit Pond</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
+                        <Ionicons name="trash-outline" size={16} color={theme.colors.error} />
+                        <Text style={styles.deleteButtonText}>Delete</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </View>
+    );
+}
+
+// ─── PondsList (inner reactive component) ────────────────────────────────────
 
 const PondsList = ({ ponds }: { ponds: Pond[] }) => {
     const navigation = useNavigation<any>();
@@ -37,7 +172,6 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
                                     await pond.destroyPermanently();
                                     return;
                                 }
-
                                 await pond.markAsDeleted();
                             });
                         } catch (error: any) {
@@ -49,23 +183,12 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
         );
     };
 
-    const formatStockingDate = (timestamp?: number) => {
-        if (!timestamp) return null;
-        return new Date(timestamp).toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-        });
-    };
-
     const saveImageToPond = async (pond: Pond, uri: string) => {
         try {
             await database.write(async () => {
-                await pond.update((p) => {
-                    p.imageUri = uri;
-                });
+                await pond.update((p) => { p.imageUri = uri; });
             });
-        } catch (e: any) {
+        } catch {
             Alert.alert('Error', 'Failed to update pond photo.');
         }
     };
@@ -84,13 +207,11 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
                             Alert.alert('Permission Denied', 'Camera access is required.');
                             return;
                         }
-                        const result = await ImagePicker.launchCameraAsync({
-                            quality: 0.7,
-                        });
+                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
                         if (!result.canceled && result.assets?.length) {
                             saveImageToPond(pond, result.assets[0].uri);
                         }
-                    }
+                    },
                 },
                 {
                     text: 'Choose from Gallery',
@@ -107,30 +228,46 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
                         if (!result.canceled && result.assets?.length) {
                             saveImageToPond(pond, result.assets[0].uri);
                         }
-                    }
-                }
+                    },
+                },
             ]
         );
     };
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
+            {/* ── Header ── */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'Profile' })}>
-                    <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
+                <TouchableOpacity
+                    style={styles.headerIconBtn}
+                    onPress={() => navigation.navigate('Main', { screen: 'Profile' })}
+                >
+                    <Ionicons name="arrow-back" size={20} color={theme.colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Ponds</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('AddEditPond')}>
-                    <Ionicons name="add" size={24} color={theme.colors.primary} />
+                <TouchableOpacity
+                    style={[styles.headerIconBtn, styles.headerAddBtn]}
+                    onPress={() => navigation.navigate('AddEditPond')}
+                >
+                    <Ionicons name="add" size={22} color={theme.colors.textInverse} />
                 </TouchableOpacity>
             </View>
 
             {ponds.length === 0 ? (
+                /* ── Empty state ── */
                 <View style={styles.emptyState}>
-                    <Ionicons name="water-outline" size={68} color={theme.colors.textMuted} />
+                    <View style={styles.emptyIconWrap}>
+                        <Ionicons name="water-outline" size={52} color={theme.colors.primary} />
+                    </View>
                     <Text style={styles.emptyTitle}>No Ponds Yet</Text>
-                    <Text style={styles.emptySub}>Add your first pond to start tracking operations.</Text>
-                    <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('AddEditPond')}>
+                    <Text style={styles.emptySub}>
+                        Add your first pond to start tracking operations, water quality, and harvest progress.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.primaryButton}
+                        onPress={() => navigation.navigate('AddEditPond')}
+                    >
+                        <Ionicons name="add" size={18} color={theme.colors.textInverse} />
                         <Text style={styles.primaryButtonText}>Add Pond</Text>
                     </TouchableOpacity>
                 </View>
@@ -139,76 +276,24 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
                     data={ponds}
                     keyExtractor={item => item.id}
                     contentContainerStyle={styles.list}
-                    renderItem={({ item }) => {
-                        const species = getSpeciesDisplay(item.speciesId, speciesLookup);
-                        const stockingDate = formatStockingDate(item.stockingDate);
-
-                        return (
-                        <View style={styles.card}>
-                            <View style={styles.cardTop}>
-                                <Text style={styles.cardTitle}>{item.name}</Text>
-                                <View style={[styles.badge, (item.status || '').toUpperCase() === 'ACTIVE' ? styles.badgeActive : styles.badgeFallow]}>
-                                    <Text style={styles.badgeText}>{(item.status || 'UNKNOWN').toUpperCase()}</Text>
-                                </View>
-                            </View>
-                            <Text style={styles.cardMeta}>{item.areaHectares} hectares • {item.waterSourceType}</Text>
-                            {species ? (
-                                <View style={styles.infoRow}>
-                                    <Ionicons name="fish-outline" size={14} color={theme.colors.primary} />
-                                    <Text style={styles.cardMetaStrong}>{species.label}</Text>
-                                    {species.scientificName && species.scientificName !== species.label ? (
-                                        <Text style={styles.cardMetaSecondary}>({species.scientificName})</Text>
-                                    ) : null}
-                                </View>
-                            ) : (
-                                <Text style={styles.cardMetaSecondary}>Species not added yet</Text>
-                            )}
-                            {stockingDate ? (
-                                <View style={styles.infoRow}>
-                                    <Ionicons name="calendar-outline" size={14} color={theme.colors.primary} />
-                                    <Text style={styles.cardMetaSecondary}>Stocked on {stockingDate}</Text>
-                                </View>
-                            ) : (
-                                <Text style={styles.cardMetaSecondary}>Add a stocking date to unlock harvest tracking</Text>
-                            )}
-
-                            <View style={styles.imageSection}>
-                                {item.imageUri ? (
-                                    <TouchableOpacity style={styles.imageWrapper} onPress={() => handlePickImage(item)}>
-                                        <Image source={{ uri: item.imageUri }} style={styles.pondImage} />
-                                        <View style={styles.imageOverlay}>
-                                            <Ionicons name="camera" size={16} color="#fff" />
-                                            <Text style={styles.imageOverlayText}>Update Photo</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <TouchableOpacity style={styles.noImageContainer} onPress={() => handlePickImage(item)}>
-                                        <Ionicons name="camera-outline" size={24} color={theme.colors.textMuted} />
-                                        <Text style={styles.noImageText}>Add Pond Photo</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-
-                            <View style={styles.cardActions}>
-                                <TouchableOpacity
-                                    style={styles.editButton}
-                                    onPress={() => navigation.navigate('AddEditPond', { pondId: item.id })}
-                                >
-                                    <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
-                                    <Text style={styles.editButtonText}>Edit pond</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item)}>
-                                    <Ionicons name="trash-outline" size={16} color={theme.colors.error} />
-                                    <Text style={styles.deleteButtonText}>Delete</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}}
+                    renderItem={({ item }) => (
+                        <PondCard
+                            item={item}
+                            theme={theme}
+                            styles={styles}
+                            speciesLookup={speciesLookup}
+                            onEdit={() => navigation.navigate('AddEditPond', { pondId: item.id })}
+                            onDelete={() => handleDelete(item)}
+                            onPickImage={() => handlePickImage(item)}
+                        />
+                    )}
                 />
             )}
         </SafeAreaView>
     );
 };
+
+// ─── withObservables wrapper ──────────────────────────────────────────────────
 
 const EnhancedPondsList = withObservables([], () => ({
     ponds: database.collections
@@ -221,84 +306,303 @@ export default function PondsListScreen() {
     return <EnhancedPondsList />;
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const getStyles = (theme: any) => StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.colors.background },
+    container: {
+        flex: 1,
+        backgroundColor: theme.colors.background,
+    },
+
+    // Header
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingVertical: 14,
+        paddingVertical: 12,
     },
-    headerTitle: { color: theme.colors.textPrimary, fontSize: 22, fontWeight: '800' },
-    list: { padding: 16, paddingBottom: 120 },
+    headerIconBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.colors.surfaceAlt,
+        borderWidth: 1,
+        borderColor: theme.colors.borderGlass,
+    },
+    headerAddBtn: {
+        backgroundColor: theme.colors.primary,
+        borderColor: theme.colors.primary,
+    },
+    headerTitle: {
+        color: theme.colors.textPrimary,
+        fontSize: 22,
+        fontWeight: '800',
+        letterSpacing: -0.3,
+    },
+
+    // List
+    list: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 120,
+        gap: 16,
+    },
+
+    // Card shell
     card: {
         backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
         borderRadius: theme.borderRadius.lg,
-        padding: 16,
-        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: theme.colors.borderGlass,
+        overflow: 'hidden',
+        ...theme.shadows.md,
     },
-    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-    cardTitle: { flex: 1, color: theme.colors.textPrimary, fontSize: 18, fontWeight: '800' },
-    badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-    badgeActive: { backgroundColor: theme.colors.primaryLight },
-    badgeFallow: { backgroundColor: theme.colors.accentSoft },
-    badgeText: { color: theme.colors.textPrimary, fontWeight: '800', fontSize: 11 },
-    cardMeta: { color: theme.colors.textSecondary, marginTop: 10 },
-    cardMetaStrong: { color: theme.colors.textPrimary, fontWeight: '700' },
-    cardMetaSecondary: { color: theme.colors.textSecondary, marginTop: 8 },
-    infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-    cardActions: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+
+    // Hero image
+    heroWrapper: {
+        height: 180,
+        backgroundColor: theme.colors.surfaceAlt,
+        position: 'relative',
+    },
+    heroImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    heroPlaceholder: {
+        flex: 1,
         alignItems: 'center',
-        marginTop: 16,
-        gap: 12,
+        justifyContent: 'center',
+        gap: 8,
+    },
+    heroPlaceholderText: {
+        color: theme.colors.textMuted,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    heroGradient: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 90,
+    },
+    heroGradientInner: {
+        flex: 1,
+        backgroundColor: 'rgba(11,19,38,0.75)',
+    },
+    heroOverlayContent: {
+        position: 'absolute',
+        left: 14,
+        right: 14,
+        bottom: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
+    heroTitle: {
+        flex: 1,
+        color: '#ffffff',
+        fontSize: 18,
+        fontWeight: '800',
+        letterSpacing: -0.2,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
+    cameraChip: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 20,
+    },
+    cameraChipText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+
+    // Status badge
+    statusBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: theme.borderRadius.full,
+    },
+    statusBadgeActive: {
+        backgroundColor: theme.colors.secondary,
+    },
+    statusBadgeFallow: {
+        backgroundColor: theme.colors.accentSoft,
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+    },
+    statusBadgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.8,
+    },
+    statusBadgeTextActive: {
+        color: theme.colors.textOnSecondary,
+    },
+    statusBadgeTextFallow: {
+        color: theme.colors.accent,
+    },
+
+    // Card body
+    cardBody: {
+        padding: 14,
+        gap: 10,
+    },
+
+    // Stats row
+    statsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.surfaceAlt,
+        borderRadius: theme.borderRadius.md,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: theme.colors.borderGlass,
+    },
+    statItem: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 2,
+    },
+    statLabel: {
+        color: theme.colors.textMuted,
+        fontSize: 9,
+        fontWeight: '700',
+        letterSpacing: 1.5,
+    },
+    statValue: {
+        color: theme.colors.textPrimary,
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    statUnit: {
+        color: theme.colors.textMuted,
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    statDivider: {
+        width: 1,
+        height: 28,
+        backgroundColor: theme.colors.borderGlass,
+    },
+
+    // Info rows
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+        flexWrap: 'wrap',
+    },
+    infoLabel: {
+        color: theme.colors.textPrimary,
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    infoMeta: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+    },
+
+    // Action row
+    actionRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 4,
     },
     editButton: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        borderRadius: 14,
+        gap: 6,
+        paddingVertical: 11,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceAlt,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        paddingVertical: 12,
-        backgroundColor: theme.colors.surfaceAlt,
     },
-    editButtonText: { color: theme.colors.textPrimary, fontWeight: '700' },
+    editButtonText: {
+        color: theme.colors.primary,
+        fontWeight: '700',
+        fontSize: 13,
+    },
     deleteButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        borderRadius: 14,
-        backgroundColor: theme.colors.errorSoft || `${theme.colors.error}22`,
+        paddingHorizontal: 16,
+        paddingVertical: 11,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.errorSoft,
+        borderWidth: 1,
+        borderColor: theme.colors.error,
     },
-    deleteButtonText: { color: theme.colors.error, fontWeight: '700' },
-    imageSection: { marginTop: 16 },
-    imageWrapper: { borderRadius: 12, overflow: 'hidden', aspectRatio: 4/3, backgroundColor: theme.colors.surfaceAlt, position: 'relative' },
-    pondImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-    imageOverlay: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 4 },
-    imageOverlayText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-    noImageContainer: { height: 100, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: theme.colors.surfaceAlt },
-    noImageText: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600' },
-    emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-    emptyTitle: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '800', marginTop: 12 },
-    emptySub: { color: theme.colors.textSecondary, marginTop: 8, textAlign: 'center' },
-    primaryButton: {
-        marginTop: 18,
-        height: 52,
-        borderRadius: 18,
-        backgroundColor: theme.colors.primary,
+    deleteButtonText: {
+        color: theme.colors.error,
+        fontWeight: '700',
+        fontSize: 13,
+    },
+
+    // Empty state
+    emptyState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 32,
+        gap: 12,
+    },
+    emptyIconWrap: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        backgroundColor: theme.colors.primaryLight,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 24,
+        marginBottom: 4,
     },
-    primaryButtonText: { color: theme.colors.textInverse, fontWeight: '800' },
+    emptyTitle: {
+        color: theme.colors.textPrimary,
+        fontSize: 26,
+        fontWeight: '800',
+        letterSpacing: -0.3,
+    },
+    emptySub: {
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
+        fontSize: 14,
+    },
+    primaryButton: {
+        marginTop: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        height: 52,
+        borderRadius: theme.borderRadius.lg,
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: 28,
+        ...theme.shadows.glow,
+    },
+    primaryButtonText: {
+        color: theme.colors.textInverse,
+        fontWeight: '800',
+        fontSize: 15,
+    },
 });

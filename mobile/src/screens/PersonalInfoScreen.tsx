@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-    View, Text, StyleSheet, ScrollView, TextInput,
-    TouchableOpacity, ActivityIndicator, Alert,
+    View,
+    Text,
+    StyleSheet,
+    ScrollView,
+    TextInput,
+    TouchableOpacity,
+    ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -61,6 +67,8 @@ const STATES = ['AP', 'AR', 'AS', 'BR', 'GA', 'GJ', 'HR', 'HP', 'JK', 'KA', 'KL'
 
 export default function PersonalInfoScreen({ navigation }: any) {
     const { theme } = useTheme();
+    const c = theme.colors;
+    const r = theme.borderRadius;
     const styles = getStyles(theme);
 
     const [userId, setUserId] = useState('');
@@ -71,6 +79,8 @@ export default function PersonalInfoScreen({ navigation }: any) {
     const [location, setLocation] = useState<Partial<LocationSelection>>({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [nameFocused, setNameFocused] = useState(false);
+    const [phoneFocused, setPhoneFocused] = useState(false);
 
     useEffect(() => {
         loadProfile().then(p => {
@@ -93,7 +103,6 @@ export default function PersonalInfoScreen({ navigation }: any) {
 
     const handleStateChange = (code: string) => {
         setStateCode(code);
-        // Reset location cascade when state changes
         setLocation({});
     };
 
@@ -128,176 +137,485 @@ export default function PersonalInfoScreen({ navigation }: any) {
     };
 
     if (loading) {
-        return <View style={styles.center}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="large" color={c.primary} />
+            </View>
+        );
     }
 
     const locationComplete = stateCode && location.districtCode && location.blockCode && location.panchayatCode;
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
+
+            {/* ── Header ────────────────────────────────────────── */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'Profile' })}>
-                    <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
+                <TouchableOpacity
+                    style={styles.backBtn}
+                    onPress={() => navigation.navigate('Main', { screen: 'Profile' })}
+                >
+                    <Ionicons name="arrow-back" size={22} color={c.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Personal Info</Text>
-                <View style={{ width: 22 }} />
+                <View style={{ width: 38 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+                {/* ── Hero card ──────────────────────────────────── */}
                 <View style={styles.heroCard}>
-                    <View style={styles.avatar}>
-                        <Ionicons name="person" size={34} color={theme.colors.textInverse} />
+                    <View style={styles.avatarRing}>
+                        <View style={styles.avatar}>
+                            <Ionicons name="person" size={30} color={c.textInverse} />
+                        </View>
                     </View>
                     <Text style={styles.heroName}>{name || 'Your Name'}</Text>
-                    <Text style={styles.heroMeta}>{phone || '+91 --'}</Text>
+                    <Text style={styles.heroMeta}>{phone || '+91 —'}</Text>
                     {locationComplete ? (
-                        <Text style={[styles.heroMeta, { color: theme.colors.primary, marginTop: 4 }]}>
-                            {location.panchayatName}, {location.blockName}
-                        </Text>
+                        <View style={styles.heroBadge}>
+                            <Ionicons name="location" size={12} color={c.primary} />
+                            <Text style={[styles.heroBadgeText, { color: c.primary }]}>
+                                {location.panchayatName}, {location.blockName}
+                            </Text>
+                        </View>
                     ) : (
-                        <Text style={[styles.heroMeta, { color: theme.colors.error || '#e74c3c', marginTop: 4 }]}>
-                            Location incomplete — required for doctor booking
-                        </Text>
+                        <View style={[styles.heroBadge, styles.heroBadgeWarn]}>
+                            <Ionicons name="alert-circle-outline" size={12} color={c.error} />
+                            <Text style={[styles.heroBadgeText, { color: c.error }]}>
+                                Location incomplete — required for doctor booking
+                            </Text>
+                        </View>
                     )}
                 </View>
 
-                <Field label="Full Name" value={name} onChangeText={setName} theme={theme} styles={styles} />
-                <Field label="Phone Number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" theme={theme} styles={styles} />
+                {/* ── Basic info ─────────────────────────────────── */}
+                <Text style={styles.sectionLabel}>BASIC INFORMATION</Text>
+                <View style={styles.fieldsCard}>
+                    <LabeledInput
+                        label="Full Name"
+                        icon="person-outline"
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="Your full name"
+                        isFocused={nameFocused}
+                        onFocus={() => setNameFocused(true)}
+                        onBlur={() => setNameFocused(false)}
+                        theme={theme}
+                        styles={styles}
+                        last={false}
+                    />
+                    <View style={styles.fieldDivider} />
+                    <LabeledInput
+                        label="Phone Number"
+                        icon="phone-portrait-outline"
+                        value={phone}
+                        onChangeText={setPhone}
+                        keyboardType="phone-pad"
+                        placeholder="+91 00000 00000"
+                        isFocused={phoneFocused}
+                        onFocus={() => setPhoneFocused(true)}
+                        onBlur={() => setPhoneFocused(false)}
+                        theme={theme}
+                        styles={styles}
+                        last
+                    />
+                </View>
 
-                <Text style={styles.sectionLabel}>Farmer Category</Text>
+                {/* ── Farmer category ────────────────────────────── */}
+                <Text style={styles.sectionLabel}>FARMER CATEGORY</Text>
                 <View style={styles.segmentRow}>
                     {FARMER_CATEGORIES.map(cat => (
-                        <TouchableOpacity key={cat} style={[styles.segment, farmerCategory === cat && styles.segmentActive]} onPress={() => setFarmerCategory(cat)}>
-                            <Text style={[styles.segmentText, farmerCategory === cat && styles.segmentTextActive]}>{cat}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                <Text style={styles.sectionLabel}>Home State</Text>
-                <View style={styles.stateRow}>
-                    {STATES.map(code => (
-                        <TouchableOpacity key={code} style={[styles.stateChip, stateCode === code && styles.stateChipActive]} onPress={() => handleStateChange(code)}>
-                            <Text style={[styles.stateChipText, stateCode === code && styles.stateChipTextActive]}>{code}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                {stateCode ? (
-                    <View style={styles.locationSection}>
-                        <Text style={styles.sectionLabel}>Home Location</Text>
-                        <Text style={styles.locationHint}>
-                            Your panchayat determines which doctor is assigned to you.
-                        </Text>
-                        <LocationCascadePicker
-                            stateCode={stateCode}
-                            value={location}
-                            onChange={setLocation}
-                        />
-                        {stateCode && !['BR'].includes(stateCode) && (
-                            <Text style={[styles.locationHint, { color: theme.colors.textMuted, marginTop: 4 }]}>
-                                District/block/panchayat data for {stateCode} coming soon.
+                        <TouchableOpacity
+                            key={cat}
+                            style={[styles.segment, farmerCategory === cat && styles.segmentActive]}
+                            onPress={() => setFarmerCategory(cat)}
+                        >
+                            <Text style={[styles.segmentText, farmerCategory === cat && styles.segmentTextActive]}>
+                                {cat}
                             </Text>
-                        )}
-                    </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* ── Home state ─────────────────────────────────── */}
+                <Text style={styles.sectionLabel}>HOME STATE</Text>
+                <View style={styles.stateGrid}>
+                    {STATES.map(code => (
+                        <TouchableOpacity
+                            key={code}
+                            style={[styles.stateChip, stateCode === code && styles.stateChipActive]}
+                            onPress={() => handleStateChange(code)}
+                        >
+                            <Text style={[styles.stateChipText, stateCode === code && styles.stateChipTextActive]}>
+                                {code}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* ── Location cascade ───────────────────────────── */}
+                {stateCode ? (
+                    <>
+                        <Text style={styles.sectionLabel}>HOME LOCATION</Text>
+                        <View style={styles.locationCard}>
+                            <View style={styles.locationHintRow}>
+                                <Ionicons name="information-circle-outline" size={15} color={c.primary} />
+                                <Text style={styles.locationHint}>
+                                    Your panchayat determines which doctor is assigned to you.
+                                </Text>
+                            </View>
+                            <LocationCascadePicker
+                                stateCode={stateCode}
+                                value={location}
+                                onChange={setLocation}
+                            />
+                            {stateCode && !['BR'].includes(stateCode) && (
+                                <Text style={styles.comingSoonText}>
+                                    District/block/panchayat data for {stateCode} coming soon.
+                                </Text>
+                            )}
+                        </View>
+                    </>
                 ) : null}
 
-                <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                    {saving ? <ActivityIndicator color={theme.colors.textInverse} /> : <Text style={styles.saveButtonText}>Save Profile</Text>}
+                {/* ── Save button ────────────────────────────────── */}
+                <TouchableOpacity
+                    style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                    onPress={handleSave}
+                    disabled={saving}
+                    activeOpacity={0.85}
+                >
+                    {saving ? (
+                        <ActivityIndicator color={c.textInverse} />
+                    ) : (
+                        <>
+                            <Ionicons name="checkmark-circle-outline" size={20} color={c.textInverse} />
+                            <Text style={styles.saveButtonText}>Save Profile</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
+
             </ScrollView>
         </SafeAreaView>
     );
 }
 
-function Field({ label, theme, styles, ...props }: any) {
+// ── Labeled input row ────────────────────────────────────────────────────────
+function LabeledInput({
+    label,
+    icon,
+    isFocused,
+    onFocus,
+    onBlur,
+    theme,
+    styles,
+    last,
+    ...props
+}: any) {
+    const c = theme.colors;
     return (
-        <View style={styles.fieldWrap}>
-            <Text style={styles.fieldLabel}>{label}</Text>
-            <TextInput style={styles.input} placeholderTextColor={theme.colors.textMuted} {...props} />
+        <View style={[styles.labeledRow, last && { borderBottomWidth: 0 }]}>
+            <Text style={styles.inputLabel}>{label}</Text>
+            <View style={[styles.inputRow, isFocused && styles.inputRowFocused]}>
+                <Ionicons name={icon} size={16} color={isFocused ? c.primary : c.textMuted} />
+                <TextInput
+                    style={styles.textInput}
+                    placeholderTextColor={c.textMuted}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                    {...props}
+                />
+            </View>
         </View>
     );
 }
 
-const getStyles = (theme: any) => StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.colors.background },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-    },
-    headerTitle: { color: theme.colors.textPrimary, fontSize: 22, fontWeight: '800' },
-    content: { padding: 16, paddingBottom: 120 },
-    heroCard: {
-        alignItems: 'center',
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.xl,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        padding: 20,
-        marginBottom: 18,
-    },
-    avatar: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: theme.colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    heroName: { color: theme.colors.textPrimary, fontSize: 22, fontWeight: '800', marginTop: 12 },
-    heroMeta: { color: theme.colors.textMuted, marginTop: 4 },
-    fieldWrap: { marginBottom: 14 },
-    fieldLabel: { color: theme.colors.textSecondary, fontWeight: '700', marginBottom: 8 },
-    input: {
-        minHeight: 54,
-        borderRadius: 14,
-        backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        paddingHorizontal: 14,
-        color: theme.colors.textPrimary,
-    },
-    sectionLabel: { color: theme.colors.textSecondary, fontWeight: '700', marginTop: 8, marginBottom: 10 },
-    segmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
-    segment: {
-        height: 40,
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    segmentActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-    segmentText: { color: theme.colors.textSecondary, fontWeight: '700', fontSize: 12 },
-    segmentTextActive: { color: theme.colors.textInverse },
-    stateRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    stateChip: {
-        width: 56,
-        height: 38,
-        borderRadius: 12,
-        backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    stateChipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-    stateChipText: { color: theme.colors.textSecondary, fontWeight: '700' },
-    stateChipTextActive: { color: theme.colors.textInverse },
-    locationSection: { marginTop: 16 },
-    locationHint: { color: theme.colors.textSecondary, fontSize: 13, marginBottom: 12, lineHeight: 19 },
-    saveButton: {
-        height: 54,
-        borderRadius: 18,
-        backgroundColor: theme.colors.primary,
-        marginTop: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    saveButtonText: { color: theme.colors.textInverse, fontSize: 16, fontWeight: '800' },
-});
+// ── Styles ───────────────────────────────────────────────────────────────────
+const getStyles = (theme: any) => {
+    const c = theme.colors;
+    const r = theme.borderRadius;
+    return StyleSheet.create({
+        container: { flex: 1, backgroundColor: c.background },
+        center: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: c.background,
+        },
+
+        // Header
+        header: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+        },
+        backBtn: {
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: c.surface,
+            borderWidth: 1,
+            borderColor: c.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        headerTitle: {
+            color: c.textPrimary,
+            fontSize: 20,
+            fontWeight: '800',
+        },
+
+        content: {
+            paddingHorizontal: 16,
+            paddingBottom: 120,
+            paddingTop: 4,
+        },
+
+        // Hero
+        heroCard: {
+            alignItems: 'center',
+            backgroundColor: c.surface,
+            borderRadius: r.xl,
+            borderWidth: 1,
+            borderColor: c.border,
+            paddingVertical: 24,
+            paddingHorizontal: 20,
+            marginBottom: 20,
+        },
+        avatarRing: {
+            width: 76,
+            height: 76,
+            borderRadius: 38,
+            borderWidth: 2,
+            borderColor: c.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 12,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: theme.isDark ? 0.4 : 0.15,
+            shadowRadius: 12,
+            elevation: 5,
+        },
+        avatar: {
+            width: 62,
+            height: 62,
+            borderRadius: 31,
+            backgroundColor: c.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        heroName: {
+            color: c.textPrimary,
+            fontSize: 20,
+            fontWeight: '800',
+        },
+        heroMeta: {
+            color: c.textMuted,
+            marginTop: 4,
+            fontSize: 14,
+        },
+        heroBadge: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 5,
+            marginTop: 10,
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: r.full,
+            backgroundColor: c.primaryLight,
+        },
+        heroBadgeWarn: {
+            backgroundColor: c.errorSoft,
+        },
+        heroBadgeText: {
+            fontSize: 12,
+            fontWeight: '700',
+        },
+
+        // Section labels
+        sectionLabel: {
+            fontSize: 11,
+            fontWeight: '700',
+            color: c.textMuted,
+            letterSpacing: 2,
+            textTransform: 'uppercase',
+            marginBottom: 10,
+            marginLeft: 4,
+        },
+
+        // Fields card
+        fieldsCard: {
+            backgroundColor: c.surface,
+            borderRadius: r.lg,
+            borderWidth: 1,
+            borderColor: c.border,
+            marginBottom: 20,
+            overflow: 'hidden',
+        },
+        fieldDivider: {
+            height: 1,
+            backgroundColor: c.border,
+            marginHorizontal: 16,
+        },
+        labeledRow: {
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+        },
+        inputLabel: {
+            fontSize: 11,
+            fontWeight: '700',
+            color: c.textMuted,
+            letterSpacing: 0.5,
+            textTransform: 'uppercase',
+            marginBottom: 8,
+        },
+        inputRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            borderRadius: r.sm,
+            borderWidth: 1,
+            borderColor: c.border,
+            backgroundColor: c.surfaceAlt,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+        },
+        inputRowFocused: {
+            borderColor: c.primary,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 3,
+        },
+        textInput: {
+            flex: 1,
+            color: c.textPrimary,
+            fontSize: 15,
+        },
+
+        // Farmer category
+        segmentRow: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 20,
+        },
+        segment: {
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: r.full,
+            backgroundColor: c.surface,
+            borderWidth: 1,
+            borderColor: c.border,
+        },
+        segmentActive: {
+            backgroundColor: c.primary,
+            borderColor: c.primary,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 6,
+            elevation: 3,
+        },
+        segmentText: {
+            color: c.textSecondary,
+            fontWeight: '700',
+            fontSize: 13,
+        },
+        segmentTextActive: {
+            color: c.textInverse,
+        },
+
+        // State grid
+        stateGrid: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginBottom: 20,
+        },
+        stateChip: {
+            width: 54,
+            height: 36,
+            borderRadius: r.sm,
+            backgroundColor: c.surface,
+            borderWidth: 1,
+            borderColor: c.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        stateChipActive: {
+            backgroundColor: c.primary,
+            borderColor: c.primary,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 6,
+            elevation: 3,
+        },
+        stateChipText: {
+            color: c.textSecondary,
+            fontWeight: '700',
+            fontSize: 12,
+        },
+        stateChipTextActive: {
+            color: c.textInverse,
+        },
+
+        // Location section
+        locationCard: {
+            backgroundColor: c.surface,
+            borderRadius: r.lg,
+            borderWidth: 1,
+            borderColor: c.border,
+            padding: 16,
+            marginBottom: 20,
+        },
+        locationHintRow: {
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 7,
+            marginBottom: 14,
+        },
+        locationHint: {
+            flex: 1,
+            color: c.textSecondary,
+            fontSize: 13,
+            lineHeight: 19,
+        },
+        comingSoonText: {
+            color: c.textMuted,
+            fontSize: 12,
+            marginTop: 10,
+            fontStyle: 'italic',
+        },
+
+        // Save button
+        saveButton: {
+            height: 54,
+            borderRadius: r.lg,
+            backgroundColor: c.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
+            shadowColor: c.primary,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 12,
+            elevation: 6,
+        },
+        saveButtonDisabled: {
+            opacity: 0.65,
+        },
+        saveButtonText: {
+            color: c.textInverse,
+            fontSize: 16,
+            fontWeight: '800',
+        },
+    });
+};

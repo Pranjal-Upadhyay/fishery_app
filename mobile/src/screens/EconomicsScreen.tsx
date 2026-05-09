@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  FlatList,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -39,6 +38,7 @@ export default function EconomicsScreen() {
   const [zones, setZones] = useState<any[]>([]);
   const [activeModal, setActiveModal] = useState<'state' | 'district' | 'species' | null>(null);
   const [knowledgeInsights, setKnowledgeInsights] = useState<any | null>(null);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const WATER_SOURCES = ['BOREWELL', 'OPEN_WELL', 'CANAL', 'RIVER', 'TANK'];
   const SPECIES_OPTIONS = [
@@ -56,7 +56,6 @@ export default function EconomicsScreen() {
         const response = await geoService.getZones();
         if (response.success && response.data.length > 0) {
           setZones(response.data);
-          // Pick alphabetically first state so default is consistent
           const statesSeen = new Map<string, any>();
           response.data.forEach((z: any) => { if (!statesSeen.has(z.state_code)) statesSeen.set(z.state_code, z); });
           const sortedStates = Array.from(statesSeen.values()).sort((a, b) =>
@@ -76,11 +75,8 @@ export default function EconomicsScreen() {
   }, []);
 
   useEffect(() => {
-    if (!stateCode) {
-      return;
-    }
+    if (!stateCode) return;
 
-    // Map pond system to projectType for advisory + simulation
     let projectType: 'FRESHWATER' | 'BRACKISH' | 'RAS' = 'FRESHWATER';
     if (pondSystem === 'RAS') {
       projectType = 'RAS';
@@ -97,25 +93,18 @@ export default function EconomicsScreen() {
           farmerCategory,
           projectType: projectType as any,
         });
-
         if (isMounted && response.success) {
           setKnowledgeInsights(response.data?.knowledgeInsights ?? null);
         }
       } catch (error) {
-        if (isMounted) {
-          setKnowledgeInsights(null);
-        }
+        if (isMounted) setKnowledgeInsights(null);
         console.error('Failed to fetch economics advisory', error);
       } finally {
-        if (isMounted) {
-          setAdvisoryLoading(false);
-        }
+        if (isMounted) setAdvisoryLoading(false);
       }
     })();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [stateCode, farmerCategory, salinity, pondSystem]);
 
   const runSimulation = async () => {
@@ -128,7 +117,6 @@ export default function EconomicsScreen() {
     try {
       const landHectares = parseFloat(landSize) * 0.4047;
 
-      // Map pond system to projectType
       let projectType: string;
       if (pondSystem === 'RAS') {
         projectType = 'RAS';
@@ -167,14 +155,12 @@ export default function EconomicsScreen() {
     }
   };
 
-  // Deduplicate — each state shows once using its first zone_name as the label
   const statesMap = new Map<string, string>();
   zones.forEach(z => { if (!statesMap.has(z.state_code)) statesMap.set(z.state_code, z.zone_name); });
   const statesList = Array.from(statesMap.entries())
     .map(([value, label]) => ({ label, value }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  // Merge district_codes from all zones that belong to the selected state
   const allDistrictCodes: string[] = [];
   zones.filter(z => z.state_code === stateCode).forEach(z => {
     const codes: string[] = z.district_codes || [];
@@ -187,6 +173,7 @@ export default function EconomicsScreen() {
     .sort()
     .map(d => ({ label: d, value: d }));
   const currentDistrictLabel = relevantDistricts.find(d => d.value === districtCode)?.label || districtCode || 'Select';
+
   const profileFields = [
     Boolean(stateCode),
     Boolean(districtCode),
@@ -198,12 +185,22 @@ export default function EconomicsScreen() {
   const completedFieldCount = profileFields.filter(Boolean).length;
   const profileCompletionPercent = Math.round((completedFieldCount / profileFields.length) * 100);
 
+  // Subsidy preview data
+  const subsidyPercent = knowledgeInsights?.beneficiarySubsidyPercent;
+  const centralPercent = knowledgeInsights?.fundingShare?.centralPercent;
+  const statePercent = knowledgeInsights?.fundingShare?.statePercent;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>Economics Input</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Profitability Simulator</Text>
+          <Text style={styles.headerSubtitle}>ROI & subsidy analysis</Text>
+        </View>
         <TouchableOpacity
+          style={styles.headerAction}
           onPress={() =>
             navigation.navigate('PolicyGuidance', {
               knowledgeInsights,
@@ -212,20 +209,23 @@ export default function EconomicsScreen() {
             })
           }
         >
-          <Ionicons name="help-circle-outline" size={22} color={theme.colors.textPrimary} />
+          <Ionicons name="help-circle-outline" size={22} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.stepText}>STEP 1 OF 3</Text>
-        <View style={styles.heroRow}>
-          <Text style={styles.heroTitle}>Farm Profile</Text>
-          <Text style={styles.heroProgress}>{profileCompletionPercent}% Inputs Filled</Text>
-        </View>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${profileCompletionPercent}%` }]} />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Progress bar */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressLabelRow}>
+            <Text style={styles.progressEyebrow}>STEP 1 OF 3 — FARM PROFILE</Text>
+            <Text style={styles.progressPercent}>{profileCompletionPercent}%</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${profileCompletionPercent}%` as any }]} />
+          </View>
         </View>
 
+        {/* Learn banner */}
         <TouchableOpacity
           style={styles.learnBanner}
           onPress={() =>
@@ -235,7 +235,7 @@ export default function EconomicsScreen() {
               farmerCategory,
             })
           }
-          activeOpacity={0.9}
+          activeOpacity={0.85}
         >
           <View style={styles.learnBannerIcon}>
             <Ionicons name="school-outline" size={18} color={theme.colors.primary} />
@@ -246,141 +246,247 @@ export default function EconomicsScreen() {
               Learn FCR, BCR, subsidy logic, land needs, and how this business works in simple terms.
             </Text>
           </View>
-          <Ionicons name="arrow-forward" size={18} color={theme.colors.primary} />
+          <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} />
         </TouchableOpacity>
 
+        {/* Location & Scale */}
         <View style={styles.sectionCard}>
-          <SectionTitle icon="location-outline" title="Location & Scale" theme={theme} styles={styles} />
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionIconWrap}>
+              <Ionicons name="location-outline" size={16} color={theme.colors.primary} />
+            </View>
+            <Text style={styles.sectionLabel}>LOCATION & SCALE</Text>
+          </View>
+
           <View style={styles.row}>
-            <PickerField label="State" value={statesList.find(s => s.value === stateCode)?.label || 'Select'} onPress={() => setActiveModal('state')} theme={theme} styles={styles} />
-            <PickerField label="District" value={currentDistrictLabel} onPress={() => setActiveModal('district')} theme={theme} styles={styles} />
-          </View>
-          <InputField label="Land Size (Acres)" value={landSize} onChangeText={setLandSize} suffix="Ac" theme={theme} styles={styles} />
-        </View>
-
-        <View style={styles.sectionCard}>
-          <SectionTitle icon="water-outline" title="Operational Data" theme={theme} styles={styles} />
-          <InputField label="Water Salinity (uS/cm)" value={salinity} onChangeText={setSalinity} suffix="uS" theme={theme} styles={styles} />
-
-          <Text style={styles.fieldLabel}>Farmer Category</Text>
-          <View style={styles.segmentRow}>
-            {['GENERAL', 'WOMEN', 'SC', 'ST'].map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={[styles.segment, farmerCategory === item && styles.segmentActive]}
-                onPress={() => setFarmerCategory(item as any)}
-              >
-                <Text style={[styles.segmentText, farmerCategory === item && styles.segmentTextActive]}>{item}</Text>
-              </TouchableOpacity>
-            ))}
+            <GhostPickerField
+              label="STATE"
+              value={statesList.find(s => s.value === stateCode)?.label || 'Select'}
+              icon="map-outline"
+              onPress={() => setActiveModal('state')}
+              theme={theme}
+            />
+            <GhostPickerField
+              label="DISTRICT"
+              value={currentDistrictLabel}
+              icon="pin-outline"
+              onPress={() => setActiveModal('district')}
+              theme={theme}
+            />
           </View>
 
-          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Pond System Type</Text>
-          <View style={styles.segmentRow}>
-            {(['EARTHEN', 'BIOFLOC', 'RAS', 'CAGES'] as const).map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={[styles.segment, pondSystem === item && styles.segmentActive]}
-                onPress={() => setPondSystem(item)}
-              >
-                <Text style={[styles.segmentText, pondSystem === item && styles.segmentTextActive]}>{item}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Water Source</Text>
-          <View style={styles.segmentRow}>
-            {WATER_SOURCES.map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={[styles.segment, waterSource === item && styles.segmentActive]}
-                onPress={() => setWaterSource(item)}
-              >
-                <Text style={[styles.segmentText, waterSource === item && styles.segmentTextActive]}>{item}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.sectionCard}>
-          <SectionTitle icon="cash-outline" title="Financial Settings" theme={theme} styles={styles} />
-          <InputField label="Initial Capital (INR)" value={capital} onChangeText={setCapital} prefix="Rs" theme={theme} styles={styles} />
-
-          <Text style={styles.fieldLabel}>Risk Tolerance</Text>
-          <View style={styles.sliderLabels}>
-            {['LOW', 'MEDIUM', 'HIGH'].map((risk) => (
-              <TouchableOpacity key={risk} onPress={() => setRiskTolerance(risk as any)} style={styles.riskOption}>
-                <View style={[styles.riskDot, riskTolerance === risk && styles.riskDotActive]} />
-                <Text style={[styles.riskText, riskTolerance === risk && styles.riskTextActive]}>{risk}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <PickerField
-            label="Preferred Species"
-            value={SPECIES_OPTIONS.find(item => item.value === preferredSpecies)?.label || 'Auto Recommend'}
-            onPress={() => setActiveModal('species')}
+          <GhostInputField
+            label="LAND SIZE"
+            value={landSize}
+            onChangeText={setLandSize}
+            suffix="Acres"
+            icon="resize-outline"
+            isFocused={focusedField === 'land'}
+            onFocus={() => setFocusedField('land')}
+            onBlur={() => setFocusedField(null)}
             theme={theme}
-            styles={styles}
           />
         </View>
 
-        <View style={styles.knowledgeCard}>
-          <View style={styles.knowledgeHeader}>
-            <View>
-              <Text style={styles.knowledgeEyebrow}>INSTITUTIONAL GUIDANCE</Text>
-              <Text style={styles.knowledgeTitle}>Policy-backed subsidy preview</Text>
+        {/* Operational Data */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionIconWrap}>
+              <Ionicons name="water-outline" size={16} color={theme.colors.primary} />
             </View>
-            {advisoryLoading ? <ActivityIndicator size="small" color={theme.colors.primary} /> : null}
+            <Text style={styles.sectionLabel}>OPERATIONAL DATA</Text>
+          </View>
+
+          <GhostInputField
+            label="WATER SALINITY"
+            value={salinity}
+            onChangeText={setSalinity}
+            suffix="uS/cm"
+            icon="water-outline"
+            isFocused={focusedField === 'salinity'}
+            onFocus={() => setFocusedField('salinity')}
+            onBlur={() => setFocusedField(null)}
+            theme={theme}
+          />
+
+          <Text style={styles.chipGroupLabel}>FARMER CATEGORY</Text>
+          <View style={styles.chipRow}>
+            {['GENERAL', 'WOMEN', 'SC', 'ST'].map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={[styles.chip, farmerCategory === item && styles.chipActive]}
+                onPress={() => setFarmerCategory(item as any)}
+              >
+                <Text style={[styles.chipText, farmerCategory === item && styles.chipTextActive]}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.chipGroupLabel, { marginTop: 16 }]}>POND SYSTEM</Text>
+          <View style={styles.chipRow}>
+            {(['EARTHEN', 'BIOFLOC', 'RAS', 'CAGES'] as const).map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={[styles.chip, pondSystem === item && styles.chipActive]}
+                onPress={() => setPondSystem(item)}
+              >
+                <Text style={[styles.chipText, pondSystem === item && styles.chipTextActive]}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.chipGroupLabel, { marginTop: 16 }]}>WATER SOURCE</Text>
+          <View style={styles.chipRow}>
+            {WATER_SOURCES.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={[styles.chip, waterSource === item && styles.chipActive]}
+                onPress={() => setWaterSource(item)}
+              >
+                <Text style={[styles.chipText, waterSource === item && styles.chipTextActive]}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Financial Settings */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionIconWrap}>
+              <Ionicons name="cash-outline" size={16} color={theme.colors.primary} />
+            </View>
+            <Text style={styles.sectionLabel}>FINANCIAL SETTINGS</Text>
+          </View>
+
+          <GhostInputField
+            label="INITIAL CAPITAL"
+            value={capital}
+            onChangeText={setCapital}
+            prefix="Rs"
+            icon="wallet-outline"
+            isFocused={focusedField === 'capital'}
+            onFocus={() => setFocusedField('capital')}
+            onBlur={() => setFocusedField(null)}
+            theme={theme}
+          />
+
+          <Text style={styles.chipGroupLabel}>RISK TOLERANCE</Text>
+          <View style={styles.riskRow}>
+            {(['LOW', 'MEDIUM', 'HIGH'] as const).map((risk, idx) => {
+              const isActive = riskTolerance === risk;
+              const dotColor = risk === 'LOW'
+                ? theme.colors.success
+                : risk === 'MEDIUM'
+                ? theme.colors.accent
+                : theme.colors.error;
+              return (
+                <TouchableOpacity
+                  key={risk}
+                  style={[styles.riskOption, isActive && { borderColor: dotColor, backgroundColor: theme.colors.surfaceLow }]}
+                  onPress={() => setRiskTolerance(risk)}
+                >
+                  <View style={[styles.riskDot, { backgroundColor: dotColor }, !isActive && styles.riskDotInactive]} />
+                  <Text style={[styles.riskText, isActive && { color: dotColor }]}>{risk}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <GhostPickerField
+            label="PREFERRED SPECIES"
+            value={SPECIES_OPTIONS.find(item => item.value === preferredSpecies)?.label || 'Auto Recommend'}
+            icon="fish-outline"
+            onPress={() => setActiveModal('species')}
+            theme={theme}
+          />
+        </View>
+
+        {/* Subsidy Preview — bento grid if data loaded */}
+        <View style={styles.sectionCard}>
+          <View style={styles.subsidyHeader}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionIconWrap}>
+                <Ionicons name="shield-checkmark-outline" size={16} color={theme.colors.secondary} />
+              </View>
+              <Text style={[styles.sectionLabel, { color: theme.colors.secondary }]}>SUBSIDY PREVIEW</Text>
+            </View>
+            {advisoryLoading && <ActivityIndicator size="small" color={theme.colors.primary} />}
           </View>
 
           {knowledgeInsights ? (
             <>
-              <View style={styles.knowledgeStatRow}>
-                <KnowledgeStat
-                  label="Beneficiary subsidy"
-                  value={
-                    knowledgeInsights?.beneficiarySubsidyPercent
-                      ? `${knowledgeInsights.beneficiarySubsidyPercent}%`
-                      : 'Pending'
-                  }
-                  styles={styles}
-                />
-                <KnowledgeStat
-                  label="Funding pattern"
-                  value={
-                    knowledgeInsights?.fundingShare?.centralPercent != null &&
-                    knowledgeInsights?.fundingShare?.statePercent != null
-                      ? `${knowledgeInsights.fundingShare.centralPercent}:${knowledgeInsights.fundingShare.statePercent}`
-                      : 'N/A'
-                  }
-                  styles={styles}
-                />
+              {/* Subsidy cards with colored left border */}
+              <View style={styles.subsidyCardRow}>
+                <View style={[styles.subsidyCard, { borderLeftColor: theme.colors.primary }]}>
+                  <Text style={styles.subsidyCardLabel}>CENTRAL SHARE</Text>
+                  <Text style={styles.subsidyCardValue}>
+                    {centralPercent != null ? `${centralPercent}%` : 'N/A'}
+                  </Text>
+                  <Ionicons
+                    name="business-outline"
+                    size={24}
+                    color={theme.colors.primary}
+                    style={styles.subsidyCardGhostIcon}
+                  />
+                </View>
+                <View style={[styles.subsidyCard, { borderLeftColor: theme.colors.secondary }]}>
+                  <Text style={styles.subsidyCardLabel}>STATE SHARE</Text>
+                  <Text style={[styles.subsidyCardValue, { color: theme.colors.secondary }]}>
+                    {statePercent != null ? `${statePercent}%` : 'N/A'}
+                  </Text>
+                  <Ionicons
+                    name="flag-outline"
+                    size={24}
+                    color={theme.colors.secondary}
+                    style={styles.subsidyCardGhostIcon}
+                  />
+                </View>
+                <View style={[styles.subsidyCard, { borderLeftColor: theme.colors.accent }]}>
+                  <Text style={styles.subsidyCardLabel}>YOU PAY</Text>
+                  <Text style={[styles.subsidyCardValue, { color: theme.colors.accent }]}>
+                    {subsidyPercent != null ? `${100 - subsidyPercent}%` : 'N/A'}
+                  </Text>
+                  <Ionicons
+                    name="person-outline"
+                    size={24}
+                    color={theme.colors.accent}
+                    style={styles.subsidyCardGhostIcon}
+                  />
+                </View>
               </View>
 
-              <Text style={styles.knowledgeMeta}>
-                {getPolicyPreviewDescription(knowledgeInsights, farmerCategory)}
-              </Text>
+              <View style={styles.subsidySchemeRow}>
+                <View style={[styles.subsidySchemeCard, { borderLeftColor: theme.colors.primary }]}>
+                  <Text style={styles.subsidySchemeName}>PMMSY — Beneficiary Subsidy</Text>
+                  <Text style={styles.subsidySchemeValue}>
+                    {subsidyPercent != null ? `${subsidyPercent}%` : 'Pending'}
+                  </Text>
+                  <Text style={styles.subsidyEligibility}>
+                    {getPolicyPreviewDescription(knowledgeInsights, farmerCategory)}
+                  </Text>
+                </View>
+              </View>
 
               {knowledgeInsights?.stateBenchmarks?.length ? (
-                <View style={styles.knowledgeList}>
+                <View style={styles.benchmarkList}>
                   {knowledgeInsights.stateBenchmarks.slice(0, 2).map((item: any) => (
-                    <View key={item.idSlug} style={styles.knowledgeListItem}>
-                      <Text style={styles.knowledgeListTitle}>{item.metricName}</Text>
-                      <Text style={styles.knowledgeListValue}>
+                    <View key={item.idSlug} style={styles.benchmarkItem}>
+                      <View style={styles.benchmarkDot} />
+                      <Text style={styles.benchmarkLabel}>{item.metricName}</Text>
+                      <Text style={styles.benchmarkValue}>
                         {formatKnowledgeValue(item.numericValue, item.unit)}
                       </Text>
                     </View>
                   ))}
                 </View>
               ) : (
-                <Text style={styles.knowledgeHint}>
-                  This state currently has no special cost override in the seeded knowledge set, so the app will use general assumptions.
+                <Text style={styles.subsidyHint}>
+                  This state uses general assumptions — no special cost overrides in the seeded knowledge set.
                 </Text>
               )}
 
               <TouchableOpacity
-                style={styles.knowledgeLinkButton}
+                style={styles.subsidyLink}
                 onPress={() =>
                   navigation.navigate('PolicyGuidance', {
                     knowledgeInsights,
@@ -389,19 +495,32 @@ export default function EconomicsScreen() {
                   })
                 }
               >
-                <Text style={styles.knowledgeLinkText}>Learn what these numbers mean</Text>
-                <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} />
+                <Text style={styles.subsidyLinkText}>Learn what these numbers mean</Text>
+                <Ionicons name="arrow-forward" size={15} color={theme.colors.primary} />
               </TouchableOpacity>
             </>
           ) : (
-            <Text style={styles.knowledgeHint}>
+            <Text style={styles.subsidyHint}>
               Choose your state and farmer category to preview policy-backed subsidy guidance before running the simulation.
             </Text>
           )}
         </View>
 
-        <TouchableOpacity style={styles.ctaButton} onPress={runSimulation} disabled={isLoading}>
-          {isLoading ? <ActivityIndicator color={theme.colors.textInverse} /> : <Text style={styles.ctaText}>Calculate ROI</Text>}
+        {/* CTA */}
+        <TouchableOpacity
+          style={[styles.ctaButton, isLoading && styles.ctaButtonDisabled]}
+          onPress={runSimulation}
+          disabled={isLoading}
+          activeOpacity={0.88}
+        >
+          {isLoading ? (
+            <ActivityIndicator color={theme.colors.textInverse} />
+          ) : (
+            <View style={styles.ctaInner}>
+              <Ionicons name="calculator-outline" size={20} color={theme.colors.textInverse} />
+              <Text style={styles.ctaText}>Calculate ROI</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </ScrollView>
 
@@ -422,9 +541,7 @@ export default function EconomicsScreen() {
         title="Select District"
         data={relevantDistricts}
         onClose={() => setActiveModal(null)}
-        onSelect={(value: string) => {
-          setDistrictCode(value);
-        }}
+        onSelect={(value: string) => setDistrictCode(value)}
         theme={theme}
       />
 
@@ -433,106 +550,121 @@ export default function EconomicsScreen() {
         title="Select Species"
         data={SPECIES_OPTIONS}
         onClose={() => setActiveModal(null)}
-        onSelect={(value: string) => {
-          setPreferredSpecies(value);
-        }}
+        onSelect={(value: string) => setPreferredSpecies(value)}
         theme={theme}
       />
     </SafeAreaView>
   );
 }
 
-function formatKnowledgeValue(value: number | null | undefined, unit?: string | null) {
-  if (value == null) {
-    return 'N/A';
-  }
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
+function formatKnowledgeValue(value: number | null | undefined, unit?: string | null) {
+  if (value == null) return 'N/A';
   switch (unit) {
-    case 'PERCENT':
-      return `${value}%`;
-    case 'INR':
-      return `Rs ${value.toLocaleString('en-IN')}`;
-    case 'INR_PER_KG':
-      return `Rs ${value}/kg`;
-    case 'INR_PER_HA':
-      return `Rs ${value.toLocaleString('en-IN')}/ha`;
-    case 'INR_PER_50M3':
-      return `Rs ${value.toLocaleString('en-IN')}/50m3`;
-    default:
-      return `${value}`;
+    case 'PERCENT': return `${value}%`;
+    case 'INR': return `Rs ${value.toLocaleString('en-IN')}`;
+    case 'INR_PER_KG': return `Rs ${value}/kg`;
+    case 'INR_PER_HA': return `Rs ${value.toLocaleString('en-IN')}/ha`;
+    case 'INR_PER_50M3': return `Rs ${value.toLocaleString('en-IN')}/50m3`;
+    default: return `${value}`;
   }
 }
 
 function getPolicyPreviewDescription(knowledgeInsights: any, farmerCategory: string) {
-  if (!knowledgeInsights) {
-    return 'Choose your state and category to load policy-backed guidance.';
-  }
-
+  if (!knowledgeInsights) return 'Choose your state and category to load policy-backed guidance.';
   const subsidy = knowledgeInsights?.beneficiarySubsidyPercent;
   const central = knowledgeInsights?.fundingShare?.centralPercent;
   const state = knowledgeInsights?.fundingShare?.statePercent;
-  const categoryLabel =
-    farmerCategory === 'GENERAL' ? 'general category' : farmerCategory.toLowerCase();
-
-  if (subsidy == null) {
-    return 'The app has not found a subsidy percentage for this profile yet.';
-  }
-
+  const categoryLabel = farmerCategory === 'GENERAL' ? 'general category' : farmerCategory.toLowerCase();
+  if (subsidy == null) return 'The app has not found a subsidy percentage for this profile yet.';
   if (central != null && state != null) {
-    return `For a ${categoryLabel} applicant, the current seeded rules suggest up to ${subsidy}% support on eligible project cost. The ${central}:${state} split explains how the government subsidy is shared between Centre and State.`;
+    return `For a ${categoryLabel} applicant — up to ${subsidy}% support on eligible project cost. Centre:State split is ${central}:${state}.`;
   }
-
-  return `For a ${categoryLabel} applicant, the current seeded rules suggest up to ${subsidy}% support on eligible project cost.`;
+  return `For a ${categoryLabel} applicant — up to ${subsidy}% support on eligible project cost.`;
 }
 
-function SectionTitle({ icon, title, theme, styles }: any) {
-  return (
-    <View style={styles.sectionTitleRow}>
-      <Ionicons name={icon} size={18} color={theme.colors.primary} />
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
-  );
-}
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
-function PickerField({ label, value, onPress, theme, styles }: any) {
+function GhostPickerField({ label, value, icon, onPress, theme }: any) {
   return (
-    <View style={styles.halfField}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TouchableOpacity style={styles.fieldBox} onPress={onPress}>
-        <Text style={styles.fieldValue}>{value}</Text>
-        <Ionicons name="chevron-down" size={18} color={theme.colors.textMuted} />
+    <View style={ghostStyles(theme).wrap}>
+      <Text style={ghostStyles(theme).label}>{label}</Text>
+      <TouchableOpacity style={ghostStyles(theme).row} onPress={onPress} activeOpacity={0.8}>
+        <Ionicons name={icon} size={16} color={theme.colors.textMuted} />
+        <Text style={ghostStyles(theme).value}>{value}</Text>
+        <Ionicons name="chevron-down" size={16} color={theme.colors.textMuted} />
       </TouchableOpacity>
     </View>
   );
 }
 
-function InputField({ label, value, onChangeText, prefix, suffix, theme, styles }: any) {
+function GhostInputField({ label, value, onChangeText, prefix, suffix, icon, isFocused, onFocus, onBlur, theme }: any) {
   return (
-    <View style={styles.fullField}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.fieldBox}>
-        {prefix ? <Text style={styles.unitText}>{prefix}</Text> : null}
+    <View style={ghostStyles(theme).wrap}>
+      <Text style={ghostStyles(theme).label}>{label}</Text>
+      <View style={[ghostStyles(theme).row, isFocused && ghostStyles(theme).rowFocused]}>
+        <Ionicons name={icon} size={16} color={isFocused ? theme.colors.primary : theme.colors.textMuted} />
+        {prefix ? <Text style={[ghostStyles(theme).unit, isFocused && { color: theme.colors.primary }]}>{prefix}</Text> : null}
         <TextInput
-          style={styles.input}
+          style={ghostStyles(theme).input}
           value={value}
           onChangeText={onChangeText}
           keyboardType="decimal-pad"
           placeholderTextColor={theme.colors.textMuted}
+          onFocus={onFocus}
+          onBlur={onBlur}
         />
-        {suffix ? <Text style={styles.unitText}>{suffix}</Text> : null}
+        {suffix ? <Text style={[ghostStyles(theme).unit, isFocused && { color: theme.colors.primary }]}>{suffix}</Text> : null}
       </View>
     </View>
   );
 }
 
-function KnowledgeStat({ label, value, styles }: any) {
-  return (
-    <View style={styles.knowledgeStat}>
-      <Text style={styles.knowledgeStatLabel}>{label}</Text>
-      <Text style={styles.knowledgeStatValue}>{value}</Text>
-    </View>
-  );
-}
+// Using a factory rather than a hook since this is not called conditionally
+const ghostStyles = (theme: any) => ({
+  wrap: { marginBottom: 14, flex: 1 } as any,
+  label: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700' as const,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase' as const,
+    marginBottom: 6,
+  },
+  row: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceLow,
+    paddingHorizontal: 14,
+  },
+  rowFocused: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  value: {
+    flex: 1,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600' as const,
+  },
+  input: {
+    flex: 1,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600' as const,
+  },
+  unit: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+});
 
 function SelectionModal({ visible, title, data, onClose, onSelect, theme }: any) {
   const styles = getStyles(theme);
@@ -540,6 +672,7 @@ function SelectionModal({ visible, title, data, onClose, onSelect, theme }: any)
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
+          <View style={styles.modalDragHandle} />
           <Text style={styles.modalTitle}>{title}</Text>
           <ScrollView
             style={styles.modalScrollArea}
@@ -557,7 +690,7 @@ function SelectionModal({ visible, title, data, onClose, onSelect, theme }: any)
                 }}
               >
                 <Text style={styles.modalItemText}>{item.label}</Text>
-                <Ionicons name="chevron-forward" size={18} color={theme.colors.border} />
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -570,61 +703,80 @@ function SelectionModal({ visible, title, data, onClose, onSelect, theme }: any)
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const getStyles = (theme: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderGlass,
   },
+  headerSpacer: { width: 32 },
+  headerCenter: { alignItems: 'center' },
   headerTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
-  headerSpacer: {
-    width: 22,
+  headerSubtitle: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
   },
+  headerAction: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Content
   content: {
     paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 120,
   },
-  stepText: {
-    color: theme.colors.primary,
-    fontWeight: '800',
-    fontSize: 12,
-    marginTop: 8,
-  },
-  heroRow: {
+
+  // Progress
+  progressSection: { marginBottom: 16 },
+  progressLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    marginBottom: 8,
   },
-  heroTitle: {
-    ...theme.typography.h1,
-    fontSize: 36,
+  progressEyebrow: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
   },
-  heroProgress: {
-    color: theme.colors.textPrimary,
+  progressPercent: {
+    color: theme.colors.primary,
+    fontSize: 12,
     fontWeight: '800',
   },
   progressTrack: {
-    height: 6,
-    borderRadius: 3,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: theme.colors.border,
-    marginTop: 12,
-    marginBottom: 18,
   },
   progressFill: {
-    width: '33%',
     height: '100%',
     backgroundColor: theme.colors.primary,
-    borderRadius: 3,
+    borderRadius: 2,
   },
+
+  // Learn banner
   learnBanner: {
     borderRadius: theme.borderRadius.lg,
     backgroundColor: theme.colors.surface,
@@ -640,24 +792,25 @@ const getStyles = (theme: any) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: theme.colors.surfaceAlt,
+    backgroundColor: theme.colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  learnBannerCopy: {
-    flex: 1,
-  },
+  learnBannerCopy: { flex: 1 },
   learnBannerTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
   learnBannerText: {
     color: theme.colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
   },
+
+  // Section card
   sectionCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
@@ -666,252 +819,289 @@ const getStyles = (theme: any) => StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
-  sectionTitleRow: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     marginBottom: 16,
   },
-  sectionTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 24,
-    fontWeight: '800',
+  sectionIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
   },
   row: {
     flexDirection: 'row',
     gap: 12,
   },
-  halfField: {
-    flex: 1,
-    marginBottom: 14,
-  },
-  fullField: {
-    marginBottom: 14,
-  },
-  fieldLabel: {
-    color: theme.colors.textSecondary,
-    fontSize: 13,
+
+  // Chips
+  chipGroupLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
     fontWeight: '700',
+    letterSpacing: 1.2,
     marginBottom: 8,
   },
-  fieldBox: {
-    minHeight: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  fieldValue: {
-    flex: 1,
-    color: theme.colors.textPrimary,
-    fontSize: 16,
-  },
-  input: {
-    flex: 1,
-    color: theme.colors.textPrimary,
-    fontSize: 16,
-  },
-  unitText: {
-    color: theme.colors.primary,
-    fontWeight: '700',
-  },
-  segmentRow: {
+  chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
-  segment: {
-    minWidth: 78,
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    backgroundColor: theme.colors.background,
+  chip: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: theme.colors.surfaceLow,
     borderWidth: 1,
     borderColor: theme.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  segmentActive: {
+  chipActive: {
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
   },
-  segmentText: {
+  chipText: {
     color: theme.colors.textSecondary,
     fontWeight: '700',
-    fontSize: 12,
+    fontSize: 11,
   },
-  segmentTextActive: {
+  chipTextActive: {
     color: theme.colors.textInverse,
   },
-  sliderLabels: {
+
+  // Risk tolerance
+  riskRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 10,
+    marginBottom: 16,
   },
   riskOption: {
-    alignItems: 'center',
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceLow,
   },
   riskDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: theme.colors.border,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
-  riskDotActive: {
-    backgroundColor: theme.colors.primary,
+  riskDotInactive: {
+    opacity: 0.3,
   },
   riskText: {
     color: theme.colors.textMuted,
     fontSize: 11,
     fontWeight: '700',
   },
-  riskTextActive: {
-    color: theme.colors.primary,
+
+  // Subsidy section
+  subsidyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
+  subsidyCardRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  subsidyCard: {
+    flex: 1,
+    backgroundColor: theme.colors.surfaceLow,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderLeftWidth: 3,
+    padding: 12,
+    overflow: 'hidden',
+  },
+  subsidyCardLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+  },
+  subsidyCardValue: {
+    color: theme.colors.primary,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  subsidyCardGhostIcon: {
+    position: 'absolute',
+    bottom: 6,
+    right: 8,
+    opacity: 0.12,
+  },
+  subsidySchemeRow: {
+    marginBottom: 12,
+  },
+  subsidySchemeCard: {
+    backgroundColor: theme.colors.surfaceLow,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderLeftWidth: 4,
+    padding: 14,
+  },
+  subsidySchemeName: {
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  subsidySchemeValue: {
+    color: theme.colors.primary,
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  subsidyEligibility: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  benchmarkList: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  benchmarkItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: theme.colors.surfaceLow,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  benchmarkDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  benchmarkLabel: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  benchmarkValue: {
+    color: theme.colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  subsidyHint: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  subsidyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  subsidyLinkText: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+
+  // CTA
   ctaButton: {
-    height: 56,
+    height: 58,
     borderRadius: 18,
     backgroundColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: 4,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  ctaButtonDisabled: {
+    opacity: 0.6,
+  },
+  ctaInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   ctaText: {
     color: theme.colors.textInverse,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
+    letterSpacing: 0.3,
   },
-  knowledgeCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 16,
-    marginBottom: 16,
-  },
-  knowledgeHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  knowledgeEyebrow: {
-    color: theme.colors.primary,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  knowledgeTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
-    marginTop: 4,
-  },
-  knowledgeStatRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  knowledgeStat: {
-    flex: 1,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surfaceAlt,
-    padding: 14,
-  },
-  knowledgeStatLabel: {
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  knowledgeStatValue: {
-    color: theme.colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '900',
-    marginTop: 6,
-  },
-  knowledgeMeta: {
-    color: theme.colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 14,
-  },
-  knowledgeLinkButton: {
-    marginTop: 14,
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  knowledgeLinkText: {
-    color: theme.colors.primary,
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  knowledgeList: {
-    marginTop: 14,
-    gap: 10,
-  },
-  knowledgeListItem: {
-    borderRadius: 14,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 14,
-  },
-  knowledgeListTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  knowledgeListValue: {
-    color: theme.colors.primary,
-    fontSize: 16,
-    fontWeight: '800',
-    marginTop: 4,
-  },
-  knowledgeHint: {
-    color: theme.colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 14,
-  },
+
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
   modalCard: {
     backgroundColor: theme.colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    paddingTop: 12,
     maxHeight: '80%',
     minHeight: 300,
-    flexDirection: 'column',
   },
-  modalScrollArea: {
-    flex: 1,
+  modalDragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.border,
+    alignSelf: 'center',
+    marginBottom: 16,
   },
+  modalScrollArea: { flex: 1 },
   modalTitle: {
     color: theme.colors.textPrimary,
     fontSize: 20,
     fontWeight: '800',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
   modalItemText: {
+    flex: 1,
     color: theme.colors.textPrimary,
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '500',
   },
   modalClose: {
     marginTop: 14,
@@ -920,9 +1110,12 @@ const getStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   modalCloseText: {
     color: theme.colors.textPrimary,
     fontWeight: '800',
+    fontSize: 15,
   },
 });

@@ -27,10 +27,20 @@ export default function EconomicsResultScreen() {
 
   const formatCurrency = (amount: number) => `Rs ${amount.toLocaleString('en-IN')}`;
   const knowledgeInsights = simulationData.knowledgeInsights;
+
   const openPolicyGuidance = () =>
-    (navigation as any).navigate('PolicyGuidance', {
-      knowledgeInsights,
-    });
+    (navigation as any).navigate('PolicyGuidance', { knowledgeInsights });
+
+  // Determine profit color
+  const profit = simulationData.projectedNetProfitInr ?? 0;
+  const isProfit = profit >= 0;
+  const profitColor = isProfit ? theme.colors.secondary : theme.colors.error;
+
+  // Surplus/deficit
+  const surplus =
+    simulationData.availableCapitalInr != null
+      ? simulationData.availableCapitalInr - simulationData.totalProjectCostInr
+      : null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -38,265 +48,334 @@ export default function EconomicsResultScreen() {
         title={t('economics.results') || 'ROI Results'}
         onBack={() => (navigation as any).goBack()}
         rightSlot={
-          <Text style={styles.helpLink} onPress={openPolicyGuidance}>
-            Guide
-          </Text>
+          <TouchableOpacity onPress={openPolicyGuidance}>
+            <Text style={styles.helpLink}>Guide</Text>
+          </TouchableOpacity>
         }
       />
-      <ScrollView contentContainerStyle={styles.content}>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+        {/* ── Hero result card ── */}
         <View style={styles.heroCard}>
+          {/* Gradient backdrop simulation via layered views */}
+          <View style={styles.heroGradientTop} />
+          <View style={styles.heroGradientBottom} />
+
           <Text style={styles.heroEyebrow}>PROJECT VIABILITY</Text>
-          <Text style={styles.heroTitle}>{simulationData.benefitCostRatio}</Text>
-          <Text style={styles.heroSubtitle}>Benefit-Cost Ratio</Text>
-          <Text style={styles.heroProfit}>{formatCurrency(simulationData.projectedNetProfitInr)} projected profit</Text>
+
+          <View style={styles.heroProfitRow}>
+            <Text style={[styles.heroProfitValue, { color: profitColor }]}>
+              {formatCurrency(profit)}
+            </Text>
+            <View style={[styles.heroProfitBadge, { backgroundColor: isProfit ? theme.colors.secondaryLight : theme.colors.errorSoft }]}>
+              <Ionicons
+                name={isProfit ? 'trending-up' : 'trending-down'}
+                size={14}
+                color={profitColor}
+              />
+              <Text style={[styles.heroProfitBadgeText, { color: profitColor }]}>
+                {isProfit ? 'PROFIT' : 'LOSS'}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.heroProfitLabel}>Projected net profit</Text>
+
+          <View style={styles.heroDivider} />
+
+          {/* BCR + Breakeven as a mini bento row */}
+          <View style={styles.heroBentoRow}>
+            <View style={styles.heroBentoItem}>
+              <Text style={styles.heroBentoValue}>{simulationData.benefitCostRatio}</Text>
+              <Text style={styles.heroBentoLabel}>BCR</Text>
+            </View>
+            <View style={styles.heroBentoDivider} />
+            <View style={styles.heroBentoItem}>
+              <Text style={styles.heroBentoValue}>{simulationData.breakevenTimelineMonths}mo</Text>
+              <Text style={styles.heroBentoLabel}>Breakeven</Text>
+            </View>
+            <View style={styles.heroBentoDivider} />
+            <View style={styles.heroBentoItem}>
+              <Text style={styles.heroBentoValue}>{formatCurrency(simulationData.subsidyAmountInr)}</Text>
+              <Text style={styles.heroBentoLabel}>Subsidy</Text>
+            </View>
+          </View>
         </View>
 
-        <Section title="Investment Breakdown" styles={styles}>
-          <StatRow label="Initial CAPEX" value={formatCurrency(simulationData.totalCapitalExpenditureInr)} styles={styles} />
-          <StatRow label="Government Subsidy" value={`- ${formatCurrency(simulationData.subsidyAmountInr)}`} styles={styles} valueColor={theme.colors.success} />
-          <StatRow label="Working Capital" value={formatCurrency(simulationData.firstCycleWorkingCapitalInr)} styles={styles} />
-          <StatRow label="Total Startup Capital" value={formatCurrency(simulationData.totalProjectCostInr)} styles={styles} strong />
-          {simulationData.availableCapitalInr != null && (
-            (() => {
-              const surplus = simulationData.availableCapitalInr - simulationData.totalProjectCostInr;
-              return (
-                <StatRow
-                  label="Your Capital (gap/surplus)"
-                  value={`${formatCurrency(simulationData.availableCapitalInr)} (${surplus >= 0 ? '+' : ''}${formatCurrency(surplus)})`}
-                  styles={styles}
-                  valueColor={surplus >= 0 ? theme.colors.success : theme.colors.error}
-                />
-              );
-            })()
+        {/* ── 4-col metric bento grid ── */}
+        <View style={styles.bentoGrid}>
+          <BentoCard
+            label="EST. REVENUE"
+            value={formatCurrency(simulationData.totalCapitalExpenditureInr)}
+            icon="trending-up-outline"
+            valueColor={theme.colors.primary}
+            theme={theme}
+          />
+          <BentoCard
+            label="TOTAL COST"
+            value={formatCurrency(simulationData.totalProjectCostInr)}
+            icon="receipt-outline"
+            valueColor={theme.colors.error}
+            theme={theme}
+          />
+          <BentoCard
+            label="PROFIT"
+            value={formatCurrency(profit)}
+            icon="cash-outline"
+            valueColor={theme.colors.secondary}
+            theme={theme}
+          />
+          <BentoCard
+            label="BREAK-EVEN"
+            value={`${simulationData.breakevenTimelineMonths} mo`}
+            icon="timer-outline"
+            valueColor={theme.colors.textSecondary}
+            theme={theme}
+          />
+        </View>
+
+        {/* ── Investment breakdown ── */}
+        <SectionHeader label="INVESTMENT BREAKDOWN" theme={theme} />
+        <View style={styles.breakdownCard}>
+          <BreakdownRow label="Initial CAPEX" value={formatCurrency(simulationData.totalCapitalExpenditureInr)} dot={theme.colors.primary} theme={theme} />
+          <BreakdownRow label="Government Subsidy" value={`– ${formatCurrency(simulationData.subsidyAmountInr)}`} dot={theme.colors.secondary} valueColor={theme.colors.secondary} theme={theme} />
+          <BreakdownRow label="Working Capital" value={formatCurrency(simulationData.firstCycleWorkingCapitalInr)} dot={theme.colors.accent} theme={theme} />
+          <BreakdownRow label="Total Startup Capital" value={formatCurrency(simulationData.totalProjectCostInr)} dot={theme.colors.textMuted} strong theme={theme} />
+          {surplus != null && (
+            <BreakdownRow
+              label="Your Capital (gap/surplus)"
+              value={`${formatCurrency(simulationData.availableCapitalInr)} (${surplus >= 0 ? '+' : ''}${formatCurrency(surplus)})`}
+              dot={surplus >= 0 ? theme.colors.success : theme.colors.error}
+              valueColor={surplus >= 0 ? theme.colors.success : theme.colors.error}
+              theme={theme}
+            />
           )}
-          <StatRow label="Breakeven" value={`${simulationData.breakevenTimelineMonths} months`} styles={styles} />
-        </Section>
+        </View>
 
+        {/* ── Risk flags ── */}
+        {knowledgeInsights?.warningHighlights?.length ? (
+          <>
+            <SectionHeader label="RISK FLAGS" theme={theme} />
+            <View style={styles.riskCard}>
+              <View style={styles.riskCardTitleRow}>
+                <Ionicons name="warning-outline" size={16} color={theme.colors.accent} />
+                <Text style={styles.riskCardTitle}>Use current market prices</Text>
+              </View>
+              {knowledgeInsights.warningHighlights.map((item: any) => (
+                <View key={item.idSlug} style={styles.riskItem}>
+                  <View style={styles.riskDot} />
+                  <Text style={styles.riskText}>
+                    <Text style={styles.riskItemName}>{item.metricName}: </Text>
+                    {item.notes || 'Outdated benchmark — update locally before relying on it.'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {/* ── Funding available subsidy highlight card ── */}
         {knowledgeInsights ? (
-          <Section title="Policy-Backed Guidance" styles={styles}>
-            <StatRow
-              label="Beneficiary subsidy rule"
-              value={
-                knowledgeInsights.beneficiarySubsidyPercent != null
-                  ? `${knowledgeInsights.beneficiarySubsidyPercent}%`
-                  : 'N/A'
-              }
-              styles={styles}
-            />
-            <StatRow
-              label="Centre : State funding share"
-              value={
-                knowledgeInsights.fundingShare?.centralPercent != null &&
-                knowledgeInsights.fundingShare?.statePercent != null
-                  ? `${knowledgeInsights.fundingShare.centralPercent}:${knowledgeInsights.fundingShare.statePercent}`
-                  : 'N/A'
-              }
-              styles={styles}
-            />
-            <Text style={styles.policySourceText}>
-              {getPolicyResultDescription(knowledgeInsights)}
-            </Text>
-
-            {knowledgeInsights.policyHighlights?.length ? (
-              <View style={styles.policyCardList}>
-                {knowledgeInsights.policyHighlights.map((item: any) => (
-                  <View key={item.idSlug} style={styles.policyCard}>
-                    <Text style={styles.policyCardTitle}>{item.metricName}</Text>
-                    <Text style={styles.policyCardMeta}>{item.notes || item.sourceLabel}</Text>
+          <>
+            <SectionHeader label="FUNDING AVAILABLE" theme={theme} />
+            <View style={styles.fundingCard}>
+              <View style={styles.fundingCardInner}>
+                <View style={styles.fundingRow}>
+                  <View style={[styles.fundingPill, { borderLeftColor: theme.colors.primary }]}>
+                    <Text style={styles.fundingPillLabel}>BENEFICIARY SUBSIDY</Text>
+                    <Text style={[styles.fundingPillValue, { color: theme.colors.primary }]}>
+                      {knowledgeInsights.beneficiarySubsidyPercent != null
+                        ? `${knowledgeInsights.beneficiarySubsidyPercent}%`
+                        : 'N/A'}
+                    </Text>
                   </View>
+                  <View style={[styles.fundingPill, { borderLeftColor: theme.colors.secondary }]}>
+                    <Text style={styles.fundingPillLabel}>CENTRE : STATE</Text>
+                    <Text style={[styles.fundingPillValue, { color: theme.colors.secondary }]}>
+                      {knowledgeInsights.fundingShare?.centralPercent != null &&
+                      knowledgeInsights.fundingShare?.statePercent != null
+                        ? `${knowledgeInsights.fundingShare.centralPercent}:${knowledgeInsights.fundingShare.statePercent}`
+                        : 'N/A'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.fundingDescription}>
+                  {getPolicyResultDescription(knowledgeInsights)}
+                </Text>
+                <TouchableOpacity style={styles.fundingLink} onPress={openPolicyGuidance}>
+                  <Text style={styles.fundingLinkText}>Open full policy guidance</Text>
+                  <Ionicons name="arrow-forward" size={14} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Policy highlights */}
+            {knowledgeInsights.policyHighlights?.length ? (
+              <View style={styles.policyList}>
+                {knowledgeInsights.policyHighlights.map((item: any) => (
+                  <PolicyCard key={item.idSlug} item={item} theme={theme} />
                 ))}
               </View>
             ) : null}
 
             {knowledgeInsights.stateBenchmarks?.length ? (
-              <View style={styles.policyCardList}>
+              <View style={styles.policyList}>
                 {knowledgeInsights.stateBenchmarks.map((item: any) => (
-                  <View key={item.idSlug} style={styles.policyCard}>
-                    <Text style={styles.policyCardTitle}>{item.metricName}</Text>
-                    <Text style={styles.policyCardValue}>{formatKnowledgeValue(item.numericValue, item.unit)}</Text>
-                    <Text style={styles.policyCardMeta}>{item.sourceLabel}</Text>
-                  </View>
+                  <PolicyCard
+                    key={item.idSlug}
+                    item={item}
+                    showValue
+                    theme={theme}
+                  />
                 ))}
               </View>
             ) : null}
 
             {knowledgeInsights.templateHighlights?.length ? (
-              <View style={styles.policyCardList}>
+              <View style={styles.policyList}>
                 {knowledgeInsights.templateHighlights.map((item: any) => (
-                  <View key={item.idSlug} style={styles.policyCard}>
-                    <Text style={styles.policyCardTitle}>{item.metricName}</Text>
-                    <Text style={styles.policyCardValue}>{formatKnowledgeValue(item.numericValue, item.unit)}</Text>
-                    <Text style={styles.policyCardMeta}>{item.notes || item.sourceLabel}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {knowledgeInsights.warningHighlights?.length ? (
-              <View style={styles.warningBox}>
-                <Text style={styles.warningTitle}>Use current market prices</Text>
-                {knowledgeInsights.warningHighlights.map((item: any) => (
-                  <Text key={item.idSlug} style={styles.warningText}>
-                    • {item.metricName}: {item.notes || 'Outdated benchmark; update locally before relying on it.'}
-                  </Text>
+                  <PolicyCard key={item.idSlug} item={item} showValue theme={theme} />
                 ))}
               </View>
             ) : null}
 
             {knowledgeInsights.disclaimerHighlights?.length ? (
-              <View style={styles.warningBox}>
-                <Text style={styles.warningTitle}>Institutional disclaimer</Text>
+              <View style={styles.disclaimerBox}>
+                <Text style={styles.disclaimerTitle}>Institutional disclaimer</Text>
                 {knowledgeInsights.disclaimerHighlights.map((item: any) => (
-                  <Text key={item.idSlug} style={styles.warningText}>
+                  <Text key={item.idSlug} style={styles.disclaimerText}>
                     • {item.citationText || item.notes || item.metricName}
                   </Text>
                 ))}
               </View>
             ) : null}
-
-            <Text style={styles.resultGuideLink} onPress={openPolicyGuidance}>
-              Open full policy guidance
-            </Text>
-          </Section>
+          </>
         ) : null}
 
+        {/* ── Recommended Species ── */}
         {simulationData.recommendedSpecies?.length ? (
-          <Section title="Recommended Species" styles={styles}>
-            {simulationData.recommendedSpecies.map((species: any, idx: number) => (
-              <TouchableOpacity
-                key={idx}
-                activeOpacity={0.9}
-                style={[
-                  styles.speciesCard,
-                  getCompatibilityCardStyle(species.compatibilityScore || species.score || 0, theme),
-                ]}
-                onPress={() =>
-                  setExpandedSpecies((current) => ({
-                    ...current,
-                    [species.speciesId || species.scientificName || String(idx)]: !current[species.speciesId || species.scientificName || String(idx)],
-                  }))
-                }
-              >
-                <View style={styles.speciesCardTopRow}>
-                  <View style={styles.speciesCardTextWrap}>
-                    <Text style={styles.listCardTitle}>
-                      {species.commonName || species.speciesName || species.scientificName || species.species || 'Recommended species'}
-                    </Text>
-                    <Text style={styles.listCardMeta}>
-                      {species.scientificName && species.scientificName !== species.commonName
-                        ? `${species.scientificName} • `
-                        : ''}
-                      Compatibility {species.compatibilityScore || species.score || '-'}%
-                    </Text>
-                  </View>
-                  <View style={styles.speciesBadge}>
-                    <Text style={styles.speciesBadgeText}>
-                      {getCompatibilityLabel(species.compatibilityScore || species.score || 0)}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.speciesHint}>
-                  Tap to see why this species matches your profile.
-                </Text>
-
-                {expandedSpecies[species.speciesId || species.scientificName || String(idx)] ? (
-                  <View style={styles.speciesReasonBox}>
-                    {(species.compatibilityReasons || []).map((reason: string, reasonIdx: number) => (
-                      <Text key={reasonIdx} style={styles.speciesReasonText}>
-                        • {reason}
+          <>
+            <SectionHeader label="RECOMMENDED SPECIES" theme={theme} />
+            {simulationData.recommendedSpecies.map((species: any, idx: number) => {
+              const key = species.speciesId || species.scientificName || String(idx);
+              const score = species.compatibilityScore || species.score || 0;
+              const isExpanded = expandedSpecies[key];
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  activeOpacity={0.88}
+                  style={[styles.speciesCard, getCompatibilityCardStyle(score, theme)]}
+                  onPress={() =>
+                    setExpandedSpecies(cur => ({ ...cur, [key]: !cur[key] }))
+                  }
+                >
+                  <View style={styles.speciesTopRow}>
+                    <View style={styles.speciesTextWrap}>
+                      <Text style={styles.speciesName}>
+                        {species.commonName || species.speciesName || species.scientificName || 'Recommended species'}
                       </Text>
-                    ))}
-                    <Text style={styles.speciesSummaryText}>
-                      {buildCompatibilitySummary(species)}
-                    </Text>
+                      <Text style={styles.speciesMeta}>
+                        {species.scientificName && species.scientificName !== species.commonName
+                          ? `${species.scientificName} • `
+                          : ''}
+                        Compatibility {score}%
+                      </Text>
+                    </View>
+                    <View style={[styles.speciesBadge, getCompatibilityBadgeStyle(score, theme)]}>
+                      <Text style={[styles.speciesBadgeText, { color: getCompatibilityColor(score, theme) }]}>
+                        {getCompatibilityLabel(score)}
+                      </Text>
+                    </View>
                   </View>
-                ) : null}
-              </TouchableOpacity>
-            ))}
-          </Section>
+
+                  <View style={styles.speciesExpandHint}>
+                    <Text style={styles.speciesHintText}>
+                      {isExpanded ? 'Tap to collapse' : 'Tap to see why this species matches your profile'}
+                    </Text>
+                    <Ionicons
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={14}
+                      color={theme.colors.textMuted}
+                    />
+                  </View>
+
+                  {isExpanded ? (
+                    <View style={styles.speciesReasonBox}>
+                      {(species.compatibilityReasons || []).map((reason: string, reasonIdx: number) => (
+                        <Text key={reasonIdx} style={styles.speciesReason}>• {reason}</Text>
+                      ))}
+                      <Text style={styles.speciesSummary}>
+                        {buildCompatibilitySummary(species)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </>
         ) : null}
 
+        {/* ── Recommended Systems ── */}
         {simulationData.recommendedSystems?.length ? (
-          <Section title="Recommended Systems" styles={styles}>
+          <>
+            <SectionHeader label="RECOMMENDED SYSTEMS" theme={theme} />
             {simulationData.recommendedSystems.map((system: any, idx: number) => (
-              <View key={idx} style={styles.listCard}>
-                <Text style={styles.listCardTitle}>{system.system || system.name || 'System'}</Text>
-                <Text style={styles.listCardMeta}>Suitability {system.suitabilityScore || system.score || '-'}%</Text>
+              <View key={idx} style={styles.systemCard}>
+                <Text style={styles.systemName}>{system.system || system.name || 'System'}</Text>
+                <Text style={styles.systemMeta}>Suitability {system.suitabilityScore || system.score || '–'}%</Text>
               </View>
             ))}
-          </Section>
+          </>
         ) : null}
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function formatKnowledgeValue(value: number | null | undefined, unit?: string | null) {
-  if (value == null) {
-    return 'N/A';
-  }
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
+function formatKnowledgeValue(value: number | null | undefined, unit?: string | null) {
+  if (value == null) return 'N/A';
   switch (unit) {
-    case 'PERCENT':
-      return `${value}%`;
-    case 'INR':
-      return `Rs ${value.toLocaleString('en-IN')}`;
-    case 'INR_PER_KG':
-      return `Rs ${value}/kg`;
-    case 'INR_PER_HA':
-      return `Rs ${value.toLocaleString('en-IN')}/ha`;
-    case 'INR_PER_50M3':
-      return `Rs ${value.toLocaleString('en-IN')}/50m3`;
-    default:
-      return `${value}`;
+    case 'PERCENT': return `${value}%`;
+    case 'INR': return `Rs ${value.toLocaleString('en-IN')}`;
+    case 'INR_PER_KG': return `Rs ${value}/kg`;
+    case 'INR_PER_HA': return `Rs ${value.toLocaleString('en-IN')}/ha`;
+    case 'INR_PER_50M3': return `Rs ${value.toLocaleString('en-IN')}/50m3`;
+    default: return `${value}`;
   }
 }
 
 function getPolicyResultDescription(knowledgeInsights: any) {
-  if (!knowledgeInsights) {
-    return 'Institutional rule source unavailable';
-  }
-
+  if (!knowledgeInsights) return 'Institutional rule source unavailable';
   const subsidy = knowledgeInsights?.beneficiarySubsidyPercent;
   const central = knowledgeInsights?.fundingShare?.centralPercent;
   const state = knowledgeInsights?.fundingShare?.statePercent;
-
-  if (subsidy == null) {
-    return knowledgeInsights.beneficiaryRuleSource || 'Institutional rule source unavailable';
-  }
-
+  if (subsidy == null) return knowledgeInsights.beneficiaryRuleSource || 'Institutional rule source unavailable';
   if (central != null && state != null) {
-    return `This result uses a ${subsidy}% beneficiary subsidy rule. The ${central}:${state} pattern only describes how the subsidy is funded between Centre and State.`;
+    return `This result uses a ${subsidy}% beneficiary subsidy rule. The ${central}:${state} pattern describes how the subsidy is jointly funded between Centre and State.`;
   }
-
   return `This result uses a ${subsidy}% beneficiary subsidy rule from the seeded institutional guidance.`;
 }
 
 function getCompatibilityLabel(score: number) {
   if (score > 60) return 'Strong fit';
-  if (score >= 30) return 'Moderate fit';
+  if (score >= 30) return 'Moderate';
   return 'Low fit';
 }
 
-function buildCompatibilitySummary(species: any) {
-  const score = species.compatibilityScore || species.score || 0;
-  const yieldText =
-    species.expectedYieldKg != null ? `Expected yield is about ${species.expectedYieldKg.toLocaleString('en-IN')} kg.` : '';
-  const revenueText =
-    species.expectedRevenueInr != null ? ` Revenue can reach around Rs ${species.expectedRevenueInr.toLocaleString('en-IN')}.` : '';
-  const profitText =
-    species.netProfitInr != null ? ` Net profit is estimated near Rs ${species.netProfitInr.toLocaleString('en-IN')}.` : '';
+function getCompatibilityColor(score: number, theme: any) {
+  if (score > 60) return theme.colors.secondary;
+  if (score >= 30) return theme.colors.accent;
+  return theme.colors.error;
+}
 
-  if (score > 60) {
-    return `This species matches your farm profile well because its efficiency and economics align strongly with the selected inputs.${yieldText}${revenueText}${profitText}`;
-  }
-
-  if (score >= 30) {
-    return `This species can work for your profile, but the match is more balanced than strong. Review costs, survival, and local market demand before choosing it.${yieldText}${revenueText}${profitText}`;
-  }
-
-  return `This species is a weaker match for the current inputs, so it may need better capital, different water conditions, or higher risk tolerance to perform well.${yieldText}${revenueText}${profitText}`;
+function getCompatibilityBadgeStyle(score: number, theme: any) {
+  if (score > 60) return { backgroundColor: theme.colors.secondaryLight };
+  if (score >= 30) return { backgroundColor: theme.colors.accentSoft };
+  return { backgroundColor: theme.colors.errorSoft };
 }
 
 function getCompatibilityCardStyle(score: number, theme: any) {
@@ -307,7 +386,6 @@ function getCompatibilityCardStyle(score: number, theme: any) {
       borderColor: theme.isDark ? '#1F6B37' : '#8CD3A3',
     };
   }
-
   if (score >= 30) {
     return {
       backgroundColor: theme.isDark ? '#1D170A' : '#FFF7DB',
@@ -315,7 +393,6 @@ function getCompatibilityCardStyle(score: number, theme: any) {
       borderColor: theme.isDark ? '#8A6B13' : '#F0C45D',
     };
   }
-
   return {
     backgroundColor: theme.isDark ? '#1E1111' : '#FCE8E8',
     borderWidth: 1,
@@ -323,207 +400,492 @@ function getCompatibilityCardStyle(score: number, theme: any) {
   };
 }
 
-function Section({ title, styles, children }: any) {
+function buildCompatibilitySummary(species: any) {
+  const score = species.compatibilityScore || species.score || 0;
+  const yieldText = species.expectedYieldKg != null ? ` Expected yield is about ${species.expectedYieldKg.toLocaleString('en-IN')} kg.` : '';
+  const revenueText = species.expectedRevenueInr != null ? ` Revenue can reach around Rs ${species.expectedRevenueInr.toLocaleString('en-IN')}.` : '';
+  const profitText = species.netProfitInr != null ? ` Net profit is estimated near Rs ${species.netProfitInr.toLocaleString('en-IN')}.` : '';
+  if (score > 60) return `This species matches your farm profile well — efficiency and economics align strongly with the selected inputs.${yieldText}${revenueText}${profitText}`;
+  if (score >= 30) return `This species can work for your profile, but the match is moderate. Review costs, survival, and local market demand before choosing it.${yieldText}${revenueText}${profitText}`;
+  return `This species is a weaker match — it may need better capital, different water conditions, or higher risk tolerance.${yieldText}${revenueText}${profitText}`;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function SectionHeader({ label, theme }: any) {
+  const styles = getStyles(theme);
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionCard}>{children}</View>
+    <Text style={styles.sectionHeaderLabel}>{label}</Text>
+  );
+}
+
+function BentoCard({ label, value, icon, valueColor, theme }: any) {
+  const styles = getStyles(theme);
+  return (
+    <View style={styles.bentoCard}>
+      <Text style={styles.bentoCardLabel}>{label}</Text>
+      <Text style={[styles.bentoCardValue, { color: valueColor }]}>{value}</Text>
+      <Ionicons name={icon} size={22} color={valueColor} style={styles.bentoCardGhostIcon} />
     </View>
   );
 }
 
-function StatRow({ label, value, styles, valueColor, strong }: any) {
+function BreakdownRow({ label, value, dot, valueColor, strong, theme }: any) {
+  const styles = getStyles(theme);
   return (
-    <View style={styles.statRow}>
-      <Text style={[styles.statLabel, strong && styles.strongText]}>{label}</Text>
-      <Text style={[styles.statValue, valueColor ? { color: valueColor } : null, strong && styles.strongText]}>{value}</Text>
+    <View style={styles.breakdownRow}>
+      <View style={[styles.breakdownDot, { backgroundColor: dot }]} />
+      <Text style={[styles.breakdownLabel, strong && styles.breakdownStrong]}>{label}</Text>
+      <Text style={[styles.breakdownValue, valueColor ? { color: valueColor } : null, strong && styles.breakdownStrong]}>
+        {value}
+      </Text>
     </View>
   );
 }
+
+function PolicyCard({ item, showValue, theme }: any) {
+  const styles = getStyles(theme);
+  return (
+    <View style={styles.policyCard}>
+      <Text style={styles.policyCardTitle}>{item.metricName}</Text>
+      {showValue && item.numericValue != null ? (
+        <Text style={styles.policyCardValue}>{formatKnowledgeValue(item.numericValue, item.unit)}</Text>
+      ) : null}
+      {item.notes || item.sourceLabel ? (
+        <Text style={styles.policyCardMeta}>{item.notes || item.sourceLabel}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const getStyles = (theme: any) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: 16, paddingBottom: 110 },
+  content: { padding: 16, paddingBottom: 120 },
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background },
   errorText: { marginTop: 12, color: theme.colors.textPrimary, fontSize: 16 },
-  helpLink: {
-    color: theme.colors.primary,
-    fontWeight: '800',
-    fontSize: 14,
-  },
+  helpLink: { color: theme.colors.primary, fontWeight: '800', fontSize: 14 },
+
+  // Hero card
   heroCard: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     padding: 22,
+    overflow: 'hidden',
+    marginBottom: 12,
+    position: 'relative',
+  },
+  heroGradientTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: theme.colors.primaryLight,
+    opacity: 0.4,
+  },
+  heroGradientBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    backgroundColor: theme.colors.secondaryLight,
+    opacity: 0.25,
   },
   heroEyebrow: {
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '800',
-    fontSize: 11,
-  },
-  heroTitle: {
-    color: theme.colors.textInverse,
-    fontSize: 54,
-    fontWeight: '900',
-    marginTop: 8,
-  },
-  heroSubtitle: {
-    color: theme.colors.textInverse,
-    fontSize: 18,
+    color: theme.colors.textMuted,
+    fontSize: 10,
     fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: 12,
   },
-  heroProfit: {
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 8,
+  heroProfitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  heroProfitValue: {
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  heroProfitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  heroProfitBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  heroProfitLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  heroDivider: {
+    height: 1,
+    backgroundColor: theme.colors.borderGlass,
+    marginBottom: 16,
+  },
+  heroBentoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroBentoItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  heroBentoDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: theme.colors.borderGlass,
+  },
+  heroBentoValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  heroBentoLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
     fontWeight: '600',
+    letterSpacing: 0.8,
+    marginTop: 3,
   },
-  section: {
-    marginTop: 18,
+
+  // 4-col bento grid
+  bentoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
   },
-  sectionTitle: {
-    ...theme.typography.h3,
+  bentoCard: {
+    width: '47%',
+    backgroundColor: theme.colors.surfaceLow,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 14,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  bentoCardLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  bentoCardValue: {
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  bentoCardGhostIcon: {
+    position: 'absolute',
+    bottom: 8,
+    right: 10,
+    opacity: 0.15,
+  },
+
+  // Section header label
+  sectionHeaderLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.8,
     marginBottom: 10,
+    marginTop: 8,
   },
-  sectionCard: {
+
+  // Breakdown
+  breakdownCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    padding: 16,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+    marginBottom: 20,
   },
-  statRow: {
+  breakdownRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingVertical: 12,
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 13,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.borderGlass,
   },
-  statLabel: {
+  breakdownDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  breakdownLabel: {
     flex: 1,
     color: theme.colors.textSecondary,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
   },
-  statValue: {
+  breakdownValue: {
     color: theme.colors.textPrimary,
+    fontSize: 13,
     fontWeight: '700',
     textAlign: 'right',
   },
-  strongText: {
+  breakdownStrong: {
     fontWeight: '800',
     color: theme.colors.textPrimary,
+    fontSize: 14,
   },
-  listCard: {
-    borderRadius: 14,
-    backgroundColor: theme.colors.surfaceAlt,
-    padding: 14,
+
+  // Risk flags
+  riskCard: {
+    backgroundColor: theme.colors.accentSoft,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    padding: 16,
+    marginBottom: 20,
+  },
+  riskCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 10,
   },
+  riskCardTitle: {
+    color: theme.colors.accent,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  riskItem: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  riskDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.accent,
+    marginTop: 6,
+    flexShrink: 0,
+  },
+  riskText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  riskItemName: {
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+
+  // Funding card
+  fundingCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  fundingCardInner: {
+    padding: 16,
+  },
+  fundingRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  fundingPill: {
+    flex: 1,
+    backgroundColor: theme.colors.surfaceLow,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderLeftWidth: 4,
+    padding: 12,
+  },
+  fundingPillLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  fundingPillValue: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  fundingDescription: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  fundingLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  fundingLinkText: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+
+  // Policy list
+  policyList: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  policyCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 14,
+  },
+  policyCardTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  policyCardValue: {
+    color: theme.colors.primary,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  policyCardMeta: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+
+  // Disclaimer
+  disclaimerBox: {
+    backgroundColor: theme.colors.accentSoft,
+    borderRadius: theme.borderRadius.md,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+  },
+  disclaimerTitle: {
+    color: theme.colors.accent,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  disclaimerText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+
+  // Species cards
   speciesCard: {
-    borderRadius: 16,
+    borderRadius: theme.borderRadius.lg,
     padding: 14,
     marginBottom: 10,
   },
-  speciesCardTopRow: {
+  speciesTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 10,
   },
-  speciesCardTextWrap: {
-    flex: 1,
-  },
-  listCardTitle: {
+  speciesTextWrap: { flex: 1 },
+  speciesName: {
     color: theme.colors.textPrimary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
-  listCardMeta: {
+  speciesMeta: {
     color: theme.colors.textSecondary,
-    marginTop: 4,
+    fontSize: 12,
+    marginTop: 3,
   },
   speciesBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingVertical: 5,
+    borderRadius: 20,
+    flexShrink: 0,
   },
   speciesBadgeText: {
-    color: theme.colors.textPrimary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  speciesHint: {
-    color: theme.colors.textSecondary,
+  speciesExpandHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginTop: 10,
-    fontSize: 12,
+  },
+  speciesHintText: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
     fontWeight: '600',
+    flex: 1,
   },
   speciesReasonBox: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    gap: 8,
+    borderTopColor: theme.colors.borderGlass,
+    gap: 6,
   },
-  speciesReasonText: {
+  speciesReason: {
     color: theme.colors.textPrimary,
-    lineHeight: 20,
-  },
-  speciesSummaryText: {
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  policySourceText: {
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    marginTop: 12,
-  },
-  policyCardList: {
-    gap: 10,
-    marginTop: 14,
-  },
-  policyCard: {
-    borderRadius: 14,
-    backgroundColor: theme.colors.surfaceAlt,
-    padding: 14,
-  },
-  policyCardTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  policyCardValue: {
-    color: theme.colors.primary,
-    fontSize: 16,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  policyCardMeta: {
-    color: theme.colors.textSecondary,
-    marginTop: 6,
+    fontSize: 13,
     lineHeight: 19,
   },
-  warningBox: {
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 14,
-    backgroundColor: theme.colors.accentSoft,
+  speciesSummary: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
-  warningTitle: {
+
+  // System cards
+  systemCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 14,
+    marginBottom: 10,
+  },
+  systemName: {
     color: theme.colors.textPrimary,
     fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 6,
+    fontWeight: '700',
   },
-  warningText: {
+  systemMeta: {
     color: theme.colors.textSecondary,
-    lineHeight: 20,
-  },
-  resultGuideLink: {
-    color: theme.colors.primary,
-    fontWeight: '800',
-    marginTop: 14,
+    fontSize: 12,
+    marginTop: 4,
   },
 });
