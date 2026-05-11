@@ -87,7 +87,7 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
-  const displayName = profile.name || 'Fishing God';
+  const displayName = profile.name || 'MatsyaMitra';
   const initials = displayName
     .split(' ')
     .map((w: string) => w[0])
@@ -355,7 +355,11 @@ function SwitchRow({
 }) {
   const styles = getRowStyles(theme);
   return (
-    <View style={[styles.row, isLast && styles.rowLast]}>
+    <TouchableOpacity
+      style={[styles.row, isLast && styles.rowLast]}
+      onPress={() => onValueChange(!value)}
+      activeOpacity={0.75}
+    >
       <View style={styles.iconContainer}>
         <Ionicons name={icon as any} size={17} color={theme.colors.primary} />
       </View>
@@ -365,8 +369,9 @@ function SwitchRow({
         onValueChange={onValueChange}
         trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
         thumbColor={theme.colors.textInverse}
+        style={{ alignSelf: 'center', marginVertical: 0 }}
       />
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -374,7 +379,7 @@ function SwitchRow({
 const getRowStyles = (theme: any) =>
   StyleSheet.create({
     row: {
-      minHeight: 54,
+      height: 56,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,

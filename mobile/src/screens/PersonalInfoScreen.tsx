@@ -63,7 +63,38 @@ export function isProfileLocationComplete(profile: UserProfile): boolean {
 }
 
 const FARMER_CATEGORIES: UserProfile['farmerCategory'][] = ['GENERAL', 'WOMEN', 'SC', 'ST'];
-const STATES = ['AP', 'AR', 'AS', 'BR', 'GA', 'GJ', 'HR', 'HP', 'JK', 'KA', 'KL', 'MP', 'MH', 'MN', 'OR', 'PB', 'RJ', 'TN', 'TG', 'UP', 'WB'];
+
+const STATES: { code: string; name: string }[] = [
+    { code: 'AP', name: 'Andhra Pradesh' },
+    { code: 'AR', name: 'Arunachal Pradesh' },
+    { code: 'AS', name: 'Assam' },
+    { code: 'BR', name: 'Bihar' },
+    { code: 'CG', name: 'Chhattisgarh' },
+    { code: 'GA', name: 'Goa' },
+    { code: 'GJ', name: 'Gujarat' },
+    { code: 'HR', name: 'Haryana' },
+    { code: 'HP', name: 'Himachal Pradesh' },
+    { code: 'JH', name: 'Jharkhand' },
+    { code: 'JK', name: 'Jammu & Kashmir' },
+    { code: 'KA', name: 'Karnataka' },
+    { code: 'KL', name: 'Kerala' },
+    { code: 'MP', name: 'Madhya Pradesh' },
+    { code: 'MH', name: 'Maharashtra' },
+    { code: 'MN', name: 'Manipur' },
+    { code: 'ML', name: 'Meghalaya' },
+    { code: 'MZ', name: 'Mizoram' },
+    { code: 'NL', name: 'Nagaland' },
+    { code: 'OR', name: 'Odisha' },
+    { code: 'PB', name: 'Punjab' },
+    { code: 'RJ', name: 'Rajasthan' },
+    { code: 'SK', name: 'Sikkim' },
+    { code: 'TN', name: 'Tamil Nadu' },
+    { code: 'TG', name: 'Telangana' },
+    { code: 'TR', name: 'Tripura' },
+    { code: 'UP', name: 'Uttar Pradesh' },
+    { code: 'UK', name: 'Uttarakhand' },
+    { code: 'WB', name: 'West Bengal' },
+];
 
 export default function PersonalInfoScreen({ navigation }: any) {
     const { theme } = useTheme();
@@ -81,6 +112,7 @@ export default function PersonalInfoScreen({ navigation }: any) {
     const [saving, setSaving] = useState(false);
     const [nameFocused, setNameFocused] = useState(false);
     const [phoneFocused, setPhoneFocused] = useState(false);
+    const [stateOpen, setStateOpen] = useState(false);
 
     useEffect(() => {
         loadProfile().then(p => {
@@ -240,18 +272,58 @@ export default function PersonalInfoScreen({ navigation }: any) {
 
                 {/* ── Home state ─────────────────────────────────── */}
                 <Text style={styles.sectionLabel}>HOME STATE</Text>
-                <View style={styles.stateGrid}>
-                    {STATES.map(code => (
-                        <TouchableOpacity
-                            key={code}
-                            style={[styles.stateChip, stateCode === code && styles.stateChipActive]}
-                            onPress={() => handleStateChange(code)}
-                        >
-                            <Text style={[styles.stateChipText, stateCode === code && styles.stateChipTextActive]}>
-                                {code}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                <View style={styles.dropdownWrap}>
+                    <TouchableOpacity
+                        style={[styles.dropdownTrigger, stateOpen && styles.dropdownTriggerOpen]}
+                        onPress={() => setStateOpen(o => !o)}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name="location-outline" size={18} color={stateCode ? c.primary : c.textMuted} />
+                        <Text style={[styles.dropdownTriggerText, stateCode && styles.dropdownTriggerTextSelected]}>
+                            {stateCode
+                                ? STATES.find(s => s.code === stateCode)?.name ?? stateCode
+                                : 'Select your state'}
+                        </Text>
+                        <Ionicons
+                            name={stateOpen ? 'chevron-up' : 'chevron-down'}
+                            size={18}
+                            color={c.textMuted}
+                        />
+                    </TouchableOpacity>
+
+                    {stateOpen && (
+                        <View style={styles.dropdownList}>
+                            <ScrollView
+                                nestedScrollEnabled
+                                showsVerticalScrollIndicator={true}
+                                style={{ maxHeight: 260 }}
+                            >
+                                {STATES.map(s => (
+                                    <TouchableOpacity
+                                        key={s.code}
+                                        style={[
+                                            styles.dropdownItem,
+                                            stateCode === s.code && styles.dropdownItemActive,
+                                        ]}
+                                        onPress={() => {
+                                            handleStateChange(s.code);
+                                            setStateOpen(false);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.dropdownItemText,
+                                            stateCode === s.code && styles.dropdownItemTextActive,
+                                        ]}>
+                                            {s.name}
+                                        </Text>
+                                        {stateCode === s.code && (
+                                            <Ionicons name="checkmark" size={16} color={c.primary} />
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
                 </View>
 
                 {/* ── Location cascade ───────────────────────────── */}
@@ -466,7 +538,7 @@ const getStyles = (theme: any) => {
             paddingVertical: 14,
         },
         inputLabel: {
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: '700',
             color: c.textMuted,
             letterSpacing: 0.5,
@@ -481,8 +553,9 @@ const getStyles = (theme: any) => {
             borderWidth: 1,
             borderColor: c.border,
             backgroundColor: c.surfaceAlt,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
+            paddingHorizontal: 14,
+            paddingVertical: 0,
+            height: 52,
         },
         inputRowFocused: {
             borderColor: c.primary,
@@ -495,7 +568,9 @@ const getStyles = (theme: any) => {
         textInput: {
             flex: 1,
             color: c.textPrimary,
-            fontSize: 15,
+            fontSize: 16,
+            height: 44,
+            paddingVertical: 0,
         },
 
         // Farmer category
@@ -531,39 +606,66 @@ const getStyles = (theme: any) => {
             color: c.textInverse,
         },
 
-        // State grid
-        stateGrid: {
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: 8,
+        // State dropdown
+        dropdownWrap: {
             marginBottom: 20,
+            zIndex: 10,
         },
-        stateChip: {
-            width: 54,
-            height: 36,
-            borderRadius: r.sm,
+        dropdownTrigger: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            height: 52,
+            borderRadius: r.md,
             backgroundColor: c.surface,
             borderWidth: 1,
             borderColor: c.border,
-            alignItems: 'center',
-            justifyContent: 'center',
+            paddingHorizontal: 14,
         },
-        stateChipActive: {
-            backgroundColor: c.primary,
+        dropdownTriggerOpen: {
             borderColor: c.primary,
-            shadowColor: c.primary,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 6,
-            elevation: 3,
+            borderBottomLeftRadius: 0,
+            borderBottomRightRadius: 0,
         },
-        stateChipText: {
-            color: c.textSecondary,
+        dropdownTriggerText: {
+            flex: 1,
+            color: c.textMuted,
+            fontSize: 15,
+            fontWeight: '500',
+        },
+        dropdownTriggerTextSelected: {
+            color: c.textPrimary,
             fontWeight: '700',
-            fontSize: 12,
         },
-        stateChipTextActive: {
-            color: c.textInverse,
+        dropdownList: {
+            backgroundColor: c.surface,
+            borderWidth: 1,
+            borderColor: c.primary,
+            borderTopWidth: 0,
+            borderBottomLeftRadius: r.md,
+            borderBottomRightRadius: r.md,
+            overflow: 'hidden',
+        },
+        dropdownItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 13,
+            borderBottomWidth: 1,
+            borderBottomColor: c.border,
+        },
+        dropdownItemActive: {
+            backgroundColor: c.primaryLight,
+        },
+        dropdownItemText: {
+            color: c.textSecondary,
+            fontSize: 15,
+            fontWeight: '500',
+        },
+        dropdownItemTextActive: {
+            color: c.primary,
+            fontWeight: '700',
         },
 
         // Location section

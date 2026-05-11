@@ -42,7 +42,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
 # Migrations must be present at runtime so the migrate script can read them
 COPY --from=builder /app/migrations ./migrations
-COPY scripts/start.sh ./start.sh
+COPY --from=builder /app/start.sh ./start.sh
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs

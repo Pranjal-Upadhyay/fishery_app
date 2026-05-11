@@ -1,6 +1,6 @@
 {
     "app": {
-        "name": "Fishing God",
+        "name": "MatsyaMitra",
         "tagline": "Aquaculture Intelligence"
     },
     "navigation": {
@@ -34,7 +34,7 @@
         "syncing": "Syncing..."
     },
     "home": {
-        "welcome": "Welcome to Fishing God",
+        "welcome": "Welcome to MatsyaMitra",
         "subtitle": "Your Aquaculture Companion",
         "quickActions": "Quick Actions",
         "checkSpecies": "Species Guide",

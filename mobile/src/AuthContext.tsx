@@ -7,11 +7,15 @@ export const AuthContext = createContext({
     logout: () => { },
 });
 
+// ── DEV MODE: set to true to skip login during UI review ──────────────────
+const DEV_SKIP_AUTH = false;
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(DEV_SKIP_AUTH);
+    const [loading, setLoading] = useState(!DEV_SKIP_AUTH);
 
     useEffect(() => {
+        if (DEV_SKIP_AUTH) return;
         authService.isAuthenticated().then((auth) => {
             setIsAuthenticated(auth);
             setLoading(false);

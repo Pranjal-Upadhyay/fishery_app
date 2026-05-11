@@ -14,8 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { useTheme } from '../ThemeContext';
 import { geoService, economicsService } from '../services/apiService';
+import { loadProfile } from './PersonalInfoScreen';
 
 export default function EconomicsScreen() {
   const { theme } = useTheme();
@@ -39,6 +41,61 @@ export default function EconomicsScreen() {
   const [activeModal, setActiveModal] = useState<'state' | 'district' | 'species' | null>(null);
   const [knowledgeInsights, setKnowledgeInsights] = useState<any | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  // ── Auto-locate: fill state/district from saved profile or GPS ──────────────
+  const handleAutoLocate = async () => {
+    setLocating(true);
+    try {
+      // First try: use the profile's saved location
+      const profile = await loadProfile();
+      if (profile.stateCode) {
+        setStateCode(profile.stateCode);
+        // Try to match a district from zones
+        if (zones.length > 0) {
+          const zoneForState = zones.find((z: any) => z.state_code === profile.stateCode);
+          if (zoneForState?.district_codes?.[0]) {
+            setDistrictCode(zoneForState.district_codes[0]);
+          }
+        }
+        Alert.alert('Location Set', `Using your profile location: ${profile.stateCode}`);
+        return;
+      }
+
+      // Fallback: GPS reverse geocode
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Enable location access in Settings, or select state/district manually.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [geo] = await Location.reverseGeocodeAsync({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      });
+
+      if (geo?.region) {
+        // Map region name to state code heuristically
+        const regionLower = geo.region.toLowerCase();
+        const stateCodeMap: Record<string, string> = {
+          bihar: 'BR', 'andhra pradesh': 'AP', 'west bengal': 'WB',
+          odisha: 'OD', assam: 'AS', kerala: 'KL', 'tamil nadu': 'TN',
+          gujarat: 'GJ', maharashtra: 'MH', karnataka: 'KA',
+        };
+        const matched = Object.entries(stateCodeMap).find(([k]) => regionLower.includes(k));
+        if (matched) {
+          setStateCode(matched[1]);
+          Alert.alert('Location Detected', `State set to ${geo.region}. Please select your district.`);
+        } else {
+          Alert.alert('Location Detected', `${geo.region} — please select your state manually.`);
+        }
+      }
+    } catch {
+      Alert.alert('Error', 'Could not detect location. Please select manually.');
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const WATER_SOURCES = ['BOREWELL', 'OPEN_WELL', 'CANAL', 'RIVER', 'TANK'];
   const SPECIES_OPTIONS = [
@@ -255,7 +312,22 @@ export default function EconomicsScreen() {
             <View style={styles.sectionIconWrap}>
               <Ionicons name="location-outline" size={16} color={theme.colors.primary} />
             </View>
-            <Text style={styles.sectionLabel}>LOCATION & SCALE</Text>
+            <Text style={[styles.sectionLabel, { flex: 1 }]}>LOCATION & SCALE</Text>
+            <TouchableOpacity
+              style={styles.autoLocateBtn}
+              onPress={handleAutoLocate}
+              activeOpacity={0.8}
+              disabled={locating}
+            >
+              {locating ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <Ionicons name="navigate-outline" size={14} color={theme.colors.primary} />
+              )}
+              <Text style={styles.autoLocateText}>
+                {locating ? 'Locating...' : 'Auto Locate'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.row}>
@@ -838,6 +910,22 @@ const getStyles = (theme: any) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
+  },
+  autoLocateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primaryLight,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '40',
+  },
+  autoLocateText: {
+    color: theme.colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',

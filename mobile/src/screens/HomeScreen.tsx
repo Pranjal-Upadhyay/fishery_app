@@ -64,12 +64,14 @@ export default function HomeScreen() {
   );
 
   const quickActions = [
-    { icon: 'fish-outline' as const, label: t('home.checkSpecies'), screen: 'Species' },
-    { icon: 'calculator-outline' as const, label: t('home.calculateROI'), screen: 'Economics' },
-    { icon: 'water-outline' as const, label: t('home.logWaterQuality'), screen: 'WaterQuality' },
-    { icon: 'trending-up-outline' as const, label: t('home.viewMarkets'), screen: 'MarketPrices' },
-    { icon: 'construct-outline' as const, label: t('home.equipmentCatalog'), screen: 'EquipmentCatalog' },
-    { icon: 'restaurant-outline' as const, label: t('home.feedNutrition'), screen: 'FeedCatalog' },
+    { icon: 'fish-outline' as const,          label: t('home.checkSpecies'),     screen: 'Species' },
+    { icon: 'calculator-outline' as const,    label: t('home.calculateROI'),     screen: 'Economics' },
+    { icon: 'water-outline' as const,         label: t('home.logWaterQuality'),  screen: 'WaterQuality' },
+    { icon: 'trending-up-outline' as const,   label: t('home.viewMarkets'),      screen: 'MarketPrices' },
+    { icon: 'construct-outline' as const,     label: t('home.equipmentCatalog'), screen: 'EquipmentCatalog' },
+    { icon: 'restaurant-outline' as const,    label: t('home.feedNutrition'),    screen: 'FeedCatalog' },
+    { icon: 'bug-outline' as const,           label: 'Disease Intelligence',     screen: 'DiseaseList' },
+    { icon: 'medical-outline' as const,       label: 'Doctor Network',           screen: 'DoctorNetwork' },
   ];
 
   const getGreeting = () => {
@@ -91,7 +93,7 @@ export default function HomeScreen() {
             <View style={styles.brandIconContainer}>
               <Ionicons name="fish" size={18} color={theme.colors.primary} />
             </View>
-            <Text style={styles.brandText}>Fishing God</Text>
+            <Text style={styles.brandText}>MatsyaMitra</Text>
           </View>
           <TouchableOpacity
             style={styles.bellButton}
@@ -121,29 +123,41 @@ export default function HomeScreen() {
         <Text style={styles.sectionHeader}>FARM HEALTH</Text>
         <View style={styles.bentoGrid}>
           {/* Active Ponds */}
-          <View style={[styles.bentoCard, styles.bentoCardLeft]}>
-            <View style={[styles.bentoDot, { backgroundColor: theme.colors.secondary }]} />
-            <Text style={styles.bentoNumber}>{activePonds.length}</Text>
-            <Text style={styles.bentoLabel}>Active Ponds</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.touchableBento}
+            activeOpacity={0.82}
+            onPress={() => navigation.navigate('PondsList')}
+          >
+            <View style={[styles.bentoCard, styles.bentoCardLeft]}>
+              <View style={[styles.bentoDot, { backgroundColor: theme.colors.secondary }]} />
+              <Text style={styles.bentoNumber}>{activePonds.length}</Text>
+              <Text style={styles.bentoLabel}>Active Ponds</Text>
+            </View>
+          </TouchableOpacity>
           {/* Critical Alerts */}
-          <View style={[styles.bentoCard, styles.bentoCardRight]}>
-            <View
-              style={[
-                styles.bentoDot,
-                { backgroundColor: criticalAlerts > 0 ? theme.colors.error : theme.colors.textMuted },
-              ]}
-            />
-            <Text
-              style={[
-                styles.bentoNumber,
-                criticalAlerts > 0 && { color: theme.colors.error },
-              ]}
-            >
-              {criticalAlerts}
-            </Text>
-            <Text style={styles.bentoLabel}>Critical Alerts</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.touchableBento}
+            activeOpacity={0.82}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <View style={[styles.bentoCard, styles.bentoCardRight]}>
+              <View
+                style={[
+                  styles.bentoDot,
+                  { backgroundColor: criticalAlerts > 0 ? theme.colors.error : theme.colors.textMuted },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.bentoNumber,
+                  criticalAlerts > 0 && { color: theme.colors.error },
+                ]}
+              >
+                {criticalAlerts}
+              </Text>
+              <Text style={styles.bentoLabel}>Critical Alerts</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* ── Harvest Countdown (horizontal pond cards) ── */}
@@ -310,6 +324,7 @@ const getStyles = (theme: any) =>
       justifyContent: 'flex-end',
       ...theme.shadows.sm,
     },
+    touchableBento: { flex: 1 },
     bentoCardLeft: {},
     bentoCardRight: {},
     bentoDot: {

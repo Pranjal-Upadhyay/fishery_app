@@ -100,7 +100,7 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
 
                 const res = await authService.signup(formattedPhone, password, name, normalizedStateCode, 'GENERAL');
                 if (res.success) {
-                    Alert.alert('Signup Successful', 'Welcome to Fishing God!');
+                    Alert.alert('Signup Successful', 'Welcome to MatsyaMitra!');
                     onLoginSuccess();
                 } else {
                     Alert.alert('Signup Failed', res.error);
@@ -133,7 +133,7 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
                                 resizeMode="contain"
                             />
                         </View>
-                        <Text style={styles.appName}>Fishing God</Text>
+                        <Text style={styles.appName}>MatsyaMitra</Text>
                         <Text style={styles.appTagline}>Premium aquaculture management</Text>
                     </View>
 
@@ -470,8 +470,10 @@ const getStyles = (theme: any) => {
         },
         fieldInput: {
             flex: 1,
+            height: 52,
             color: c.textPrimary,
             fontSize: 15,
+            paddingVertical: 0,
         },
         forgotWrap: {
             alignSelf: 'flex-end',
@@ -542,7 +544,7 @@ const getStyles = (theme: any) => {
             fontSize: 11,
             lineHeight: 17,
             paddingHorizontal: 20,
-            marginTop: 24,
+            marginTop: 8,
         },
     });
 };

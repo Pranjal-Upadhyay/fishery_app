@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Fishing God",
-    "slug": "fishing-god-mobile",
+    "name": "MatsyaMitra",
+    "slug": "matsyamitra",
     "version": "1.0.0",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
@@ -12,7 +12,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Fishing God uses your location to help analyze pond suitability and save pond coordinates."
+          "locationWhenInUsePermission": "MatsyaMitra uses your location to help analyze pond suitability and save pond coordinates."
         }
       ]
     ],
@@ -20,12 +20,12 @@
       "baseUrl": "/fishery_app"
     },
     "ios": {
-      "bundleIdentifier": "com.pranjalupadhyay.fishinggod",
+      "bundleIdentifier": "com.pranjalupadhyay.matsyamitra",
       "buildNumber": "1",
       "supportsTablet": true
     },
     "android": {
-      "package": "com.pranjalupadhyay.fishinggod",
+      "package": "com.pranjalupadhyay.matsyamitra",
       "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
