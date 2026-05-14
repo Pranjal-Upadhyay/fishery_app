@@ -43,6 +43,63 @@ async function ensureMigrationsTable(client: any): Promise<void> {
   `);
 }
 
+async function repairLocationHierarchySchema(client: any): Promise<void> {
+  logger.info('Reconciling location hierarchy schema drift before migrations');
+
+  await client.query(`
+    DO $$
+    BEGIN
+      -- Some deployed databases ended up with both the new canonical columns
+      -- and the old non-null legacy name columns. Later seeds write to name,
+      -- so we relax the legacy columns only in that dual-column drift state.
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'loc_districts' AND column_name = 'district_name'
+      ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'loc_districts' AND column_name = 'name'
+      ) THEN
+        UPDATE loc_districts
+        SET name = COALESCE(NULLIF(name, ''), district_name)
+        WHERE district_name IS NOT NULL;
+
+        ALTER TABLE loc_districts
+        ALTER COLUMN district_name DROP NOT NULL;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'loc_blocks' AND column_name = 'block_name'
+      ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'loc_blocks' AND column_name = 'name'
+      ) THEN
+        UPDATE loc_blocks
+        SET name = COALESCE(NULLIF(name, ''), block_name)
+        WHERE block_name IS NOT NULL;
+
+        ALTER TABLE loc_blocks
+        ALTER COLUMN block_name DROP NOT NULL;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'loc_panchayats' AND column_name = 'panchayat_name'
+      ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'loc_panchayats' AND column_name = 'name'
+      ) THEN
+        UPDATE loc_panchayats
+        SET name = COALESCE(NULLIF(name, ''), panchayat_name)
+        WHERE panchayat_name IS NOT NULL;
+
+        ALTER TABLE loc_panchayats
+        ALTER COLUMN panchayat_name DROP NOT NULL;
+      END IF;
+    END $$;
+  `);
+}
+
 async function baselineExistingBootstrap(client: any, migrationFiles: MigrationFile[]): Promise<void> {
   const result = await client.query('SELECT COUNT(*)::int AS count FROM schema_migrations');
   const appliedCount = result.rows[0]?.count ?? 0;
@@ -115,6 +172,7 @@ async function runMigration() {
     await client.query('BEGIN');
     await ensureMigrationsTable(client);
     await baselineExistingBootstrap(client, migrationFiles);
+    await repairLocationHierarchySchema(client);
     await client.query('COMMIT');
 
     const appliedResult = await client.query<{ filename: string }>('SELECT filename FROM schema_migrations');
