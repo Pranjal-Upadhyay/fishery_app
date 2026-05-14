@@ -7,6 +7,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
+import YouTubeCard, { YouTubeLinkItem } from '../components/YouTubeCard';
 
 // ─── Category chip definitions ────────────────────────────────────────────────
 
@@ -100,6 +101,22 @@ export default function LearningCenterScreen() {
     'Subsidy approval, bank sanction, and release timing can all change your real cash flow.',
   ];
 
+  const ytBasics: YouTubeLinkItem[] = [
+    { search_query: 'fish farming basics India beginners guide', title: 'Fish Farming for Beginners — India', hint: 'Simple intro to setting up your first pond' },
+    { search_query: 'aquaculture business plan step by step India', title: 'Business Plan: Aquaculture in India', hint: 'Planning your first fish farming venture' },
+  ];
+  const ytSystems: YouTubeLinkItem[] = [
+    { search_query: 'pond fish farming setup India earthen pond', title: 'How to Set Up an Earthen Fish Pond', hint: 'Land, water, and pond construction basics' },
+    { search_query: 'RAS recirculating aquaculture system India small scale', title: 'RAS System India — Small Scale', hint: 'Recirculating tanks for higher yield in less space' },
+  ];
+  const ytSubsidy: YouTubeLinkItem[] = [
+    { search_query: 'PMMSY scheme fish farming subsidy India how to apply', title: 'PMMSY Subsidy — How to Apply', hint: 'Government scheme for fisheries development' },
+    { search_query: 'fisheries loan subsidy Bihar UP India bank', title: 'Fish Farming Loan & Subsidy Guide', hint: 'Bank loans and subsidy release process explained' },
+  ];
+  const ytWarnings: YouTubeLinkItem[] = [
+    { search_query: 'fish farming mistakes beginners India avoid', title: 'Common Fish Farming Mistakes to Avoid', hint: 'Learn from others so you don\'t repeat these errors' },
+  ];
+
   // Filtered lessons
   const visibleLessons =
     activeCategory === 'all'
@@ -191,36 +208,57 @@ export default function LearningCenterScreen() {
 
         {/* Start here */}
         {(activeCategory === 'all' || activeCategory === 'basics') && (
-          <LessonSection title="START HERE" icon="flag-outline" styles={styles} theme={theme}>
-            {roadmap.map((item, idx) => (
-              <BulletItem key={item} index={idx + 1} text={item} styles={styles} theme={theme} />
-            ))}
-          </LessonSection>
+          <>
+            <LessonSection title="🚀 START HERE — 5 STEPS BEFORE YOU SPEND" icon="flag-outline" styles={styles} theme={theme}>
+              <Text style={styles.bodyText}>🎯 Most new farmers lose money in the first crop because they skipped the planning phase. Follow these steps before spending a single rupee on your setup.</Text>
+              {roadmap.map((item, idx) => (
+                <BulletItem key={item} index={idx + 1} text={item} styles={styles} theme={theme} />
+              ))}
+            </LessonSection>
+            <View style={styles.ytSection}>
+              <Text style={styles.ytSectionLabel}>📺 WATCH & LEARN</Text>
+              {ytBasics.map((link, i) => <YouTubeCard key={i} item={link} />)}
+            </View>
+          </>
         )}
 
         {/* What the business needs */}
         {(activeCategory === 'all' || activeCategory === 'systems') && (
-          <LessonSection title="WHAT THE BUSINESS NEEDS" icon="build-outline" styles={styles} theme={theme}>
-            <InfoCard title="Land or space"    icon="map-outline"    body="You do not need the same size for every system. Earthen ponds usually need more land. RAS and tank-based systems use less land but need more equipment and stronger management."   styles={styles} theme={theme} />
-            <InfoCard title="Water quality"    icon="water-outline"  body="Water type matters a lot. Freshwater, brackishwater, salinity, oxygen, and pH affect which species and systems are suitable."                                                          styles={styles} theme={theme} />
-            <InfoCard title="Capital"          icon="cash-outline"   body="Some systems are beginner-friendly with lower capital, while others need a much bigger setup budget. In general, ponds are simpler to start than RAS."                                   styles={styles} theme={theme} />
-            <InfoCard title="Working capital"  icon="wallet-outline" body="You need money not just for setup, but also for feed, seed, medicines, labor, and electricity until harvest happens."                                                                     styles={styles} theme={theme} />
-          </LessonSection>
+          <>
+            <LessonSection title="🏗️ WHAT THE BUSINESS NEEDS" icon="build-outline" styles={styles} theme={theme}>
+              <Text style={styles.bodyText}>Think of fish farming as running a small factory — you need raw materials (fingerlings, feed), a production floor (pond or tank), utilities (water, electricity), and a sales plan. Here's how each piece fits together 👇</Text>
+              <InfoCard title="🏞️ Land or space"    icon="map-outline"    body="You don't need huge land for every system. Earthen ponds need more area (usually 0.5–2 hectares), while RAS (Recirculating Aquaculture Systems) can run in a small shed. More land = lower cost per kg, but also more risk if flooding hits."   styles={styles} theme={theme} />
+              <InfoCard title="💧 Water quality"    icon="water-outline"  body="Water is your fish's home — and it must be right. Key things to check: temperature, pH (acidity), dissolved oxygen (DO), salinity, and ammonia levels. Get a ₹500 water testing kit before stocking anything."                                      styles={styles} theme={theme} />
+              <InfoCard title="💰 Capital (Setup)"  icon="cash-outline"   body="Ponds are simpler and cheaper to start. RAS or biofloc systems have higher setup cost but can give better yields. Rule of thumb: budget 1.5× your estimate — costs always run higher in practice."                                                   styles={styles} theme={theme} />
+              <InfoCard title="🔄 Working capital"  icon="wallet-outline" body="You need money throughout the crop cycle, not just at the start. Feed alone can be 50–70% of your total running cost. Plan for 6–12 months of cash before your first harvest comes in."                                                              styles={styles} theme={theme} />
+            </LessonSection>
+            <View style={styles.ytSection}>
+              <Text style={styles.ytSectionLabel}>📺 WATCH & LEARN</Text>
+              {ytSystems.map((link, i) => <YouTubeCard key={i} item={link} />)}
+            </View>
+          </>
         )}
 
         {/* Subsidy */}
         {(activeCategory === 'all' || activeCategory === 'subsidy') && (
-          <LessonSection title="SUBSIDY EXPLAINED SIMPLY" icon="ribbon-outline" styles={styles} theme={theme}>
-            <Text style={styles.bodyText}>Subsidy means the government may support part of the approved project cost. It does not usually mean the full project becomes free.</Text>
-            <Text style={styles.bodyText}>The beneficiary subsidy percentage is the part of project cost the farmer may get support for. The funding split only tells you how that subsidy is shared between Centre and State.</Text>
-            <Text style={styles.bodyText}>In simple words: if subsidy is 40%, the farmer usually still arranges the remaining 60% through own money, bank loan, or both.</Text>
-            <Text style={styles.bodyText}>Subsidy sanction and subsidy release are not the same thing. Timing can depend on paperwork, state release, and project approval.</Text>
-          </LessonSection>
+          <>
+            <LessonSection title="🎁 SUBSIDY EXPLAINED SIMPLY" icon="ribbon-outline" styles={styles} theme={theme}>
+              <Text style={styles.bodyText}>💡 Subsidy doesn't mean the government pays for everything. It means they may cover a portion of your approved project cost. Here's how to think about it clearly.</Text>
+              <Text style={styles.bodyText}>📌 The <Text style={styles.boldText}>beneficiary subsidy %</Text> is the share of your project cost the government may support. So if the subsidy is 40% on a ₹10 lakh project, you might get up to ₹4 lakh — but you still need to arrange the remaining ₹6 lakh yourself.</Text>
+              <Text style={styles.bodyText}>📌 The <Text style={styles.boldText}>funding split</Text> (like 60:40) just tells you how that subsidy amount is split between the Central and State government. It doesn't change what you receive.</Text>
+              <Text style={styles.bodyText}>⚠️ <Text style={styles.boldText}>Sanction ≠ Release.</Text> Getting approved is step one. Getting the actual money in your account can take much longer and depends on state-level paperwork. Plan your cash flow as if the subsidy might arrive late.</Text>
+            </LessonSection>
+            <View style={styles.ytSection}>
+              <Text style={styles.ytSectionLabel}>📺 WATCH & LEARN</Text>
+              {ytSubsidy.map((link, i) => <YouTubeCard key={i} item={link} />)}
+            </View>
+          </>
         )}
 
         {/* Glossary */}
         {(activeCategory === 'all' || activeCategory === 'glossary') && (
-          <LessonSection title="IMPORTANT TERMS MADE SIMPLE" icon="book-outline" styles={styles} theme={theme}>
+          <LessonSection title="📖 JARGON-FREE GLOSSARY" icon="book-outline" styles={styles} theme={theme}>
+            <Text style={styles.bodyText}>You'll see these terms everywhere in fish farming. Here's what they actually mean in plain English 👇</Text>
             {glossary.map((item) => (
               <GlossaryCard key={item.term} term={item.term} meaning={item.meaning} simple={item.simple} styles={styles} theme={theme} />
             ))}
@@ -229,31 +267,39 @@ export default function LearningCenterScreen() {
 
         {/* Results */}
         {(activeCategory === 'all' || activeCategory === 'results') && (
-          <LessonSection title="HOW TO READ YOUR APP RESULT" icon="analytics-outline" styles={styles} theme={theme}>
-            <BulletItem text="Compatibility score tells you how well a species matches your current inputs like water, economics, and risk level."                             styles={styles} theme={theme} />
-            <BulletItem text="Projected revenue is the sales estimate before subtracting all expenses."                                                                       styles={styles} theme={theme} />
-            <BulletItem text="Projected profit is what may remain after setup and operating cost assumptions are applied."                                                    styles={styles} theme={theme} />
-            <BulletItem text="Breakeven timeline tells you how long it may take to recover your investment if assumptions hold."                                              styles={styles} theme={theme} />
-            <BulletItem text="Tap recommended species cards to see why the match is strong, medium, or weak."                                                                styles={styles} theme={theme} />
+          <LessonSection title="📊 HOW TO READ YOUR APP RESULT" icon="analytics-outline" styles={styles} theme={theme}>
+            <Text style={styles.bodyText}>The ROI calculator gives you a planning estimate — not a guarantee. Here's how to read each number correctly 👇</Text>
+            <BulletItem text="🎯 Compatibility score — how well a species matches your water, land, and budget inputs. Higher = better fit for your setup." styles={styles} theme={theme} />
+            <BulletItem text="💵 Projected revenue — your estimated income from selling the harvest. This is before subtracting any costs." styles={styles} theme={theme} />
+            <BulletItem text="📈 Projected profit — what may remain after setup cost (CAPEX) and running cost (OPEX) assumptions are applied. This is the number to focus on." styles={styles} theme={theme} />
+            <BulletItem text="⏳ Breakeven timeline — how many crop cycles before you recover your initial investment, assuming everything goes to plan." styles={styles} theme={theme} />
+            <BulletItem text="🔍 Tap any species card to see why the app rated it strong, medium, or weak for your specific situation." styles={styles} theme={theme} />
           </LessonSection>
         )}
 
         {/* Current rules */}
         {(activeCategory === 'all' || activeCategory === 'results') && (
-          <LessonSection title="CURRENT RULES USED IN THIS APP" icon="settings-outline" styles={styles} theme={theme}>
-            <BulletItem text="Some PMMSY-linked eligibility checks in the app expect at least 0.1 hectare for subsidy planning."                                             styles={styles} theme={theme} />
-            <BulletItem text="The simulator uses document-backed assumptions like FCR, survival, cycle duration, and state benchmarks where available."                       styles={styles} theme={theme} />
-            <BulletItem text="If the app shows warnings or disclaimers, treat them seriously and update local prices before making a financial decision."                     styles={styles} theme={theme} />
+          <LessonSection title="⚙️ HOW THIS APP CALCULATES" icon="settings-outline" styles={styles} theme={theme}>
+            <BulletItem text="Subsidy eligibility checks expect at least 0.1 hectare — smaller farms may not qualify for PMMSY-linked schemes." styles={styles} theme={theme} />
+            <BulletItem text="FCR, survival rate, and cycle duration are sourced from CIFA, MPEDA, and NABARD documents — not random estimates." styles={styles} theme={theme} />
+            <BulletItem text="If you see a warning or disclaimer in the app, treat it seriously. Update your local market prices before making financial decisions." styles={styles} theme={theme} />
           </LessonSection>
         )}
 
         {/* Warnings */}
         {(activeCategory === 'all' || activeCategory === 'warnings') && (
-          <LessonSection title="BEGINNER WARNINGS" icon="warning-outline" styles={styles} theme={theme}>
-            {beginnerWarnings.map((item) => (
-              <BulletItem key={item} text={item} styles={styles} theme={theme} accent />
-            ))}
-          </LessonSection>
+          <>
+            <LessonSection title="⚠️ MISTAKES TO AVOID" icon="warning-outline" styles={styles} theme={theme}>
+              <Text style={styles.bodyText}>These are the most common reasons why new fish farmers lose money. Read them once before you invest anything. 🙏</Text>
+              {beginnerWarnings.map((item) => (
+                <BulletItem key={item} text={item} styles={styles} theme={theme} accent />
+              ))}
+            </LessonSection>
+            <View style={styles.ytSection}>
+              <Text style={styles.ytSectionLabel}>📺 WATCH & LEARN</Text>
+              {ytWarnings.map((link, i) => <YouTubeCard key={i} item={link} />)}
+            </View>
+          </>
         )}
 
         {/* Policy guidance link card */}
@@ -624,6 +670,23 @@ const getStyles = (theme: any) =>
       color: theme.colors.textSecondary,
       lineHeight: 22,
       fontSize: 14,
+    },
+    boldText: {
+      color: theme.colors.textPrimary,
+      fontWeight: '700',
+    },
+
+    // ── YouTube section ──────────────────────────────────────────────────────
+    ytSection: {
+      marginTop: 12,
+    },
+    ytSectionLabel: {
+      color: theme.colors.textMuted,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 2,
+      textTransform: 'uppercase',
+      marginBottom: 8,
     },
 
     // ── Bullet items ─────────────────────────────────────────────────────────

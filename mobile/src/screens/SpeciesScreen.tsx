@@ -107,10 +107,14 @@ const SpeciesCard = ({ species, onPress, theme, styles }: { species: any; onPres
             </Text>
           </View>
           <View style={styles.statCell}>
-            <Ionicons name="layers-outline" size={13} color={theme.colors.primary} />
-            <Text style={styles.statLabel}>CATEGORY</Text>
+            <Ionicons name="cash-outline" size={13} color={theme.colors.primary} />
+            <Text style={styles.statLabel}>PRICE</Text>
             <Text style={styles.statValue} numberOfLines={1}>
-              {category || '–'}
+              {d.economic_parameters?.market_price_per_kg_inr?.min != null
+                ? `₹${d.economic_parameters.market_price_per_kg_inr.min}–${d.economic_parameters.market_price_per_kg_inr.max}/kg`
+                : d.excel_economics?.market_price_inr_kg != null
+                  ? `₹${d.excel_economics.market_price_inr_kg}/kg`
+                  : '–'}
             </Text>
           </View>
         </View>

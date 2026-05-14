@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
+import YouTubeCard, { YouTubeLinkItem } from '../components/YouTubeCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -245,6 +246,68 @@ export default function SpeciesDetailScreen() {
               ))}
             </View>
           </InfoSection>
+        ) : null}
+
+        {/* Breeding Guide */}
+        {d.breeding_guide ? (
+          <View style={[styles.section, { marginTop: 18 }]}>
+            <Text style={styles.sectionTitle}>HOW TO RAISE THEM 🌾</Text>
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionCardHeader}>
+                <Text style={styles.sectionCardHeaderText}>BREEDING & GROW-OUT GUIDE</Text>
+              </View>
+              <View style={styles.sectionCardBody}>
+                {/* Overview */}
+                {d.breeding_guide.overview ? (
+                  <View style={styles.breedingOverview}>
+                    <Text style={styles.breedingOverviewText}>{d.breeding_guide.overview}</Text>
+                  </View>
+                ) : null}
+
+                {/* Steps */}
+                {d.breeding_guide.steps?.length ? (
+                  <View style={styles.breedingSteps}>
+                    <Text style={styles.breedingStepsTitle}>Step-by-Step</Text>
+                    {d.breeding_guide.steps.map((step: string, i: number) => (
+                      <View key={i} style={styles.breedingStep}>
+                        <View style={styles.stepNum}>
+                          <Text style={styles.stepNumText}>{i + 1}</Text>
+                        </View>
+                        <Text style={styles.stepText}>{step}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {/* Timeline */}
+                {d.breeding_guide.timeline ? (
+                  <View style={styles.breedingTimeline}>
+                    <Ionicons name="time-outline" size={14} color={theme.colors.primary} />
+                    <Text style={styles.breedingTimelineText}>{d.breeding_guide.timeline}</Text>
+                  </View>
+                ) : null}
+
+                {/* Beginner tip */}
+                {d.breeding_guide.beginner_tip ? (
+                  <View style={styles.breedingTip}>
+                    <Text style={styles.breedingTipText}>{d.breeding_guide.beginner_tip}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* YouTube Watch & Learn */}
+        {d.youtube_links?.length ? (
+          <View style={[styles.section, { marginTop: 18 }]}>
+            <Text style={styles.sectionTitle}>WATCH & LEARN 🎥</Text>
+            <View style={{ gap: 0 }}>
+              {d.youtube_links.map((link: YouTubeLinkItem, i: number) => (
+                <YouTubeCard key={i} item={link} />
+              ))}
+            </View>
+          </View>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -538,6 +601,88 @@ const getStyles = (theme: any) => StyleSheet.create({
   },
   tagBadgeTextAccent: {
     color: theme.colors.accent,
+  },
+
+  // ── Breeding guide ─────────────────────────────────────────────────────────
+  breedingOverview: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  breedingOverviewText: {
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  breedingSteps: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    gap: 10,
+  },
+  breedingStepsTitle: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  breedingStep: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  stepNum: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: theme.colors.primaryLight,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  stepNumText: {
+    color: theme.colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  stepText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  breedingTimeline: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  breedingTimelineText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  breedingTip: {
+    backgroundColor: theme.colors.primaryLight,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.primary,
+    padding: 14,
+    borderBottomLeftRadius: theme.borderRadius.lg,
+    borderBottomRightRadius: theme.borderRadius.lg,
+  },
+  breedingTipText: {
+    color: theme.colors.primary,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
   },
 
   // ── Optimal systems ────────────────────────────────────────────────────────

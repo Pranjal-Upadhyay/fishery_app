@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    ActivityIndicator, RefreshControl, Linking, Image, TextInput
+    ActivityIndicator, RefreshControl, Linking, TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../ThemeContext';
 import { economicsService } from '../services/apiService';
-import { getFeedImageUri, getFeedTypeColor } from '../utils/feedImages';
+import { getFeedTypeColor } from '../utils/feedImages';
 
 // Feed type category filter options
 const FEED_CATEGORIES = ['ALL', 'FLOATING', 'SINKING', 'POWDER', 'CRUMBLES'];
@@ -149,37 +149,29 @@ export default function FeedCatalogScreen() {
 }
 
 function FeedCard({ item, theme, styles }: { item: any; theme: any; styles: any }) {
-    const [imageError, setImageError] = useState(false);
-    const imageSource = (item.image_url && !imageError)
-        ? { uri: item.image_url }
-        : getFeedImageUri(item.feed_type, item.brand, item.suitable_for, item.name);
     const typeColor = getFeedTypeColor(item.feed_type);
 
     // Stock / availability badge
     const inStock = item.in_stock !== false; // treat undefined as in stock
 
+    // Icon based on feed type / suitability
+    const feedIcon = (() => {
+        const s = (item.suitable_for || '').toLowerCase();
+        const t = (item.feed_type || '').toUpperCase();
+        if (s.includes('shrimp') || s.includes('prawn')) return 'bug-outline';
+        if (t === 'POWDER' || t === 'CRUMBLES') return 'apps-outline';
+        return 'fish-outline';
+    })();
+
     return (
         <View style={styles.card}>
-            {/* Product image at top — height 140, resizeMode cover */}
-            {(item.image_url && !imageError) ? (
-                <Image
-                    source={{ uri: item.image_url }}
-                    style={styles.feedImage}
-                    resizeMode="cover"
-                    onError={() => setImageError(true)}
-                />
-            ) : imageSource ? (
-                <Image
-                    source={imageSource}
-                    style={styles.feedImage}
-                    resizeMode="cover"
-                />
-            ) : (
-                /* Image error fallback: surfaceAlt bg with centered Ionicons icon in primary color */
-                <View style={[styles.feedImageFallback, { backgroundColor: theme.colors.surfaceAlt }]}>
-                    <Ionicons name="leaf-outline" size={44} color={theme.colors.primary} />
-                </View>
-            )}
+            {/* Feed type icon banner — no remote images to avoid wrong content */}
+            <View style={[styles.feedImageFallback, { backgroundColor: typeColor.bg }]}>
+                <Ionicons name={feedIcon} size={48} color={typeColor.text} />
+                <Text style={[styles.feedBannerLabel, { color: typeColor.text }]}>
+                    {item.feed_type || 'FEED'}
+                </Text>
+            </View>
 
             <View style={styles.cardBody}>
                 {/* Header row: feed-type badge + brand + stock badge */}
@@ -338,17 +330,17 @@ const getStyles = (theme: any) => StyleSheet.create({
         overflow: 'hidden',
         ...theme.shadows.sm,
     },
-    // Product image — height 140, resizeMode cover
-    feedImage: {
-        width: '100%',
-        height: 140,
-        resizeMode: 'cover',
-    },
-    // Image error fallback — surfaceAlt bg, centered icon in primary color
     feedImageFallback: {
-        height: 140,
+        height: 120,
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 6,
+    },
+    feedBannerLabel: {
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.5,
+        textTransform: 'uppercase',
     },
 
     cardBody: { padding: 16 },

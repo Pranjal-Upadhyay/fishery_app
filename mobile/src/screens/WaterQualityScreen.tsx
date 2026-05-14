@@ -425,6 +425,8 @@ export default function WaterQualityScreen({ route }: any) {
 
       <ScrollView
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
         refreshControl={
           activeTab === 'history'
             ? <RefreshControl

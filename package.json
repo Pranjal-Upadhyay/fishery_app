@@ -14,7 +14,9 @@
     "db:seed": "cd backend && npm run db:seed",
     "test": "npm run test --workspace backend -- --passWithNoTests --runInBand && npm run test --workspace mobile -- --passWithNoTests --runInBand",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace mobile"
+    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace mobile",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "workspaces": [
     "backend",
@@ -28,7 +30,10 @@
     "@types/node": "^20.19.39",
     "@types/pg": "^8.20.0",
     "expo-updates": "~29.0.16",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "expo": "~54.0.33",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

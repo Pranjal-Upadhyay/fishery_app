@@ -193,7 +193,7 @@ export default function PersonalInfoScreen({ navigation }: any) {
                 <View style={{ width: 38 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="none">
 
                 {/* ── Hero card ──────────────────────────────────── */}
                 <View style={styles.heroCard}>
@@ -609,6 +609,7 @@ const getStyles = (theme: any) => {
         dropdownWrap: {
             marginBottom: 20,
             zIndex: 10,
+            elevation: 10,
         },
         dropdownTrigger: {
             flexDirection: 'row',
@@ -644,6 +645,8 @@ const getStyles = (theme: any) => {
             borderBottomLeftRadius: r.md,
             borderBottomRightRadius: r.md,
             overflow: 'hidden',
+            zIndex: 10,
+            elevation: 10,
         },
         dropdownItem: {
             flexDirection: 'row',

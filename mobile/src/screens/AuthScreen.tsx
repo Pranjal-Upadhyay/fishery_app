@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -66,6 +66,13 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
+    const passwordInputRef = useRef<TextInput>(null);
+
+    const handlePasswordToggle = () => {
+        setShowPassword(prev => !prev);
+        // Re-focus after secureTextEntry change to prevent iOS keyboard dismissal
+        setTimeout(() => passwordInputRef.current?.focus(), 50);
+    };
 
     const handleSubmit = async () => {
         if (!phone || !password) {
@@ -116,12 +123,14 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
             <View style={styles.gradientBg}>
                 <ScrollView
                     contentContainerStyle={styles.container}
-                    keyboardShouldPersistTaps="handled"
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode="none"
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Logo area */}
@@ -211,6 +220,7 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
                             />
 
                             <GhostField
+                                inputRef={passwordInputRef}
                                 label="Password"
                                 icon="lock-closed-outline"
                                 placeholder="Enter password"
@@ -225,7 +235,7 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
                                 theme={theme}
                                 styles={styles}
                                 rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                                onRightIconPress={() => setShowPassword(!showPassword)}
+                                onRightIconPress={handlePasswordToggle}
                             />
 
                             {isLogin && (
@@ -300,6 +310,7 @@ function GhostField({
     styles,
     rightIcon,
     onRightIconPress,
+    inputRef,
     ...props
 }: any) {
     const c = theme.colors;
@@ -319,6 +330,7 @@ function GhostField({
                     color={isFocused ? c.primary : c.textMuted}
                 />
                 <TextInput
+                    ref={inputRef}
                     style={styles.fieldInput}
                     placeholderTextColor={c.textMuted}
                     onFocus={() => setFocusedField(fieldKey)}
@@ -326,8 +338,8 @@ function GhostField({
                     {...props}
                 />
                 {rightIcon && (
-                    <TouchableOpacity onPress={onRightIconPress} style={{ padding: 4 }}>
-                        <Ionicons name={rightIcon} size={20} color={c.textMuted} />
+                    <TouchableOpacity onPress={onRightIconPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ padding: 6 }}>
+                        <Ionicons name={rightIcon} size={22} color={isFocused ? c.primary : c.textMuted} />
                     </TouchableOpacity>
                 )}
             </View>

@@ -218,17 +218,19 @@ export default function EconomicsScreen() {
     .map(([value, label]) => ({ label, value }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  const allDistrictCodes: string[] = [];
+  const districtEntries: { code: string; name: string }[] = [];
   zones.filter(z => z.state_code === stateCode).forEach(z => {
     const codes: string[] = z.district_codes || [];
     const names: string[] = z.district_names || [];
     codes.forEach((code: string, idx: number) => {
-      if (!allDistrictCodes.includes(code)) allDistrictCodes.push(names[idx] || code);
+      if (!districtEntries.find(d => d.code === code)) {
+        districtEntries.push({ code, name: names[idx] || code });
+      }
     });
   });
-  const relevantDistricts: { label: string; value: string }[] = allDistrictCodes
-    .sort()
-    .map(d => ({ label: d, value: d }));
+  const relevantDistricts: { label: string; value: string }[] = districtEntries
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(d => ({ label: d.name, value: d.code }));
   const currentDistrictLabel = relevantDistricts.find(d => d.value === districtCode)?.label || districtCode || 'Select';
 
   const profileFields = [
@@ -683,6 +685,7 @@ function GhostInputField({ label, value, onChangeText, prefix, suffix, icon, isF
           value={value}
           onChangeText={onChangeText}
           keyboardType="decimal-pad"
+          returnKeyType="done"
           placeholderTextColor={theme.colors.textMuted}
           onFocus={onFocus}
           onBlur={onBlur}
