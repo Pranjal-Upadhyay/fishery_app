@@ -221,7 +221,7 @@ INSERT INTO knowledge_rules (
  'NITI Aayog / State Fisheries Depts.',
  'NATIONAL', NULL, NULL, '["ALL"]', '[]',
  'Subsidy Disbursement Delay Risk',
- NULL, NULL, NULL, 'DELAY_RISK',
+ NULL, NULL, 'DELAY_RISK',
  'MEDIUM', 'FY2023-24',
  'State DBT pipeline backlogs reported in Bihar, UP, WB, Odisha',
  FALSE, TRUE,
