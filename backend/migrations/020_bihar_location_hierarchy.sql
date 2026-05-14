@@ -27,10 +27,17 @@ CREATE TABLE IF NOT EXISTS loc_districts (
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- Guard: if table already existed (from 020_create_location_hierarchy.sql) it won't
+-- have lgd_code / name / name_raw / updated_at — add them safely before indexing.
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS name        VARCHAR(120);
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(120);
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS lgd_code    VARCHAR(20);
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_loc_districts_state   ON loc_districts(state_code);
 CREATE INDEX IF NOT EXISTS idx_loc_districts_lgd     ON loc_districts(lgd_code);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_loc_districts_state_name
-    ON loc_districts(state_code, name);
+    ON loc_districts(state_code, name) WHERE name IS NOT NULL;
 
 -- ---- BLOCKS -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS loc_blocks (
@@ -43,10 +50,16 @@ CREATE TABLE IF NOT EXISTS loc_blocks (
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- Guard: same as above for blocks
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS name        VARCHAR(120);
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(120);
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS lgd_code    VARCHAR(20);
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_loc_blocks_district   ON loc_blocks(district_code);
 CREATE INDEX IF NOT EXISTS idx_loc_blocks_lgd        ON loc_blocks(lgd_code);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_loc_blocks_district_name
-    ON loc_blocks(district_code, name);
+    ON loc_blocks(district_code, name) WHERE name IS NOT NULL;
 
 -- ---- PANCHAYATS -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS loc_panchayats (
@@ -59,10 +72,16 @@ CREATE TABLE IF NOT EXISTS loc_panchayats (
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- Guard: same as above for panchayats
+ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS name        VARCHAR(160);
+ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(160);
+ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS lgd_code    VARCHAR(20);
+ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_loc_panchayats_block  ON loc_panchayats(block_code);
 CREATE INDEX IF NOT EXISTS idx_loc_panchayats_lgd    ON loc_panchayats(lgd_code);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_loc_panchayats_block_name
-    ON loc_panchayats(block_code, name);
+    ON loc_panchayats(block_code, name) WHERE name IS NOT NULL;
 
 -- ---- SOURCE METADATA / AUDIT TABLE -----------------------------------------
 CREATE TABLE IF NOT EXISTS loc_source_runs (
