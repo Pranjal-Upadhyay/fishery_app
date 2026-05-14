@@ -2,86 +2,177 @@
 -- Migration 020: Bihar Location Hierarchy Master Tables
 -- Purpose: State → District → Block → Panchayat with stable slug-based codes.
 --          Designed for multi-state extensibility (Bihar first).
+--
+-- IDEMPOTENCY NOTE:
+--   020_create_location_hierarchy.sql (also numbered 020) may have already run
+--   and created these tables with different column names:
+--     loc_districts: PK=district_code, name col=district_name
+--     loc_blocks:    PK=block_code,    name col=block_name
+--     loc_panchayats:PK=panchayat_code,name col=panchayat_name
+--
+--   This migration renames those to the canonical schema (PK=code, name=name)
+--   that all later migrations (021, 024) depend on.
+--   All operations are guarded with DO $$ IF NOT EXISTS $$ blocks so they are
+--   safe to run multiple times.
+-- ============================================================================
+
+-- ============================================================================
+-- STEP 1: Rename legacy PK and name columns produced by the simpler 020 migration
+-- ============================================================================
+
+DO $$ BEGIN
+  -- loc_districts: district_code → code
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_districts' AND column_name='district_code'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_districts' AND column_name='code'
+  ) THEN
+    ALTER TABLE loc_districts RENAME COLUMN district_code TO code;
+  END IF;
+
+  -- loc_districts: district_name → name
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_districts' AND column_name='district_name'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_districts' AND column_name='name'
+  ) THEN
+    ALTER TABLE loc_districts RENAME COLUMN district_name TO name;
+  END IF;
+
+  -- loc_blocks: block_code → code
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_blocks' AND column_name='block_code'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_blocks' AND column_name='code'
+  ) THEN
+    ALTER TABLE loc_blocks RENAME COLUMN block_code TO code;
+  END IF;
+
+  -- loc_blocks: block_name → name
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_blocks' AND column_name='block_name'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_blocks' AND column_name='name'
+  ) THEN
+    ALTER TABLE loc_blocks RENAME COLUMN block_name TO name;
+  END IF;
+
+  -- loc_panchayats: panchayat_code → code
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_panchayats' AND column_name='panchayat_code'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_panchayats' AND column_name='code'
+  ) THEN
+    ALTER TABLE loc_panchayats RENAME COLUMN panchayat_code TO code;
+  END IF;
+
+  -- loc_panchayats: panchayat_name → name
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_panchayats' AND column_name='panchayat_name'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='loc_panchayats' AND column_name='name'
+  ) THEN
+    ALTER TABLE loc_panchayats RENAME COLUMN panchayat_name TO name;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- STEP 2: Create tables (no-op if already exist after renames above)
 -- ============================================================================
 
 -- ---- STATES -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS loc_states (
-    code        VARCHAR(4)   PRIMARY KEY,            -- e.g. 'BR'
-    name        VARCHAR(120) NOT NULL,               -- canonical 'Bihar'
-    name_raw    VARCHAR(120) NOT NULL,               -- source text
-    lgd_code    VARCHAR(20),                         -- LGD / Census numeric code
-    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_loc_states_lgd ON loc_states(lgd_code);
-
--- ---- DISTRICTS --------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS loc_districts (
-    code        VARCHAR(20)  PRIMARY KEY,            -- 'BR-PATNA'
-    state_code  VARCHAR(4)   NOT NULL REFERENCES loc_states(code) ON DELETE CASCADE,
-    name        VARCHAR(120) NOT NULL,               -- canonical 'Patna'
-    name_raw    VARCHAR(120) NOT NULL,               -- source text (preserves original)
+    code        VARCHAR(4)   PRIMARY KEY,
+    name        VARCHAR(120) NOT NULL,
+    name_raw    VARCHAR(120) NOT NULL DEFAULT '',
     lgd_code    VARCHAR(20),
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- Guard: if table already existed (from 020_create_location_hierarchy.sql) it won't
--- have lgd_code / name / name_raw / updated_at — add them safely before indexing.
-ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS name        VARCHAR(120);
-ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(120);
-ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS lgd_code    VARCHAR(20);
-ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ;
-
-CREATE INDEX IF NOT EXISTS idx_loc_districts_state   ON loc_districts(state_code);
-CREATE INDEX IF NOT EXISTS idx_loc_districts_lgd     ON loc_districts(lgd_code);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_loc_districts_state_name
-    ON loc_districts(state_code, name) WHERE name IS NOT NULL;
+-- ---- DISTRICTS --------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS loc_districts (
+    code        VARCHAR(24)  PRIMARY KEY,
+    state_code  VARCHAR(4)   NOT NULL,
+    name        VARCHAR(120) NOT NULL,
+    name_raw    VARCHAR(120) NOT NULL DEFAULT '',
+    lgd_code    VARCHAR(20),
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
 
 -- ---- BLOCKS -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS loc_blocks (
-    code           VARCHAR(40)  PRIMARY KEY,         -- 'BR-PATNA-PHULWARI'
-    district_code  VARCHAR(20)  NOT NULL REFERENCES loc_districts(code) ON DELETE CASCADE,
+    code           VARCHAR(60)  PRIMARY KEY,
+    district_code  VARCHAR(24)  NOT NULL,
     name           VARCHAR(120) NOT NULL,
-    name_raw       VARCHAR(120) NOT NULL,
+    name_raw       VARCHAR(120) NOT NULL DEFAULT '',
     lgd_code       VARCHAR(20),
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- Guard: same as above for blocks
-ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS name        VARCHAR(120);
-ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(120);
-ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS lgd_code    VARCHAR(20);
-ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ;
-
-CREATE INDEX IF NOT EXISTS idx_loc_blocks_district   ON loc_blocks(district_code);
-CREATE INDEX IF NOT EXISTS idx_loc_blocks_lgd        ON loc_blocks(lgd_code);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_loc_blocks_district_name
-    ON loc_blocks(district_code, name) WHERE name IS NOT NULL;
-
 -- ---- PANCHAYATS -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS loc_panchayats (
-    code        VARCHAR(80)  PRIMARY KEY,            -- 'BR-PATNA-PHULWARI-NAUBATPUR'
-    block_code  VARCHAR(40)  NOT NULL REFERENCES loc_blocks(code) ON DELETE CASCADE,
+    code        VARCHAR(100) PRIMARY KEY,
+    block_code  VARCHAR(60)  NOT NULL,
     name        VARCHAR(160) NOT NULL,
-    name_raw    VARCHAR(160) NOT NULL,
+    name_raw    VARCHAR(160) NOT NULL DEFAULT '',
     lgd_code    VARCHAR(20),
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- Guard: same as above for panchayats
-ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS name        VARCHAR(160);
-ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(160);
+-- ============================================================================
+-- STEP 3: Add any missing columns to tables that existed before this migration
+-- ============================================================================
+
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS state_code  VARCHAR(4);
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(120) DEFAULT '';
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS lgd_code    VARCHAR(20);
+ALTER TABLE loc_districts ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ;
+
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS district_code  VARCHAR(24);
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS name_raw       VARCHAR(120) DEFAULT '';
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS lgd_code       VARCHAR(20);
+ALTER TABLE loc_blocks ADD COLUMN IF NOT EXISTS updated_at     TIMESTAMPTZ;
+
+ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS block_code  VARCHAR(60);
+ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS name_raw    VARCHAR(160) DEFAULT '';
 ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS lgd_code    VARCHAR(20);
 ALTER TABLE loc_panchayats ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ;
 
+-- ============================================================================
+-- STEP 4: Widen VARCHAR columns that may be too narrow from the old schema
+-- ============================================================================
+
+ALTER TABLE loc_districts  ALTER COLUMN code TYPE VARCHAR(24);
+ALTER TABLE loc_blocks     ALTER COLUMN code TYPE VARCHAR(60);
+ALTER TABLE loc_panchayats ALTER COLUMN code TYPE VARCHAR(100);
+
+-- ============================================================================
+-- STEP 5: Create indexes (IF NOT EXISTS — safe to rerun)
+-- ============================================================================
+
+CREATE INDEX IF NOT EXISTS idx_loc_states_lgd        ON loc_states(lgd_code);
+CREATE INDEX IF NOT EXISTS idx_loc_districts_state   ON loc_districts(state_code);
+CREATE INDEX IF NOT EXISTS idx_loc_districts_lgd     ON loc_districts(lgd_code);
+CREATE INDEX IF NOT EXISTS idx_loc_blocks_district   ON loc_blocks(district_code);
+CREATE INDEX IF NOT EXISTS idx_loc_blocks_lgd        ON loc_blocks(lgd_code);
 CREATE INDEX IF NOT EXISTS idx_loc_panchayats_block  ON loc_panchayats(block_code);
 CREATE INDEX IF NOT EXISTS idx_loc_panchayats_lgd    ON loc_panchayats(lgd_code);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_loc_panchayats_block_name
-    ON loc_panchayats(block_code, name) WHERE name IS NOT NULL;
 
 -- ---- SOURCE METADATA / AUDIT TABLE -----------------------------------------
 CREATE TABLE IF NOT EXISTS loc_source_runs (
