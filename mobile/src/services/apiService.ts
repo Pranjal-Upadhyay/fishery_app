@@ -37,15 +37,17 @@ api.interceptors.response.use(
     response => response,
     async (error) => {
         const status = error.response?.status;
-        if (status === 429) {
+        const requestConfig = error.config as (typeof error.config & { _retryAfter429?: boolean }) | undefined;
+        if (status === 429 && requestConfig && !requestConfig._retryAfter429) {
             const retryAfterHeader = error.response?.headers?.['retry-after'];
             const waitMs = retryAfterHeader
                 ? parseInt(retryAfterHeader, 10) * 1000
                 : 5000; // default 5 s
+            requestConfig._retryAfter429 = true;
             console.warn(`[API] 429 rate-limited on ${error.config?.url}. Retrying in ${waitMs / 1000}s…`);
             await new Promise(resolve => setTimeout(resolve, waitMs));
             // Retry the original request exactly once
-            return api.request(error.config);
+            return api.request(requestConfig);
         }
         return Promise.reject(error);
     }

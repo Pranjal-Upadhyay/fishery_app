@@ -84,6 +84,15 @@ function normalizePhoneNumber(value: string) {
     return `+91${digitsOnly}`;
 }
 
+function hasValidPhoneNumber(value: string) {
+    const digitsOnly = value.replace(/[^\d]/g, '');
+    if (!digitsOnly) return false;
+    if (digitsOnly.startsWith('91')) {
+        return digitsOnly.length === 12;
+    }
+    return digitsOnly.length === 10;
+}
+
 export default function AuthScreen({ onLoginSuccess }: Props) {
     const { theme } = useTheme();
     const c = theme.colors;
@@ -124,8 +133,8 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
     const handleSubmit = async () => {
         const formattedPhone = normalizePhoneNumber(phone);
 
-        if (!formattedPhone || formattedPhone.length < 10 || !password.trim()) {
-            Alert.alert('Missing fields', 'Please enter a valid phone number and password.');
+        if (!hasValidPhoneNumber(phone) || !password.trim()) {
+            Alert.alert('Missing fields', 'Please enter a valid 10-digit phone number and password.');
             return;
         }
 
