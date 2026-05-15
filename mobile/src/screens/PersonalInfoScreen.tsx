@@ -14,6 +14,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../ThemeContext';
 import LocationCascadePicker, { LocationSelection } from '../components/LocationCascadePicker';
+import { authService } from '../services/authService';
+import { queuePendingProfileSync } from '../services/profileSyncService';
 
 const PROFILE_KEY = '@fishing_god_profile';
 
@@ -145,7 +147,7 @@ export default function PersonalInfoScreen({ navigation }: any) {
         }
         setSaving(true);
         try {
-            await saveProfile({
+            const nextProfile = {
                 userId,
                 name: name.trim(),
                 phone: phone.trim(),
@@ -157,8 +159,45 @@ export default function PersonalInfoScreen({ navigation }: any) {
                 blockName: location.blockName,
                 panchayatCode: location.panchayatCode,
                 panchayatName: location.panchayatName,
-            });
-            Alert.alert('Saved', 'Your profile has been updated.', [
+            };
+
+            await saveProfile(nextProfile);
+
+            const syncResult = userId
+                ? await authService.updateProfile({
+                    userId,
+                    name: nextProfile.name,
+                    farmerCategory: nextProfile.farmerCategory,
+                    stateCode: nextProfile.stateCode,
+                    districtCode: nextProfile.districtCode,
+                    districtName: nextProfile.districtName,
+                    blockCode: nextProfile.blockCode,
+                    blockName: nextProfile.blockName,
+                    panchayatCode: nextProfile.panchayatCode,
+                    panchayatName: nextProfile.panchayatName,
+                })
+                : { success: true as const };
+
+            if (!syncResult.success && userId) {
+                await queuePendingProfileSync({
+                    userId,
+                    name: nextProfile.name,
+                    farmerCategory: nextProfile.farmerCategory,
+                    stateCode: nextProfile.stateCode,
+                    districtCode: nextProfile.districtCode,
+                    districtName: nextProfile.districtName,
+                    blockCode: nextProfile.blockCode,
+                    blockName: nextProfile.blockName,
+                    panchayatCode: nextProfile.panchayatCode,
+                    panchayatName: nextProfile.panchayatName,
+                });
+            }
+
+            const message = syncResult.success
+                ? 'Your profile has been updated.'
+                : 'Saved on this device. It will sync automatically when internet is back.';
+
+            Alert.alert('Saved', message, [
                 { text: 'OK', onPress: () => navigation.navigate('Main') },
             ]);
         } catch {

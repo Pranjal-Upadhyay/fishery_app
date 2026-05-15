@@ -41,6 +41,15 @@ const loginSchema = z.object({
     password: z.string().min(1).max(128),
 });
 
+const profileUpdateSchema = z.object({
+    name: z.string().min(2).max(100).trim(),
+    farmerCategory: z.enum(['GENERAL', 'WOMEN', 'SC', 'ST']),
+    stateCode: z.string().length(2),
+    districtCode: z.string().min(2).max(120).optional().nullable(),
+    blockCode: z.string().min(2).max(160).optional().nullable(),
+    panchayatCode: z.string().min(2).max(200).optional().nullable(),
+});
+
 async function ensureAuthRuntimeSchema(): Promise<void> {
     await query(`
         ALTER TABLE users
@@ -110,7 +119,7 @@ async function ensureAuthRuntimeSchema(): Promise<void> {
     `);
 }
 
-async function fetchAuthenticatedUser(phone: string) {
+async function fetchAuthenticatedUserByColumn(column: 'u.phone_number' | 'u.id', value: string) {
     const result = await query(`
       SELECT
         u.id,
@@ -125,16 +134,27 @@ async function fetchAuthenticatedUser(phone: string) {
         u.panchayat_code AS "panchayatCode",
         d.id AS "doctorId",
         d.specialization[1] AS "doctorSpecialization",
-        d.district_name AS "districtName",
-        d.block_name AS "blockName",
-        d.panchayat_name AS "panchayatName"
+        COALESCE(d.district_name, ud.name) AS "districtName",
+        COALESCE(d.block_name, ub.name) AS "blockName",
+        COALESCE(d.panchayat_name, up.name) AS "panchayatName"
       FROM users u
       LEFT JOIN doctors d ON d.user_id = u.id
-      WHERE u.phone_number = $1
+      LEFT JOIN loc_districts ud ON ud.code = u.district_code
+      LEFT JOIN loc_blocks ub ON ub.code = u.block_code
+      LEFT JOIN loc_panchayats up ON up.code = u.panchayat_code
+      WHERE ${column} = $1
       LIMIT 1
-    `, [phone]);
+    `, [value]);
 
     return result.rows[0];
+}
+
+async function fetchAuthenticatedUser(phone: string) {
+    return fetchAuthenticatedUserByColumn('u.phone_number', phone);
+}
+
+async function fetchAuthenticatedUserById(userId: string) {
+    return fetchAuthenticatedUserByColumn('u.id', userId);
 }
 
 router.post('/signup', async (req, res) => {
@@ -266,6 +286,48 @@ router.post('/login', async (req, res) => {
         const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
 
         res.json({ success: true, token, user });
+    } catch (error: any) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ success: false, error: 'Validation Error', details: error.issues });
+        }
+        res.status(500).json({
+            success: false,
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal Server Error'
+        });
+    }
+});
+
+router.patch('/profile/:userId', async (req, res) => {
+    try {
+        await ensureAuthRuntimeSchema();
+        const payload = profileUpdateSchema.parse(req.body);
+
+        const result = await query(`
+            UPDATE users
+            SET name = $2,
+                farmer_category = $3,
+                state_code = $4,
+                district_code = $5,
+                block_code = $6,
+                panchayat_code = $7
+            WHERE id = $1
+            RETURNING id
+        `, [
+            req.params.userId,
+            payload.name,
+            payload.farmerCategory,
+            payload.stateCode,
+            payload.districtCode || null,
+            payload.blockCode || null,
+            payload.panchayatCode || null,
+        ]);
+
+        if ((result.rowCount ?? 0) === 0) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        const user = await fetchAuthenticatedUserById(req.params.userId);
+        res.json({ success: true, user });
     } catch (error: any) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({ success: false, error: 'Validation Error', details: error.issues });

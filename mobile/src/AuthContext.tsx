@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authService, type AuthUser } from './services/authService';
+import { processPendingProfileSync, startProfileSyncListener, stopProfileSyncListener } from './services/profileSyncService';
 
 export type AuthRole = 'farmer' | 'doctor';
 
@@ -64,6 +65,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     void bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      stopProfileSyncListener();
+      return;
+    }
+
+    startProfileSyncListener();
+    void processPendingProfileSync();
+
+    return () => {
+      stopProfileSyncListener();
+    };
+  }, [currentUser?.id]);
 
   const logout = async () => {
     await authService.logout();

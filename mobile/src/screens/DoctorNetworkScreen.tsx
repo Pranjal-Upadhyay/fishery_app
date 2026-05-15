@@ -25,6 +25,12 @@ import { Q } from '@nozbe/watermelondb';
 
 const symptomHints = ['fish gasping', 'white spots', 'red lesions', 'sudden deaths'];
 
+function formatDoctorName(name?: string | null) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return 'Doctor';
+  return /^dr\.?\s+/i.test(trimmed) ? trimmed : `Dr. ${trimmed}`;
+}
+
 export default function DoctorNetworkScreen() {
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
@@ -123,6 +129,7 @@ export default function DoctorNetworkScreen() {
   }, [profile, resolveDoctor]);
 
   const selectedPond = ponds.find((p) => p.id === selectedPondId) || null;
+  const doctorDisplayName = formatDoctorName(assignedDoctor?.name);
 
   const selectedSymptoms = useMemo(
     () => symptoms.split(',').map((s) => s.trim()).filter(Boolean),
@@ -182,7 +189,7 @@ export default function DoctorNetworkScreen() {
       const res = await doctorNetworkService.createAppointment({
         farmerId: profile.userId,
         doctorId: assignedDoctor.id,
-        pondId: selectedPond?.pondId || undefined,
+        pondId: selectedPond?.id || undefined,
         issueDescription: issueDescription.trim(),
         suspectedDiseaseId: suspected || undefined,
         scheduledDate: tomorrow.toISOString(),
@@ -194,7 +201,7 @@ export default function DoctorNetworkScreen() {
       if (res.success) {
         Alert.alert(
           'Appointment Requested',
-          `Dr. ${assignedDoctor.name} will visit${selectedPond ? ` for pond "${selectedPond.name}"` : ''}.\nFarmer pays ₹200, Govt pays ₹100.`
+          `${doctorDisplayName} will visit${selectedPond ? ` for pond "${selectedPond.name}"` : ''}.\nFarmer pays ₹200, Govt pays ₹100.`
         );
         setIssueDescription('');
         setSugg(null);
@@ -203,7 +210,12 @@ export default function DoctorNetworkScreen() {
         Alert.alert('Failed', res.error || 'Could not book appointment.');
       }
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Could not book appointment.');
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Could not book appointment.';
+      Alert.alert('Error', message);
     } finally {
       setSubmitting(false);
     }
@@ -417,7 +429,7 @@ export default function DoctorNetworkScreen() {
                 <>
                   <Ionicons name="calendar-outline" size={18} color={c.textInverse} />
                   <Text style={styles.bookBtnText}>
-                    {assignedDoctor ? `Book Dr. ${assignedDoctor.name}` : 'No Doctor Available'}
+                    {assignedDoctor ? `Book ${doctorDisplayName}` : 'No Doctor Available'}
                   </Text>
                 </>
               )}

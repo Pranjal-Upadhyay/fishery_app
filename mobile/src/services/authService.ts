@@ -55,6 +55,18 @@ interface DoctorSignupPayload {
 }
 
 export type SignupPayload = FarmerSignupPayload | DoctorSignupPayload;
+export interface PersistedProfilePayload {
+    userId: string;
+    name: string;
+    farmerCategory: UserProfile['farmerCategory'];
+    stateCode: string;
+    districtCode?: string;
+    districtName?: string;
+    blockCode?: string;
+    blockName?: string;
+    panchayatCode?: string;
+    panchayatName?: string;
+}
 
 async function persistAuthSuccess(user: AuthUser) {
     await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
@@ -156,5 +168,32 @@ export const authService = {
         const token = await AsyncStorage.getItem(TOKEN_KEY);
         const user = await AsyncStorage.getItem(AUTH_USER_KEY);
         return Boolean(token && user);
+    },
+
+    updateProfile: async (payload: PersistedProfilePayload): Promise<AuthResponse> => {
+        try {
+            const res = await api.patch(`/api/v1/auth/profile/${payload.userId}`, {
+                name: payload.name,
+                farmerCategory: payload.farmerCategory,
+                stateCode: payload.stateCode,
+                districtCode: payload.districtCode || null,
+                blockCode: payload.blockCode || null,
+                panchayatCode: payload.panchayatCode || null,
+            });
+
+            if (!res.data.success || !res.data.user) {
+                return { success: false, error: res.data.error || 'Profile sync failed' };
+            }
+
+            const user = normalizeAuthUser(res.data.user);
+            await persistAuthSuccess(user);
+            return { success: true, user };
+        } catch (error: any) {
+            const fallbackMessage =
+                error.code === 'ECONNABORTED'
+                    ? 'Request timed out while syncing profile'
+                    : error.response?.data?.error || error.message || 'Profile sync failed';
+            return { success: false, error: fallbackMessage };
+        }
     },
 };
