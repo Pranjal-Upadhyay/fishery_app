@@ -34,26 +34,36 @@ function describeError(error: unknown) {
 }
 
 // Database configuration — fail fast if credentials are missing in production.
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
   if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
     throw new Error(
       'FATAL: Database credentials must be set via environment variables in production. ' +
-      'Required: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME'
+      'Required: DATABASE_URL or (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)'
     );
   }
 }
 
-const poolConfig: PoolConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  user: process.env.DB_USER || (process.env.NODE_ENV === 'production' ? undefined : 'fishinggod'),
-  password: process.env.DB_PASSWORD || (process.env.NODE_ENV === 'production' ? undefined : 'aquaculture2024'),
-  database: process.env.DB_NAME || (process.env.NODE_ENV === 'production' ? undefined : 'fishing_god'),
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 2000, // Return error after 2 seconds if connection not established
-  application_name: 'fishing_god_backend',
-};
+const poolConfig: PoolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+      application_name: 'fishing_god_backend',
+      ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+    }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      user: process.env.DB_USER || (process.env.NODE_ENV === 'production' ? undefined : 'fishinggod'),
+      password: process.env.DB_PASSWORD || (process.env.NODE_ENV === 'production' ? undefined : 'aquaculture2024'),
+      database: process.env.DB_NAME || (process.env.NODE_ENV === 'production' ? undefined : 'fishing_god'),
+      max: 20, // Maximum number of clients in the pool
+      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+      connectionTimeoutMillis: 2000, // Return error after 2 seconds if connection not established
+      application_name: 'fishing_god_backend',
+      ssl: process.env.NODE_ENV === 'production' || process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    };
 
 // Create the connection pool
 export const pool = new Pool(poolConfig);
