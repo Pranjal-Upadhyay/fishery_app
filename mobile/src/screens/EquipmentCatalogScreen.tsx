@@ -11,22 +11,11 @@ import { useTheme } from '../ThemeContext';
 import { economicsService } from '../services/apiService';
 
 const LOCAL_EQUIPMENT_IMAGES: Record<string, any> = {
-    AERATION: require('../assets/equipment/aeration.jpg'),
-    FEEDING: require('../assets/equipment/feeding.jpg'),
-    TANK: require('../assets/equipment/tank.jpg'),
-    CIRCULATION: require('../assets/equipment/circulation.jpg'),
-    FILTRATION: require('../assets/equipment/filtration.jpg'),
-    MONITORING: require('../assets/equipment/monitoring.jpg'),
-    POWER: require('../assets/equipment/power.jpg'),
     '550W Vortex Blower': require('../assets/equipment/blower.jpg'),
-    // Biofloc items reuse the closest matching category images
-    BIOFLOC: require('../assets/equipment/tank.jpg'),
-    // RAS items reuse the closest matching category images
-    RAS: require('../assets/equipment/circulation.jpg'),
 };
 
 function getLocalEquipmentImage(item: any): any | null {
-    return LOCAL_EQUIPMENT_IMAGES[item.name] || LOCAL_EQUIPMENT_IMAGES[item.category] || null;
+    return LOCAL_EQUIPMENT_IMAGES[item.name] || null;
 }
 
 function getEquipmentFallbackIcon(item: any): keyof typeof Ionicons.glyphMap {
@@ -328,45 +317,134 @@ export default function EquipmentCatalogScreen() {
             <Modal visible={!!selectedItem} transparent animationType="slide" onRequestClose={() => setSelectedItem(null)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalCard}>
-                        {selectedItem && (
-                            <ScrollView showsVerticalScrollIndicator={false}>
-                                {/* Modal image */}
-                                <EquipmentImage
-                                    item={selectedItem}
-                                    style={styles.modalImage}
-                                    fallbackStyle={styles.modalImageFallback}
-                                    theme={theme}
-                                />
-                                {/* Category label */}
-                                <Text style={styles.modalCategory}>{formatEquipmentCategory(selectedItem.category).toUpperCase()}</Text>
-                                <Text style={styles.modalTitle}>{selectedItem.name}</Text>
-                                {/* Price — secondary (lime) bold, monospace letterSpacing */}
-                                <Text style={styles.modalPrice}>₹{parseFloat(selectedItem.cost_inr).toLocaleString('en-IN')}</Text>
+                        {selectedItem && (() => {
+                            const suppliers = (() => {
+                                if (!selectedItem.supplier_info) return [];
+                                try {
+                                    return typeof selectedItem.supplier_info === 'string'
+                                        ? JSON.parse(selectedItem.supplier_info)
+                                        : selectedItem.supplier_info;
+                                } catch (e) {
+                                    console.error('Failed to parse supplier_info', e);
+                                    return [];
+                                }
+                            })();
+                            const hasGovSuppliers = Array.isArray(suppliers) && suppliers.length > 0;
 
-                                <View style={styles.modalInfoCard}>
-                                    <ModalInfoRow icon="time-outline" label="Expected Lifespan" value={`${selectedItem.lifespan_years} years`} theme={theme} styles={styles} />
-                                    {selectedItem.maintenance_cost_annual_inr ? (
-                                        <ModalInfoRow icon="build-outline" label="Annual Maintenance" value={`₹${parseFloat(selectedItem.maintenance_cost_annual_inr).toLocaleString('en-IN')}`} theme={theme} styles={styles} last />
-                                    ) : null}
-                                </View>
+                            return (
+                                <ScrollView showsVerticalScrollIndicator={false}>
+                                    {/* Modal image */}
+                                    <EquipmentImage
+                                        item={selectedItem}
+                                        style={styles.modalImage}
+                                        fallbackStyle={styles.modalImageFallback}
+                                        theme={theme}
+                                    />
+                                    {/* Category label */}
+                                    <Text style={styles.modalCategory}>{formatEquipmentCategory(selectedItem.category).toUpperCase()}</Text>
+                                    <Text style={styles.modalTitle}>{selectedItem.name}</Text>
+                                    {/* Price — secondary (lime) bold, monospace letterSpacing */}
+                                    <Text style={styles.modalPrice}>₹{parseFloat(selectedItem.cost_inr).toLocaleString('en-IN')}</Text>
 
-                                <TouchableOpacity
-                                    style={styles.modalButton}
-                                    onPress={() => {
-                                        const url = selectedItem.specifications?.indiamart_url
-                                            || `https://dir.indiamart.com/search.mp?ss=${encodeURIComponent(selectedItem.name || '')}`;
-                                        Linking.openURL(url);
-                                    }}
-                                    activeOpacity={0.85}
-                                >
-                                    <Ionicons name="search-outline" size={18} color={theme.colors.textInverse} />
-                                    <Text style={styles.modalButtonText}>{t('equipment.shopOnline')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedItem(null)} activeOpacity={0.82}>
-                                    <Text style={styles.modalCloseText}>Close</Text>
-                                </TouchableOpacity>
-                            </ScrollView>
-                        )}
+                                    <View style={styles.modalInfoCard}>
+                                        <ModalInfoRow icon="time-outline" label="Expected Lifespan" value={`${selectedItem.lifespan_years} years`} theme={theme} styles={styles} />
+                                        {selectedItem.maintenance_cost_annual_inr ? (
+                                            <ModalInfoRow icon="build-outline" label="Annual Maintenance" value={`₹${parseFloat(selectedItem.maintenance_cost_annual_inr).toLocaleString('en-IN')}`} theme={theme} styles={styles} last />
+                                        ) : null}
+                                    </View>
+
+                                    {/* Empanelled Government Suppliers Card List */}
+                                    {hasGovSuppliers && (
+                                        <View style={{ marginTop: 8 }}>
+                                            <Text style={styles.supplierTitle}>GOVERNMENT EMPANELLED SUPPLIERS</Text>
+                                            {suppliers.map((sup: any, index: number) => (
+                                                <View key={index} style={styles.supplierCard}>
+                                                    <View style={styles.supplierHeader}>
+                                                        <Ionicons name="shield-checkmark-outline" size={18} color={theme.colors.success || '#10B981'} />
+                                                        <Text style={styles.supplierName}>{sup.name}</Text>
+                                                    </View>
+                                                    
+                                                    {sup.validity ? (
+                                                        <View style={styles.validityBadge}>
+                                                            <Text style={styles.validityText}>{sup.validity}</Text>
+                                                        </View>
+                                                    ) : null}
+
+                                                    {sup.scope ? (
+                                                        <Text style={styles.scopeText}>{sup.scope}</Text>
+                                                    ) : null}
+
+                                                    {sup.address ? (
+                                                        <View style={styles.addressRow}>
+                                                            <Ionicons name="location-outline" size={14} color={theme.colors.textMuted} style={{ marginTop: 2 }} />
+                                                            <Text style={styles.addressText}>{sup.address}</Text>
+                                                        </View>
+                                                    ) : null}
+
+                                                    <View style={styles.contactRow}>
+                                                        {sup.phone ? (
+                                                            <TouchableOpacity 
+                                                                style={styles.contactButton}
+                                                                onPress={() => Linking.openURL(`tel:${sup.phone}`)}
+                                                                activeOpacity={0.8}
+                                                            >
+                                                                <Ionicons name="call-outline" size={14} color={theme.colors.textPrimary} />
+                                                                <Text style={styles.contactButtonText}>Call</Text>
+                                                            </TouchableOpacity>
+                                                        ) : null}
+                                                        {sup.email ? (
+                                                            <TouchableOpacity 
+                                                                style={styles.contactButton}
+                                                                onPress={() => Linking.openURL(`mailto:${sup.email}`)}
+                                                                activeOpacity={0.8}
+                                                            >
+                                                                <Ionicons name="mail-outline" size={14} color={theme.colors.textPrimary} />
+                                                                <Text style={styles.contactButtonText}>Email</Text>
+                                                            </TouchableOpacity>
+                                                        ) : null}
+                                                    </View>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+
+                                    {/* IndiaMart warning banner */}
+                                    {!hasGovSuppliers && (
+                                        <View style={styles.warningBanner}>
+                                            <Ionicons name="warning-outline" size={18} color={theme.colors.error} />
+                                            <Text style={styles.warningBannerText}>
+                                                This is not a government backed supplier, it's from Indiamart
+                                            </Text>
+                                        </View>
+                                    )}
+
+                                    {/* Primary/Secondary IndiaMart Action Button */}
+                                    <TouchableOpacity
+                                        style={hasGovSuppliers ? styles.modalButtonSecondary : styles.modalButton}
+                                        onPress={() => {
+                                            const url = selectedItem.specifications?.indiamart_url
+                                                || `https://dir.indiamart.com/search.mp?ss=${encodeURIComponent(selectedItem.name || '')}`;
+                                            Linking.openURL(url);
+                                        }}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Ionicons 
+                                            name="search-outline" 
+                                            size={18} 
+                                            color={hasGovSuppliers ? theme.colors.primary : theme.colors.textInverse} 
+                                        />
+                                        <Text style={hasGovSuppliers ? styles.modalButtonSecondaryText : styles.modalButtonText}>
+                                            {t('equipment.shopOnline')}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    {/* Close Button */}
+                                    <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedItem(null)} activeOpacity={0.82}>
+                                        <Text style={styles.modalCloseText}>Close</Text>
+                                    </TouchableOpacity>
+                                </ScrollView>
+                            );
+                        })()}
                     </View>
                 </View>
             </Modal>
@@ -691,4 +769,129 @@ const getStyles = (theme: any) => StyleSheet.create({
         justifyContent: 'center',
     },
     modalCloseText: { color: theme.colors.textSecondary, fontWeight: '700', fontSize: 14 },
+    supplierTitle: {
+        color: theme.colors.textMuted,
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 2,
+        textTransform: 'uppercase',
+        marginTop: 18,
+        marginBottom: 10,
+    },
+    supplierCard: {
+        backgroundColor: theme.colors.surfaceAlt,
+        borderRadius: theme.borderRadius.lg,
+        borderWidth: 1.5,
+        borderColor: theme.colors.success || '#10B981',
+        padding: 14,
+        marginBottom: 14,
+        ...theme.shadows.sm,
+    },
+    supplierHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    supplierName: {
+        flex: 1,
+        color: theme.colors.textPrimary,
+        fontSize: 15,
+        fontWeight: '800',
+        lineHeight: 20,
+    },
+    validityBadge: {
+        alignSelf: 'flex-start',
+        backgroundColor: (theme.colors.success || '#10B981') + '15',
+        borderRadius: 9999,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: (theme.colors.success || '#10B981') + '30',
+    },
+    validityText: {
+        color: theme.colors.success || '#10B981',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    scopeText: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        fontStyle: 'italic',
+        lineHeight: 18,
+        marginBottom: 10,
+    },
+    addressRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+        marginBottom: 12,
+    },
+    addressText: {
+        flex: 1,
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    contactRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 4,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
+        paddingTop: 10,
+    },
+    contactButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        height: 38,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surface,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    contactButtonText: {
+        color: theme.colors.textPrimary,
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    warningBanner: {
+        marginBottom: 12,
+        borderRadius: theme.borderRadius.md,
+        borderWidth: 1.5,
+        borderColor: theme.colors.error + '40',
+        backgroundColor: theme.colors.error + '10',
+        padding: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    warningBannerText: {
+        flex: 1,
+        color: theme.colors.error,
+        fontSize: 13,
+        fontWeight: '600',
+        lineHeight: 18,
+    },
+    modalButtonSecondary: {
+        height: 50,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        borderColor: theme.colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 10,
+    },
+    modalButtonSecondaryText: {
+        color: theme.colors.primary,
+        fontWeight: '800',
+        fontSize: 15,
+    },
 });
