@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     View, Text, StyleSheet, TextInput, TouchableOpacity,
     ScrollView, Alert, KeyboardAvoidingView, Platform,
-    Modal, FlatList, ActivityIndicator,
+    Modal, FlatList, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import { useTheme } from '../ThemeContext';
 import database from '../database';
 import Pond from '../database/models/Pond';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { v4 as uuidv4 } from 'uuid';
 import { speciesService } from '../services/apiService';
 import { getSpeciesDisplay } from '../utils/speciesLookup';
@@ -23,6 +24,50 @@ import { loadProfile } from './PersonalInfoScreen';
 const WATER_SOURCES = ['BOREWELL', 'OPEN_WELL', 'CANAL', 'RIVER', 'TANK'];
 const SYSTEMS = ['EARTHEN', 'BIOFLOC', 'RAS', 'CAGES', 'PENS'];
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// ─── Species recommended per farming system ───────────────────────────────────
+// Mirrors the EconomicsScreen species options to keep UX consistent.
+// Keys are scientific name substrings (lowercase) for fuzzy matching.
+const SYSTEM_SPECIES_RECOMMENDED: Record<string, string[]> = {
+    RAS: [
+        'oreochromis niloticus',  // GIFT Tilapia
+        'pangasianodon hypophthalmus', // Pangasius
+        'ompok pabda',             // Pabda / Butter Catfish
+        'clarias magur',           // Magur
+        'heteropneustes fossilis', // Singhi
+    ],
+    BIOFLOC: [
+        'oreochromis niloticus',  // Tilapia — undisputed biofloc champion
+        'pangasianodon hypophthalmus', // Pangasius
+        'clarias magur',           // Magur / Desi Catfish
+        'heteropneustes fossilis', // Singhi
+        'ompok pabda',             // Pabda
+    ],
+    CAGES: [
+        'pangasianodon hypophthalmus', // Pangasius — most popular cage species
+        'oreochromis niloticus',   // GIFT Tilapia
+        'lates calcarifer',        // Bekti / Sea Bass
+        'labeo rohita',            // Rohu
+    ],
+    EARTHEN: [
+        // All freshwater species are valid for earthen ponds — no restriction
+    ],
+    PENS: [
+        // Pens are open-water — allow all species
+    ],
+};
+
+/** Filter species options to those recommended for the given system.
+ *  For EARTHEN and PENS we return all species (no restriction).
+ *  For other systems, we do a case-insensitive substring match on scientificName. */
+function filterSpeciesBySystem(all: SpeciesOption[], system: string): SpeciesOption[] {
+    const recommended = SYSTEM_SPECIES_RECOMMENDED[system] || [];
+    if (recommended.length === 0) return all; // no restriction
+    return all.filter(opt =>
+        recommended.some(r => opt.scientificName.toLowerCase().includes(r))
+    );
+}
+
 
 type SpeciesOption = { label: string; value: string; scientificName: string };
 
@@ -213,6 +258,7 @@ export default function AddEditPondScreen({ route }: any) {
     const [isSaving, setIsSaving] = useState(false);
     const [pondStateCode, setPondStateCode] = useState('');
     const [pondLocation, setPondLocation] = useState<Partial<LocationSelection>>({});
+    const [photoUri, setPhotoUri] = useState<string>('');
 
     const selectedSpecies = getSpeciesDisplay(
         speciesId,
@@ -283,6 +329,7 @@ export default function AddEditPondScreen({ route }: any) {
             setStatus(pond.status);
             setSpeciesId(pond.speciesId || '');
             setStockingDate(formatDateInput(pond.stockingDate));
+            if (pond.imageUri) setPhotoUri(pond.imageUri);
             if (pond.latitude) setLat(pond.latitude.toString());
             if (pond.longitude) setLng(pond.longitude.toString());
             if (pond.districtCode) {
@@ -365,6 +412,7 @@ export default function AddEditPondScreen({ route }: any) {
                         p.panchayatCode = pondLocation.panchayatCode || undefined;
                         p.panchayatName = pondLocation.panchayatName || undefined;
                         p.localSyncStatus = 'PENDING';
+                        if (photoUri) p.imageUri = photoUri;
                     });
                 } else {
                     await database.collections.get<Pond>('ponds').create(p => {
@@ -386,6 +434,7 @@ export default function AddEditPondScreen({ route }: any) {
                         p.panchayatCode = pondLocation.panchayatCode || undefined;
                         p.panchayatName = pondLocation.panchayatName || undefined;
                         p.localSyncStatus = 'NEW';
+                        if (photoUri) p.imageUri = photoUri;
                     });
                 }
             });
@@ -395,6 +444,34 @@ export default function AddEditPondScreen({ route }: any) {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handlePickPhoto = async () => {
+        Alert.alert(
+            'Add Pond Photo',
+            'Choose how to add a photo (optional)',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Take Photo',
+                    onPress: async () => {
+                        const perm = await ImagePicker.requestCameraPermissionsAsync();
+                        if (!perm.granted) { Alert.alert('Permission needed', 'Camera access is required.'); return; }
+                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+                        if (!result.canceled && result.assets?.length) setPhotoUri(result.assets[0].uri);
+                    },
+                },
+                {
+                    text: 'Choose from Gallery',
+                    onPress: async () => {
+                        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (!perm.granted) { Alert.alert('Permission needed', 'Gallery access is required.'); return; }
+                        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
+                        if (!result.canceled && result.assets?.length) setPhotoUri(result.assets[0].uri);
+                    },
+                },
+            ]
+        );
     };
 
     const openCalendar = () => {
@@ -434,7 +511,20 @@ export default function AddEditPondScreen({ route }: any) {
                             <TouchableOpacity
                                 key={item}
                                 style={[styles.chip, system === item && styles.chipActive]}
-                                onPress={() => { setSystem(item); setArea(''); }}
+                                onPress={() => {
+                                    setSystem(item);
+                                    setArea('');
+                                    // Clear species if it's not recommended for the new system
+                                    if (speciesId && item !== 'EARTHEN' && item !== 'PENS') {
+                                        const currentSpecies = speciesOptions.find(s => s.value === speciesId);
+                                        if (currentSpecies) {
+                                            const recommended = SYSTEM_SPECIES_RECOMMENDED[item] || [];
+                                            const isCompatible = recommended.length === 0 ||
+                                                recommended.some(r => currentSpecies.scientificName.toLowerCase().includes(r));
+                                            if (!isCompatible) setSpeciesId('');
+                                        }
+                                    }
+                                }}
                             >
                                 <Text style={[styles.chipText, system === item && styles.chipTextActive]}>
                                     {item === 'EARTHEN' ? 'EARTHEN POND' : item}
@@ -512,6 +602,14 @@ export default function AddEditPondScreen({ route }: any) {
                         {/* Species selector */}
                         <View style={styles.fieldWrap}>
                             <Text style={styles.fieldLabel}>SPECIES</Text>
+                            {/* Show recommended hint for intensive systems */}
+                            {(system === 'RAS' || system === 'BIOFLOC' || system === 'CAGES') && (
+                                <Text style={[styles.helperText, { marginBottom: 6, color: theme.colors.primary }]}>
+                                    {system === 'RAS' ? '⚡ Recommended for RAS: GIFT Tilapia, Pangasius, Pabda, Magur, Singhi'
+                                    : system === 'BIOFLOC' ? '🟤 Recommended for Biofloc: Tilapia, Pangasius, Magur, Singhi, Pabda'
+                                    : '🌊 Recommended for Cage Farming: Pangasius, GIFT Tilapia, Bekti, Rohu'}
+                                </Text>
+                            )}
                             <TouchableOpacity style={styles.selectorField} onPress={() => setSpeciesModalVisible(true)}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.selectorValue, !speciesId && styles.selectorPlaceholder]}>
@@ -573,6 +671,30 @@ export default function AddEditPondScreen({ route }: any) {
                         onChange={setPondLocation}
                     />
 
+                    {/* ── Section: Pond Photo (optional) ── */}
+                    <SectionHeader label="POND PHOTO (OPTIONAL)" styles={styles} />
+                    <TouchableOpacity
+                        style={[styles.photoPickerBox, photoUri ? styles.photoPickerBoxFilled : null]}
+                        onPress={handlePickPhoto}
+                        activeOpacity={0.8}
+                    >
+                        {photoUri ? (
+                            <>
+                                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                                <View style={styles.photoRetakeOverlay}>
+                                    <Ionicons name="camera-outline" size={18} color="#fff" />
+                                    <Text style={styles.photoRetakeText}>Change Photo</Text>
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <Ionicons name="camera-outline" size={28} color={theme.colors.textMuted} />
+                                <Text style={styles.photoPickerLabel}>Tap to add a photo of your pond</Text>
+                                <Text style={styles.photoPickerSub}>Optional — you can add it later too</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+
                     {/* ── Section: GPS Coordinates ── */}
                     <View style={styles.locationHeader}>
                         <SectionHeader label={t('addEditPond.fields.locationCoords').toUpperCase()} styles={styles} />
@@ -608,7 +730,7 @@ export default function AddEditPondScreen({ route }: any) {
                     <View style={styles.modalCard}>
                         <Text style={styles.modalTitle}>Select Species</Text>
                         <FlatList
-                            data={speciesOptions}
+                            data={filterSpeciesBySystem(speciesOptions, system)}
                             keyExtractor={item => item.value}
                             renderItem={({ item }) => (
                                 <TouchableOpacity
@@ -909,6 +1031,56 @@ const getStyles = (theme: any) => StyleSheet.create({
         fontSize: 11,
         lineHeight: 16,
         marginTop: 6,
+    },
+
+    // Photo picker
+    photoPickerBox: {
+        height: 140,
+        borderRadius: theme.borderRadius.lg,
+        borderWidth: 1.5,
+        borderColor: theme.colors.border,
+        borderStyle: 'dashed',
+        backgroundColor: theme.colors.surfaceAlt,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginBottom: 4,
+        overflow: 'hidden',
+    },
+    photoPickerBoxFilled: {
+        borderStyle: 'solid',
+        borderColor: theme.colors.primary + '40',
+    },
+    photoPickerLabel: {
+        color: theme.colors.textMuted,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    photoPickerSub: {
+        color: theme.colors.textMuted,
+        fontSize: 11,
+    },
+    photoPreview: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    photoRetakeOverlay: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    photoRetakeText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '700',
     },
 
     // Location
