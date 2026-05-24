@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Image, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -377,6 +377,7 @@ export default function LearningCenterScreen() {
             </LessonCard>
           ))}
         </View>
+
 
         {/* Policy guidance link card */}
         <TouchableOpacity
@@ -912,7 +913,7 @@ const getStyles = (theme: any) =>
 
     // ── Policy link card ─────────────────────────────────────────────────────
     linkCard: {
-      marginTop: 20,
+      marginTop: 12,
       borderRadius: theme.borderRadius.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,

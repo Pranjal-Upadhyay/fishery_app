@@ -53,13 +53,52 @@ api.interceptors.response.use(
     }
 );
 
+// Auth interceptor — attach JWT token from AsyncStorage to every request.
+// This runs before every request so the token is always fresh.
+import AsyncStorage from '@react-native-async-storage/async-storage';
+const TOKEN_KEY = '@fishing_god_token';
+
+api.interceptors.request.use(
+    async (config) => {
+        try {
+            const token = await AsyncStorage.getItem(TOKEN_KEY);
+            if (token) {
+                config.headers = config.headers || {};
+                config.headers['Authorization'] = `Bearer ${token}`;
+            }
+        } catch {
+            // AsyncStorage read failed — proceed without token
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 if (__DEV__) {
     api.interceptors.request.use((config) => {
+        let loggedData = config.data;
+        
+        // Mask passwords in logs for security
+        if (loggedData) {
+            if (typeof loggedData === 'string') {
+                try {
+                    const parsed = JSON.parse(loggedData);
+                    if (parsed.password) parsed.password = '***MASKED***';
+                    loggedData = JSON.stringify(parsed);
+                } catch (e) {}
+            } else if (typeof loggedData === 'object') {
+                loggedData = { ...loggedData };
+                if ('password' in loggedData) {
+                    loggedData.password = '***MASKED***';
+                }
+            }
+        }
+
         console.log('[API request]', {
             method: config.method,
             baseURL: config.baseURL,
             url: config.url,
-            data: config.data,
+            data: loggedData,
         });
         return config;
     });
@@ -147,32 +186,194 @@ const FALLBACK_SPECIES = [
         id: 'sp_1',
         data: {
             scientific_name: "Labeo rohita",
-            common_names: { "en": "Rohu", "hi": "Rui" },
+            common_names: { "en": "Rohu", "hi": "रोहू" },
             category: "INDIAN_MAJOR_CARP",
+            habitat: "freshwater",
             culture_period_months: { min: 8, max: 12 },
-            optimal_systems: ["TRADITIONAL_POND", "BIOFLOC"]
+            optimal_systems: ["TRADITIONAL_POND", "BIOFLOC"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 2 }, temperature_celsius: { min: 18, max: 35 }, ph: { min: 6.5, max: 8.5 } },
+            stocking_density_per_hectare: { min: 5000, max: 10000 },
+            average_harvest_weight_kg: 1.2,
+            fcr: 1.8,
+            survival_rate_percent: 75,
         }
     },
     {
         id: 'sp_2',
         data: {
             scientific_name: "Catla catla",
-            common_names: { "en": "Catla", "hi": "Bhakur" },
+            common_names: { "en": "Catla", "hi": "कतला" },
             category: "INDIAN_MAJOR_CARP",
+            habitat: "freshwater",
             culture_period_months: { min: 10, max: 12 },
-            optimal_systems: ["TRADITIONAL_POND"]
+            optimal_systems: ["TRADITIONAL_POND"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 2 }, temperature_celsius: { min: 18, max: 36 }, ph: { min: 6.5, max: 8.5 } },
+            stocking_density_per_hectare: { min: 4000, max: 8000 },
+            average_harvest_weight_kg: 1.5,
+            fcr: 1.9,
+            survival_rate_percent: 72,
         }
     },
     {
         id: 'sp_3',
         data: {
             scientific_name: "Litopenaeus vannamei",
-            common_names: { "en": "Vannamei Shrimp", "hi": "Safed Jhinga" },
+            common_names: { "en": "Vannamei Shrimp", "hi": "सफेद झींगा" },
             category: "SHRIMP",
+            habitat: "brackish",
             culture_period_months: { min: 4, max: 5 },
-            optimal_systems: ["BRACKISH_POND"]
+            optimal_systems: ["BRACKISH_POND", "BIOFLOC"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 5, max: 35 }, temperature_celsius: { min: 23, max: 30 }, ph: { min: 7.0, max: 8.5 } },
+            stocking_density_per_hectare: { min: 100000, max: 300000 },
+            average_harvest_weight_kg: 0.02,
+            fcr: 1.4,
+            survival_rate_percent: 70,
         }
-    }
+    },
+    {
+        id: 'sp_4',
+        data: {
+            scientific_name: "Cirrhinus mrigala",
+            common_names: { "en": "Mrigal", "hi": "मृगल" },
+            category: "INDIAN_MAJOR_CARP",
+            habitat: "freshwater",
+            culture_period_months: { min: 8, max: 12 },
+            optimal_systems: ["TRADITIONAL_POND"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 2 }, temperature_celsius: { min: 16, max: 35 }, ph: { min: 6.5, max: 8.5 } },
+            stocking_density_per_hectare: { min: 4000, max: 8000 },
+            average_harvest_weight_kg: 1.0,
+            fcr: 1.9,
+            survival_rate_percent: 73,
+        }
+    },
+    {
+        id: 'sp_5',
+        data: {
+            scientific_name: "Oreochromis niloticus (GIFT)",
+            common_names: { "en": "GIFT Tilapia", "hi": "तिलापिया (गिफ्ट)" },
+            category: "TILAPIA",
+            habitat: "freshwater",
+            culture_period_months: { min: 5, max: 7 },
+            optimal_systems: ["TRADITIONAL_POND", "BIOFLOC", "RAS"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 15 }, temperature_celsius: { min: 20, max: 35 }, ph: { min: 6.0, max: 9.0 } },
+            stocking_density_per_hectare: { min: 20000, max: 50000 },
+            average_harvest_weight_kg: 0.5,
+            fcr: 1.6,
+            survival_rate_percent: 85,
+        }
+    },
+    {
+        id: 'sp_6',
+        data: {
+            scientific_name: "Pangasianodon hypophthalmus",
+            common_names: { "en": "Pangasius / Basa", "hi": "पंगासियस" },
+            category: "CATFISH",
+            habitat: "freshwater",
+            culture_period_months: { min: 6, max: 9 },
+            optimal_systems: ["TRADITIONAL_POND", "RAS", "CAGE"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 10 }, temperature_celsius: { min: 22, max: 34 }, ph: { min: 6.0, max: 8.5 } },
+            stocking_density_per_hectare: { min: 30000, max: 100000 },
+            average_harvest_weight_kg: 1.0,
+            fcr: 1.5,
+            survival_rate_percent: 88,
+        }
+    },
+    {
+        id: 'sp_7',
+        data: {
+            scientific_name: "Clarias batrachus",
+            common_names: { "en": "Singhi / Walking Catfish", "hi": "सिंघी / मांगुर" },
+            category: "CATFISH",
+            habitat: "freshwater",
+            culture_period_months: { min: 6, max: 8 },
+            optimal_systems: ["BIOFLOC", "RAS", "TRADITIONAL_POND"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 5 }, temperature_celsius: { min: 22, max: 32 }, ph: { min: 6.5, max: 8.5 } },
+            stocking_density_per_hectare: { min: 100000, max: 500000 },
+            average_harvest_weight_kg: 0.3,
+            fcr: 1.7,
+            survival_rate_percent: 80,
+        }
+    },
+    {
+        id: 'sp_8',
+        data: {
+            scientific_name: "Penaeus monodon",
+            common_names: { "en": "Tiger Shrimp / Black Tiger", "hi": "बाघ झींगा" },
+            category: "SHRIMP",
+            habitat: "brackish",
+            culture_period_months: { min: 5, max: 7 },
+            optimal_systems: ["BRACKISH_POND"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 10, max: 35 }, temperature_celsius: { min: 25, max: 30 }, ph: { min: 7.5, max: 8.5 } },
+            stocking_density_per_hectare: { min: 50000, max: 150000 },
+            average_harvest_weight_kg: 0.04,
+            fcr: 1.6,
+            survival_rate_percent: 60,
+        }
+    },
+    {
+        id: 'sp_9',
+        data: {
+            scientific_name: "Hypophthalmichthys molitrix",
+            common_names: { "en": "Silver Carp", "hi": "सिल्वर कार्प" },
+            category: "EXOTIC_CARP",
+            habitat: "freshwater",
+            culture_period_months: { min: 8, max: 12 },
+            optimal_systems: ["TRADITIONAL_POND"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 3 }, temperature_celsius: { min: 16, max: 35 }, ph: { min: 6.5, max: 8.5 } },
+            stocking_density_per_hectare: { min: 3000, max: 6000 },
+            average_harvest_weight_kg: 1.5,
+            fcr: 1.5,
+            survival_rate_percent: 75,
+        }
+    },
+    {
+        id: 'sp_10',
+        data: {
+            scientific_name: "Ctenopharyngodon idella",
+            common_names: { "en": "Grass Carp", "hi": "ग्रास कार्प" },
+            category: "EXOTIC_CARP",
+            habitat: "freshwater",
+            culture_period_months: { min: 10, max: 14 },
+            optimal_systems: ["TRADITIONAL_POND"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 3 }, temperature_celsius: { min: 15, max: 32 }, ph: { min: 6.0, max: 8.5 } },
+            stocking_density_per_hectare: { min: 2000, max: 5000 },
+            average_harvest_weight_kg: 2.0,
+            fcr: 2.0,
+            survival_rate_percent: 70,
+        }
+    },
+    {
+        id: 'sp_11',
+        data: {
+            scientific_name: "Macrobrachium rosenbergii",
+            common_names: { "en": "Freshwater Prawn / Scampi", "hi": "मीठे पानी का झींगा" },
+            category: "PRAWN",
+            habitat: "freshwater",
+            culture_period_months: { min: 6, max: 9 },
+            optimal_systems: ["TRADITIONAL_POND"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 5 }, temperature_celsius: { min: 26, max: 31 }, ph: { min: 7.0, max: 8.5 } },
+            stocking_density_per_hectare: { min: 40000, max: 80000 },
+            average_harvest_weight_kg: 0.06,
+            fcr: 2.0,
+            survival_rate_percent: 60,
+        }
+    },
+    {
+        id: 'sp_12',
+        data: {
+            scientific_name: "Lates calcarifer",
+            common_names: { "en": "Sea Bass / Bekti", "hi": "भेड़की / बेकटी" },
+            category: "MARINE",
+            habitat: "brackish",
+            culture_period_months: { min: 10, max: 14 },
+            optimal_systems: ["CAGE", "RAS"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 5, max: 35 }, temperature_celsius: { min: 26, max: 33 }, ph: { min: 7.5, max: 8.5 } },
+            stocking_density_per_hectare: { min: 10000, max: 30000 },
+            average_harvest_weight_kg: 0.8,
+            fcr: 2.0,
+            survival_rate_percent: 65,
+        }
+    },
 ];
 
 export const geoService = {
@@ -485,5 +686,36 @@ export const doctorNetworkService = {
         return response.data;
     },
 };
+
+// ─── Farmer Notifications ─────────────────────────────────────────────────────
+// Doctor-triggered notifications delivered to the farmer's app.
+
+export const farmerNotificationsService = {
+    /** Fetch all notifications for a farmer (newest first, max 50) */
+    getForFarmer: async (farmerId: string, unreadOnly = false) => {
+        const response = await api.get(`/api/v1/notifications/farmer/${farmerId}`, {
+            params: unreadOnly ? { unreadOnly: 'true' } : undefined,
+        });
+        return response.data as { success: boolean; count: number; data: FarmerNotificationItem[] };
+    },
+    /** Mark one notification as read (omit id to mark all) */
+    markRead: async (farmerId: string, notificationId?: string) => {
+        const response = await api.patch(`/api/v1/notifications/farmer/${farmerId}/read`, {
+            notificationId,
+        });
+        return response.data;
+    },
+};
+
+export interface FarmerNotificationItem {
+    id: string;
+    farmer_id: string;
+    type: 'doctor_accepted' | 'doctor_visiting' | 'appointment_completed';
+    title: string;
+    message: string;
+    appointment_id: string | null;
+    is_read: boolean;
+    created_at: string;
+}
 
 export default api;

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +19,13 @@ import HelplineCard from '../components/HelplineCard';
 import { database } from '../database';
 import { fetchSpeciesLookup } from '../utils/speciesLookup';
 import { getUnreadNotificationCount } from '../utils/notificationCenter';
+
+// Pre-load system type images at module level for Metro static resolution
+const IMG_RAS          = require('../../system_types/RAS.png');
+const IMG_BIOFLOC      = require('../../system_types/biofloc.png');
+const IMG_EARTHEN_POND = require('../../system_types/earthen_pond_system.png');
+const IMG_CAGE         = require('../../system_types/cage_system.png');
+
 
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
@@ -217,6 +225,52 @@ export default function HomeScreen() {
           </View>
           <Ionicons name="arrow-forward" size={18} color={theme.colors.primary} />
         </TouchableOpacity>
+
+        {/* ── Farming Systems — dedicated separate section ─────────────────── */}
+        <View style={styles.systemsSection}>
+          <View style={styles.systemsSectionHeader}>
+            <View style={styles.systemsSectionIconWrap}>
+              <Ionicons name="fish-outline" size={16} color="#0D9488" />
+            </View>
+            <Text style={styles.systemsSectionHeading}>Farming Systems Guide</Text>
+            <View style={styles.systemsNewPill}>
+              <Text style={styles.systemsNewPillText}>NEW</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.systemsBanner}
+            onPress={() => navigation.navigate('SystemTypes')}
+            activeOpacity={0.85}
+          >
+            {/* 4 system image thumbnails */}
+            <View style={styles.systemsImageStrip}>
+              <Image source={IMG_EARTHEN_POND} style={styles.systemsThumb} resizeMode="cover" />
+              <Image source={IMG_BIOFLOC}      style={styles.systemsThumb} resizeMode="cover" />
+              <Image source={IMG_RAS}          style={styles.systemsThumb} resizeMode="cover" />
+              <Image source={IMG_CAGE}         style={[styles.systemsThumb, { borderRightWidth: 0 }]} resizeMode="cover" />
+            </View>
+            <View style={styles.systemsBannerBody}>
+              <View style={styles.systemsBannerTop}>
+                <View style={styles.systemsBannerPill}>
+                  <Text style={styles.systemsBannerPillText}>4 SYSTEMS</Text>
+                </View>
+                <Text style={styles.systemsBannerEmojis}>🏢🟤🚜🌊</Text>
+              </View>
+              <Text style={styles.systemsBannerTitle}>
+                Learn about different kinds of systems in fish farming
+              </Text>
+              <Text style={styles.systemsBannerSub}>
+                RAS · Biofloc · Earthen Pond · Cage — what they are, how they work & which fish thrive in each.
+              </Text>
+              <View style={styles.systemsBannerCta}>
+                <Text style={styles.systemsBannerCtaText}>Explore Systems</Text>
+                <Ionicons name="arrow-forward" size={14} color="#fff" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -435,5 +489,117 @@ const getStyles = (theme: any) =>
       fontSize: 13,
       lineHeight: 18,
       marginTop: 3,
+    },
+
+    systemsSection: {
+      marginTop: 20,
+      marginBottom: 4,
+    },
+    systemsSectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 10,
+    },
+    systemsSectionIconWrap: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      backgroundColor: '#0D948820',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    systemsSectionHeading: {
+      color: theme.colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+      flex: 1,
+      letterSpacing: 0.2,
+    },
+    systemsNewPill: {
+      backgroundColor: '#EF4444',
+      borderRadius: 6,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+    },
+    systemsNewPillText: {
+      color: '#fff',
+      fontSize: 9,
+      fontWeight: '900',
+      letterSpacing: 1,
+    },
+    // ── Farming Systems banner ───────────────────────────────────────────────
+    systemsBanner: {
+      borderRadius: 18,
+      overflow: 'hidden',
+      borderWidth: 1.5,
+      borderColor: '#0D9488',
+      backgroundColor: theme.colors.surface,
+      ...theme.shadows?.md,
+    },
+    systemsImageStrip: {
+      flexDirection: 'row',
+      height: 90,
+    },
+    systemsThumb: {
+      flex: 1,
+      height: 90,
+      borderRightWidth: 1,
+      borderRightColor: '#fff',
+    },
+    systemsBannerBody: {
+      padding: 16,
+      backgroundColor: '#0D948808',
+    },
+    systemsBannerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    systemsBannerPill: {
+      backgroundColor: '#0D9488',
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    systemsBannerPillText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 1.5,
+    },
+    systemsBannerEmojis: {
+      fontSize: 18,
+      letterSpacing: 2,
+    },
+    systemsBannerTitle: {
+      color: theme.colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '900',
+      lineHeight: 23,
+      letterSpacing: -0.2,
+      marginBottom: 6,
+    },
+    systemsBannerSub: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 18,
+      marginBottom: 14,
+    },
+    systemsBannerCta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'flex-start',
+      backgroundColor: '#0D9488',
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      borderRadius: 12,
+    },
+    systemsBannerCtaText: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '800',
     },
   });

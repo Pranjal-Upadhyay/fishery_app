@@ -29,6 +29,7 @@ import EconomicsScreen from './src/screens/EconomicsScreen';
 import EconomicsResultScreen from './src/screens/EconomicsResultScreen';
 import PolicyGuidanceScreen from './src/screens/PolicyGuidanceScreen';
 import LearningCenterScreen from './src/screens/LearningCenterScreen';
+import SystemTypesScreen from './src/screens/SystemTypesScreen';
 import MapScreen from './src/screens/MapScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import WaterQualityScreen from './src/screens/WaterQualityScreen';
@@ -58,6 +59,7 @@ export type RootStackParamList = {
   EconomicsResult: { simulationData: any };
   PolicyGuidance: { knowledgeInsights?: any; stateCode?: string; farmerCategory?: string };
   LearningCenter: { knowledgeInsights?: any; stateCode?: string; farmerCategory?: string } | undefined;
+  SystemTypes: undefined;
   WaterQuality: { pondId?: string; initialTab?: 'log' | 'history' } | undefined;
   MarketPrices: undefined;
   EquipmentCatalog: undefined;
@@ -268,6 +270,7 @@ function FarmerNavigator() {
         <Stack.Screen name="DiseaseDetail" component={DiseaseDetailScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Maps" component={MapScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DoctorNetwork" component={DoctorNetworkScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="SystemTypes" component={SystemTypesScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
