@@ -1,21 +1,18 @@
 /**
- * Native SQLite adapter for WatermelonDB
+ * WatermelonDB adapter selection.
  *
- * WHY SQLiteAdapter instead of LokiJSAdapter:
- * LokiJS is an in-memory store with optional IndexedDB sync — it is designed
- * for web browsers (Expo Web). On native Android/iOS builds the data is NOT
- * written to a persistent file by LokiJS, so it can be lost whenever the
- * app process is killed, the APK is reinstalled, or the OS clears memory.
- *
- * SQLiteAdapter writes to a real SQLite database file on the device storage,
- * which survives app kills, restarts, and over-the-air updates (expo-updates).
- * It only wipes on a full uninstall or an explicit database reset.
+ * Native/dev-client builds get SQLite persistence. Expo Go does not ship
+ * WatermelonDB's native WMDatabaseBridge, so it must use LokiJS to boot.
  */
+import { NativeModules } from 'react-native';
+import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
 import schema from './schema';
 import migrations from './migrations';
 
-const adapter = new SQLiteAdapter({
+const hasWatermelonNativeBridge = Boolean(NativeModules.WMDatabaseBridge);
+
+const adapter = hasWatermelonNativeBridge ? new SQLiteAdapter({
     schema,
     migrations,
     dbName: 'fishing_god_db',
@@ -24,6 +21,15 @@ const adapter = new SQLiteAdapter({
     jsi: true,
     onSetUpError: (error: Error) => {
         console.error('[WatermelonDB] Database setup error:', error);
+    },
+}) : new LokiJSAdapter({
+    schema,
+    migrations,
+    dbName: 'fishing_god_db_expo_go',
+    useWebWorker: false,
+    useIncrementalIndexedDB: false,
+    onSetUpError: (error: Error) => {
+        console.error('[WatermelonDB] Expo Go database setup error:', error);
     },
 });
 

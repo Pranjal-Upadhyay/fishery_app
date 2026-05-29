@@ -44,6 +44,14 @@ import AuthScreen from './src/screens/AuthScreen';
 import DiseaseListScreen from './src/screens/DiseaseListScreen';
 import DiseaseDetailScreen from './src/screens/DiseaseDetailScreen';
 import DoctorNetworkScreen from './src/screens/DoctorNetworkScreen';
+import HatcheryDashboardScreen from './src/screens/HatcheryDashboardScreen';
+import AddHatcheryScreen from './src/screens/AddHatcheryScreen';
+import AddEditBatchScreen from './src/screens/AddEditBatchScreen';
+import BatchDetailScreen from './src/screens/BatchDetailScreen';
+import StageLogScreen from './src/screens/StageLogScreen';
+import FingerlingSalesScreen from './src/screens/FingerlingSalesScreen';
+import HatcheryMarketplaceScreen from './src/screens/HatcheryMarketplaceScreen';
+import StockFingerlingsFromMarketScreen from './src/screens/StockFingerlingsFromMarketScreen';
 
 // Doctor screens
 import DoctorDashboardScreen from './src/screens/DoctorDashboardScreen';
@@ -72,6 +80,14 @@ export type RootStackParamList = {
   DiseaseDetail: { disease: any };
   Maps: undefined;
   DoctorNetwork: undefined;
+  HatcheryDashboard: undefined;
+  AddHatchery: undefined;
+  AddEditBatch: { hatcheryId: string };
+  BatchDetail: { batchId: string };
+  StageLog: { batchId: string; currentStage: string };
+  FingerlingSales: { batchId: string };
+  HatcheryMarketplace: undefined;
+  StockFingerlings: { listing: any };
 };
 
 export type MainTabParamList = {
@@ -270,6 +286,14 @@ function FarmerNavigator() {
         <Stack.Screen name="DiseaseDetail" component={DiseaseDetailScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Maps" component={MapScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DoctorNetwork" component={DoctorNetworkScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="HatcheryDashboard" component={HatcheryDashboardScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="AddHatchery" component={AddHatcheryScreen} options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="AddEditBatch" component={AddEditBatchScreen} options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="BatchDetail" component={BatchDetailScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="StageLog" component={StageLogScreen} options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="FingerlingSales" component={FingerlingSalesScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="HatcheryMarketplace" component={HatcheryMarketplaceScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="StockFingerlings" component={StockFingerlingsFromMarketScreen} options={{ headerShown: false }} />
         <Stack.Screen name="SystemTypes" component={SystemTypesScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>

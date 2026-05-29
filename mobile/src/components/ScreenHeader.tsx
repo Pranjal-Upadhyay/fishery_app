@@ -11,8 +11,10 @@ import { useTheme } from '../ThemeContext';
 interface ScreenHeaderProps {
   /** Title displayed in the center of the header. */
   title: string;
+  /** Optional short context line displayed under the title. */
+  subtitle?: string;
   /** Called when the back button is pressed. */
-  onBack: () => void;
+  onBack?: () => void;
   /**
    * Visual variant:
    * - 'surface' (default) — white/surface background, primary-colored text & icon.
@@ -28,6 +30,7 @@ interface ScreenHeaderProps {
 export default function ScreenHeader({
   title,
   onBack,
+  subtitle,
   variant = 'surface',
   rightSlot,
 }: ScreenHeaderProps) {
@@ -56,15 +59,27 @@ export default function ScreenHeader({
         style={styles.backBtn}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         activeOpacity={0.7}
+        disabled={!onBack}
       >
-        <Ionicons name="arrow-back" size={24} color={iconColor} />
-        <Text style={[styles.backLabel, { color: iconColor }]}>Back</Text>
+        {onBack ? (
+          <>
+            <Ionicons name="arrow-back" size={24} color={iconColor} />
+            <Text style={[styles.backLabel, { color: iconColor }]}>Back</Text>
+          </>
+        ) : null}
       </TouchableOpacity>
 
       {/* Title */}
-      <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
-        {title}
-      </Text>
+      <View style={styles.titleWrap}>
+        <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={[styles.subtitle, { color: theme.colors.textMuted }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
 
       {/* Right slot — kept same width as back button for visual symmetry */}
       <View style={styles.rightSlot}>
@@ -93,11 +108,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   title: {
-    flex: 1,
     fontSize: 20,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  titleWrap: {
+    flex: 1,
     marginHorizontal: 4,
+  },
+  subtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 2,
   },
   rightSlot: {
     minWidth: 72,

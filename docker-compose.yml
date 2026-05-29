@@ -42,9 +42,6 @@ services:
         condition: service_healthy
     networks:
       - fishing-god-network
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
 
   redis:
     image: redis:7-alpine

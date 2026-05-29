@@ -28,6 +28,7 @@ import { appointmentsRouter } from './routes/appointments';
 import { locationsRouter } from './routes/locations';
 import { treatmentsRouter } from './routes/treatments';
 import { labReportsRouter } from './routes/labReports';
+import { hatcheriesRouter } from './routes/hatcheries';
 
 // Load environment variables
 dotenv.config();
@@ -180,6 +181,7 @@ app.use('/api/v1/knowledge', knowledgeRouter);
 app.use('/api/v1/diseases', diseasesRouter);
 app.use('/api/v1/doctors', doctorsRouter);
 app.use('/api/v1/appointments', appointmentsRouter);
+app.use('/api/v1/hatcheries', hatcheriesRouter);
 app.use('/api/v1/treatments', treatmentsRouter);
 app.use('/api/v1/lab-reports', labReportsRouter);
 app.use('/api/v1/locations', locationsRouter);

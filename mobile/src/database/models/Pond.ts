@@ -25,6 +25,12 @@ export default class Pond extends Model {
   @field('district_name') districtName?: string;
   @field('block_name') blockName?: string;
   @field('panchayat_name') panchayatName?: string;
+  @field('fingerling_count') fingerlingCount?: number;
+  @field('fingerling_avg_weight_g') fingerlingAvgWeightG?: number;
+  @field('fingerling_source') fingerlingSource?: string;
+  @field('fingerling_transaction_ref') fingerlingTransactionRef?: string;
+  @field('species_variant') speciesVariant?: string;
+  @field('expected_harvest_date') expectedHarvestDate?: number;
   @field('sync_status') localSyncStatus!: string;
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;

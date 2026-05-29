@@ -6,7 +6,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-  version: 3,
+  version: 4,
   tables: [
     tableSchema({
       name: 'species',
@@ -53,6 +53,12 @@ export default appSchema({
         { name: 'district_name', type: 'string', isOptional: true },
         { name: 'block_name', type: 'string', isOptional: true },
         { name: 'panchayat_name', type: 'string', isOptional: true },
+        { name: 'fingerling_count', type: 'number', isOptional: true },
+        { name: 'fingerling_avg_weight_g', type: 'number', isOptional: true },
+        { name: 'fingerling_source', type: 'string', isOptional: true },
+        { name: 'fingerling_transaction_ref', type: 'string', isOptional: true },
+        { name: 'species_variant', type: 'string', isOptional: true },
+        { name: 'expected_harvest_date', type: 'number', isOptional: true },
         { name: 'sync_status', type: 'string' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },

@@ -18,5 +18,21 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'ponds',
+          columns: [
+            { name: 'fingerling_count', type: 'number', isOptional: true },
+            { name: 'fingerling_avg_weight_g', type: 'number', isOptional: true },
+            { name: 'fingerling_source', type: 'string', isOptional: true },
+            { name: 'fingerling_transaction_ref', type: 'string', isOptional: true },
+            { name: 'species_variant', type: 'string', isOptional: true },
+            { name: 'expected_harvest_date', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });
