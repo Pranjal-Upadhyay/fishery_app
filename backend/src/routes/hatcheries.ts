@@ -281,7 +281,7 @@ router.post('/:id/batches', requireAuth, async (req, res, next) => {
       INSERT INTO hatchery_stage_logs (
         batch_id, stage, count_at_entry, observations, logged_by
       )
-      VALUES ($1, 'broodstock', NOW(), $2, $3)
+      VALUES ($1, 'broodstock', $2, $3, $4)
     `, [
       newBatch.id,
       data.broodstock_male_count ? (data.broodstock_male_count + (data.broodstock_female_count || 0)) : null,
