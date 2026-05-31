@@ -1,0 +1,36 @@
+name: CI/CD Quality and Security Pipeline
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  validate:
+    name: Security, Lint, Typecheck and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install Workspace Dependencies
+        run: npm ci
+
+      - name: Run Security Audit (Dependency Vulnerability Scanner)
+        run: npm audit --audit-level=high
+        # This checks NPM packages for known vulnerabilities or compromises and fails if high/critical issues exist.
+
+      - name: Run Typechecks
+        run: npm run typecheck
+
+      - name: Run Workspace Tests
+        run: npm run test
