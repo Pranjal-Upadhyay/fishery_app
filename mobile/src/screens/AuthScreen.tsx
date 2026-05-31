@@ -315,7 +315,12 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
                                             size={16}
                                             color={active ? c.textInverse : c.primary}
                                         />
-                                        <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>
+                                        <Text 
+                                            style={[styles.roleChipText, active && styles.roleChipTextActive]}
+                                            numberOfLines={1}
+                                            adjustsFontSizeToFit
+                                            minimumFontScale={0.75}
+                                        >
                                             {getRoleLabel()}
                                         </Text>
                                     </TouchableOpacity>
@@ -588,7 +593,7 @@ const getStyles = (theme: any) => {
         },
         roleRow: {
             flexDirection: 'row',
-            gap: 10,
+            gap: 8,
             marginBottom: 16,
         },
         roleChip: {
@@ -597,11 +602,11 @@ const getStyles = (theme: any) => {
             borderWidth: 1,
             borderColor: c.primary,
             paddingVertical: 12,
-            paddingHorizontal: 14,
+            paddingHorizontal: 6,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 8,
+            gap: 4,
             backgroundColor: c.primaryLight,
         },
         roleChipActive: {
@@ -609,9 +614,9 @@ const getStyles = (theme: any) => {
         },
         roleChipText: {
             color: c.primary,
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: '800',
-            letterSpacing: 0.4,
+            letterSpacing: 0.2,
             textTransform: 'uppercase',
         },
         roleChipTextActive: {

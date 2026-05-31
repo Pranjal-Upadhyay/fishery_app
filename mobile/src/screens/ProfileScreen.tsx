@@ -134,17 +134,25 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{displayName}</Text>
-            {currentUser?.uid ? (
-              <View style={[styles.badgePill, { backgroundColor: theme.colors.primaryLight || '#e0fdf4' }]}>
-                <Ionicons name="card-outline" size={12} color={theme.colors.primary} />
-                <Text style={[styles.badgePillText, { color: theme.colors.primary }]}>{currentUser.uid}</Text>
-              </View>
-            ) : (
-              <View style={styles.badgePill}>
-                <Ionicons name="checkmark-circle" size={12} color={theme.colors.primary} />
-                <Text style={styles.badgePillText}>{categoryLabel}</Text>
-              </View>
-            )}
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6, alignItems: 'center' }}>
+              {currentUser?.uid ? (
+                <View style={[styles.badgePill, { backgroundColor: theme.colors.primaryLight || '#e0fdf4' }]}>
+                  <Ionicons name="card-outline" size={12} color={theme.colors.primary} />
+                  <Text style={[styles.badgePillText, { color: theme.colors.primary }]}>{currentUser.uid}</Text>
+                </View>
+              ) : null}
+              {currentUser?.role === 'FARMER' ? (
+                <View style={styles.badgePill}>
+                  <Ionicons name="checkmark-circle" size={12} color={theme.colors.primary} />
+                  <Text style={styles.badgePillText}>{categoryLabel}</Text>
+                </View>
+              ) : (
+                <View style={styles.badgePill}>
+                  <Ionicons name="checkmark-circle" size={12} color={theme.colors.primary} />
+                  <Text style={styles.badgePillText}>{currentUser?.role || 'USER'}</Text>
+                </View>
+              )}
+            </View>
           </View>
           {profile.phone ? (
             <Text style={styles.profilePhone}>{profile.phone}</Text>

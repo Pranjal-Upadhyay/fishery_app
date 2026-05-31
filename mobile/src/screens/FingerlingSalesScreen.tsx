@@ -59,33 +59,36 @@ export default function FingerlingSalesScreen() {
 
   // UID Formatting logic
   const handleUidChange = (text: string) => {
-    let formatted = text.toUpperCase().replace(/[^A-Z0-9]/g, ''); // strip all non-alphanumeric
-
-    // Re-apply dashes based on position
-    if (formatted.length > 2) {
-      formatted = formatted.slice(0, 2) + '-' + formatted.slice(2);
-    }
-    if (formatted.length > 6) {
-      formatted = formatted.slice(0, 6) + '-' + formatted.slice(6, 10); // cap at 10 alphanumeric chars
-    }
-
-    // If user deleted the last character which was a dash, delete the character before it too
-    if (buyerUid.endsWith('-') && text.length < buyerUid.length) {
-      const stripped = buyerUid.slice(0, -1);
-      const doubleStripped = stripped.slice(0, -1);
-      const raw = doubleStripped.replace(/[^A-Z0-9]/g, '');
-      let reApplied = raw;
-      if (raw.length > 2) {
-        reApplied = raw.slice(0, 2) + '-' + raw.slice(2);
+    const isDeleting = text.length < buyerUid.length;
+    let raw = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 9);
+    
+    let formatted = '';
+    if (raw.length === 2 && !isDeleting) {
+      formatted = raw + '-';
+    } else if (raw.length === 5 && !isDeleting) {
+      formatted = raw.slice(0, 2) + '-' + raw.slice(2, 5) + '-';
+    } else {
+      if (raw.length <= 2) {
+        formatted = raw;
+      } else if (raw.length <= 5) {
+        formatted = raw.slice(0, 2) + '-' + raw.slice(2);
+      } else {
+        formatted = raw.slice(0, 2) + '-' + raw.slice(2, 5) + '-' + raw.slice(5);
       }
-      setBuyerUid(reApplied);
-      // Reset verification if UID changes
-      setIsVerified(false);
-      return;
+    }
+    
+    if (isDeleting && buyerUid.endsWith('-')) {
+      const strippedRaw = raw.slice(0, -1);
+      if (strippedRaw.length <= 2) {
+        formatted = strippedRaw;
+      } else if (strippedRaw.length <= 5) {
+        formatted = strippedRaw.slice(0, 2) + '-' + strippedRaw.slice(2);
+      } else {
+        formatted = strippedRaw.slice(0, 2) + '-' + strippedRaw.slice(2, 5) + '-' + strippedRaw.slice(5);
+      }
     }
 
     setBuyerUid(formatted);
-    // Reset verification if UID changes
     setIsVerified(false);
   };
 
@@ -125,17 +128,21 @@ export default function FingerlingSalesScreen() {
   };
 
   const handleSave = async () => {
-    if (!buyerName.trim()) {
-      Alert.alert('Required', 'Please enter the buyer name.');
-      return;
-    }
-    if (buyerPhone10.length !== 10) {
-      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
-      return;
-    }
-    if (!buyerDistrict.trim()) {
-      Alert.alert('Required', 'Please select or enter the district.');
-      return;
+    const hasUid = Boolean(buyerUid.trim());
+
+    if (!hasUid) {
+      if (!buyerName.trim()) {
+        Alert.alert('Required', 'Please enter the buyer name or verify a Farmer UID.');
+        return;
+      }
+      if (buyerPhone10.length !== 10) {
+        Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
+        return;
+      }
+      if (!buyerDistrict.trim()) {
+        Alert.alert('Required', 'Please select or enter the district.');
+        return;
+      }
     }
 
     const totalAmount = parseFloat(totalAmountInput);
@@ -149,9 +156,9 @@ export default function FingerlingSalesScreen() {
       const payload: any = {
         pricing_model: pricingModel,
         buyer_uid: buyerUid ? buyerUid.trim() : undefined,
-        buyer_name: buyerName.trim(),
-        buyer_phone: `+91${buyerPhone10}`,
-        buyer_district: buyerDistrict.trim(),
+        buyer_name: buyerName.trim() || undefined,
+        buyer_phone: buyerPhone10 ? `+91${buyerPhone10}` : undefined,
+        buyer_district: buyerDistrict.trim() || undefined,
         total_amount: totalAmount,
       };
 
