@@ -151,6 +151,39 @@ export default function HatcheryDashboardScreen() {
           <StatCard label="Fingerlings" value={totalFingerlings > 999 ? `${(totalFingerlings / 1000).toFixed(1)}K` : totalFingerlings} icon="fish-outline" theme={theme} />
         </View>
 
+        {/* Marketplace quick actions */}
+        <View style={styles.marketplaceRow}>
+          <TouchableOpacity
+            style={styles.marketplaceCard}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('ManageListings')}
+          >
+            <View style={[styles.marketplaceIconWrap, { backgroundColor: theme.colors.primary + '22' }]}>
+              <Ionicons name="storefront-outline" size={22} color={theme.colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.marketplaceCardTitle}>Manage Listings</Text>
+              <Text style={styles.marketplaceCardSub}>Post fingerlings for sale</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.marketplaceCard}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('IncomingOrders', {})}
+          >
+            <View style={[styles.marketplaceIconWrap, { backgroundColor: '#f59e0b22' }]}>
+              <Ionicons name="receipt-outline" size={22} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.marketplaceCardTitle}>Incoming Orders</Text>
+              <Text style={styles.marketplaceCardSub}>View & confirm payments</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
         {/* Batches by stage */}
         {activeBatches.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -277,6 +310,27 @@ const getStyles = (theme: any) => {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
     scroll: { padding: 16, gap: 16 },
     statsRow: { flexDirection: 'row', gap: 10 },
+    marketplaceRow: { gap: 10 },
+    marketplaceCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: c.surface,
+      borderRadius: theme.borderRadius?.lg ?? 16,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 14,
+      ...theme.shadows?.sm,
+    },
+    marketplaceIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    marketplaceCardTitle: { fontSize: 14, fontWeight: '800', color: c.textPrimary },
+    marketplaceCardSub:   { fontSize: 12, color: c.textSecondary, marginTop: 2 },
     stageSection: { gap: 8 },
     stageHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
     stageIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

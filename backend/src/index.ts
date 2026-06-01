@@ -29,6 +29,7 @@ import { locationsRouter } from './routes/locations';
 import { treatmentsRouter } from './routes/treatments';
 import { labReportsRouter } from './routes/labReports';
 import { hatcheriesRouter } from './routes/hatcheries';
+import { marketplaceRouter } from './routes/marketplace';
 import { notificationsRouter } from './routes/notifications';
 import { startHatcheryCron } from './cron/hatcheryNotifications';
 
@@ -184,6 +185,7 @@ app.use('/api/v1/diseases', diseasesRouter);
 app.use('/api/v1/doctors', doctorsRouter);
 app.use('/api/v1/appointments', appointmentsRouter);
 app.use('/api/v1/hatcheries', hatcheriesRouter);
+app.use('/api/v1/marketplace', marketplaceRouter);
 app.use('/api/v1/notifications', notificationsRouter);
 app.use('/api/v1/treatments', treatmentsRouter);
 app.use('/api/v1/lab-reports', labReportsRouter);

@@ -53,6 +53,12 @@ import FingerlingSalesScreen from './src/screens/FingerlingSalesScreen';
 import HatcheryMarketplaceScreen from './src/screens/HatcheryMarketplaceScreen';
 import StockFingerlingsFromMarketScreen from './src/screens/StockFingerlingsFromMarketScreen';
 import HatcheryROIScreen from './src/screens/HatcheryROIScreen';
+import MarketListingsScreen from './src/screens/MarketListingsScreen';
+import ListingDetailScreen from './src/screens/ListingDetailScreen';
+import MyOrdersScreen from './src/screens/MyOrdersScreen';
+import ManageListingsScreen from './src/screens/ManageListingsScreen';
+import CreateListingScreen from './src/screens/CreateListingScreen';
+import IncomingOrdersScreen from './src/screens/IncomingOrdersScreen';
 
 // Doctor screens
 import DoctorDashboardScreen from './src/screens/DoctorDashboardScreen';
@@ -89,6 +95,9 @@ export type RootStackParamList = {
   FingerlingSales: { batchId: string };
   HatcheryMarketplace: undefined;
   StockFingerlings: { listing: any };
+  MarketListings: undefined;
+  ListingDetail: { listingId: string };
+  MyOrders: undefined;
 };
 
 export type MainTabParamList = {
@@ -127,6 +136,9 @@ export type HatcheryRootStackParamList = {
   PersonalInfo: undefined;
   Notifications: undefined;
   SpeciesDetail: { speciesId: string };
+  ManageListings: undefined;
+  CreateListing: undefined;
+  IncomingOrders: { listingId?: string };
 };
 
 export type HatcheryTabParamList = {
@@ -319,6 +331,9 @@ function FarmerNavigator() {
         <Stack.Screen name="HatcheryMarketplace" component={HatcheryMarketplaceScreen} options={{ headerShown: false }} />
         <Stack.Screen name="StockFingerlings" component={StockFingerlingsFromMarketScreen} options={{ headerShown: false }} />
         <Stack.Screen name="SystemTypes" component={SystemTypesScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MarketListings" component={MarketListingsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="ListingDetail" component={ListingDetailScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -452,6 +467,9 @@ function HatcheryNavigator() {
         <HatcheryStack.Screen name="PersonalInfo" component={PersonalInfoScreen} options={{ headerShown: false }} />
         <HatcheryStack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
         <HatcheryStack.Screen name="SpeciesDetail" component={SpeciesDetailScreen} options={{ headerShown: false }} />
+        <HatcheryStack.Screen name="ManageListings" component={ManageListingsScreen} options={{ headerShown: false }} />
+        <HatcheryStack.Screen name="CreateListing" component={CreateListingScreen} options={{ headerShown: false }} />
+        <HatcheryStack.Screen name="IncomingOrders" component={IncomingOrdersScreen} options={{ headerShown: false }} />
       </HatcheryStack.Navigator>
     </NavigationContainer>
   );

@@ -82,8 +82,8 @@ export default function HomeScreen() {
     { icon: 'restaurant-outline' as const,    label: t('home.feedNutrition'),    screen: 'FeedCatalog' },
     { icon: 'bug-outline' as const,           label: t('home.diseaseIntelligence'),     screen: 'DiseaseList' },
     { icon: 'medical-outline' as const,       label: t('home.doctorNetwork'),           screen: 'DoctorNetwork' },
-    { icon: 'storefront-outline' as const,    label: 'Fingerling Market',               screen: 'HatcheryMarketplace' },
-    { icon: 'business-outline' as const,      label: 'Hatchery',                        screen: 'HatcheryDashboard' },
+    { icon: 'storefront-outline' as const,    label: 'Fingerling Market',  screen: 'MarketListings' },
+    { icon: 'receipt-outline' as const,       label: 'My Orders',          screen: 'MyOrders' },
   ];
 
   const getGreeting = () => {
