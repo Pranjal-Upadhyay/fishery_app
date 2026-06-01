@@ -26,6 +26,7 @@ import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import api from '../services/apiService';
 import { BIHAR_DISTRICTS } from '../components/LocationCascadePicker';
+import { applyUidDashes } from '../utils/uidFormatter';
 
 type PricingModel = 'per_piece' | 'per_kg';
 
@@ -57,38 +58,9 @@ export default function FingerlingSalesScreen() {
   const [saving, setSaving] = useState(false);
   const [successRef, setSuccessRef] = useState<string | null>(null);
 
-  // UID Formatting logic
+  // UID Formatting — delegates to pure utility so it is independently testable
   const handleUidChange = (text: string) => {
-    const isDeleting = text.length < buyerUid.length;
-    let raw = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 9);
-    
-    let formatted = '';
-    if (raw.length === 2 && !isDeleting) {
-      formatted = raw + '-';
-    } else if (raw.length === 5 && !isDeleting) {
-      formatted = raw.slice(0, 2) + '-' + raw.slice(2, 5) + '-';
-    } else {
-      if (raw.length <= 2) {
-        formatted = raw;
-      } else if (raw.length <= 5) {
-        formatted = raw.slice(0, 2) + '-' + raw.slice(2);
-      } else {
-        formatted = raw.slice(0, 2) + '-' + raw.slice(2, 5) + '-' + raw.slice(5);
-      }
-    }
-    
-    if (isDeleting && buyerUid.endsWith('-')) {
-      const strippedRaw = raw.slice(0, -1);
-      if (strippedRaw.length <= 2) {
-        formatted = strippedRaw;
-      } else if (strippedRaw.length <= 5) {
-        formatted = strippedRaw.slice(0, 2) + '-' + strippedRaw.slice(2);
-      } else {
-        formatted = strippedRaw.slice(0, 2) + '-' + strippedRaw.slice(2, 5) + '-' + strippedRaw.slice(5);
-      }
-    }
-
-    setBuyerUid(formatted);
+    setBuyerUid(applyUidDashes(text, buyerUid));
     setIsVerified(false);
   };
 
