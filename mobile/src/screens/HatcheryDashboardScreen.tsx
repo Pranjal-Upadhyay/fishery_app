@@ -178,7 +178,22 @@ export default function HatcheryDashboardScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.marketplaceCardTitle}>Incoming Orders</Text>
-              <Text style={styles.marketplaceCardSub}>View & confirm payments</Text>
+              <Text style={styles.marketplaceCardSub}>Accept, confirm & fulfill</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.marketplaceCard}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('AddHatchery')}
+          >
+            <View style={[styles.marketplaceIconWrap, { backgroundColor: '#a855f722' }]}>
+              <Ionicons name="shield-checkmark-outline" size={22} color="#a855f7" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.marketplaceCardTitle}>Hatchery Profile</Text>
+              <Text style={styles.marketplaceCardSub}>Edit gov UID, contact, UPI</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
           </TouchableOpacity>

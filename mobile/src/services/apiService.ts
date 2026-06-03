@@ -718,4 +718,479 @@ export interface FarmerNotificationItem {
     created_at: string;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Marketplace v2
+// ────────────────────────────────────────────────────────────────────────────
+
+export type ListingStatus = 'DRAFT' | 'UPCOMING' | 'AVAILABLE' | 'CLOSED' | 'EXPIRED';
+
+export type OrderStatus =
+    | 'REQUESTED' | 'ACCEPTED' | 'REJECTED' | 'FARMER_PAID'
+    | 'HATCHERY_CONFIRMED' | 'FULFILLED' | 'CANCELLED' | 'DISPUTED'
+    | 'INTEREST_REQUESTED' | 'INTEREST_ACKNOWLEDGED'
+    | 'INTEREST_DECLINED' | 'INTEREST_CONVERTED';
+
+export type Stage = 'fry' | 'fingerling';
+export type LogisticsPreference = 'PICKUP' | 'DELIVERY';
+export type DisputeReason =
+    | 'QUANTITY_MISMATCH' | 'HIGH_MORTALITY'
+    | 'NOT_AS_DESCRIBED' | 'PAYMENT_NOT_RECEIVED' | 'OTHER';
+
+export interface MarketplaceListing {
+    id: string;
+    stage: Stage;
+    species_name: string;
+    species_variant: string | null;
+    description: string | null;
+    size_description: string | null;
+    total_quantity: number;
+    quantity_available: number;
+    reserved_quantity: number;
+    confirmed_quantity: number;
+    min_order_qty: number;
+    price_per_piece: string;
+    bulk_price_per_piece: string | null;
+    bulk_price_threshold: number | null;
+    expected_ready_date: string;
+    last_available_date: string;
+    pickup_available: boolean;
+    delivery_available: boolean;
+    logistics_notes: string | null;
+    status: ListingStatus;
+    geo_lat: string | null;
+    geo_lng: string | null;
+    hatchery_uid_snapshot: string | null;
+    contact_number_snapshot: string | null;
+    email_snapshot: string | null;
+    upi_id_snapshot: string | null;
+    district_snapshot: string | null;
+    block_snapshot: string | null;
+    panchayat_snapshot: string | null;
+    hatchery_id: string;
+    hatchery_name: string;
+    operator_name: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MarketplaceOrder {
+    id: string;
+    order_type: 'PURCHASE_ORDER' | 'ADVANCE_INTEREST';
+    quantity_ordered: number;
+    price_per_piece: string;
+    price_per_piece_at_order: string;
+    bulk_price_applied: boolean;
+    total_amount: string;
+    status: OrderStatus;
+    logistics_preference: LogisticsPreference | null;
+    preferred_date: string | null;
+    farmer_notes: string | null;
+    delivery_address: string | null;
+    payment_screenshot_url: string | null;
+    dispute_reason: DisputeReason | null;
+    dispute_description: string | null;
+    farmer_paid_at: string | null;
+    accepted_at: string | null;
+    hatchery_confirmed_at: string | null;
+    fulfilled_at: string | null;
+    cancelled_at: string | null;
+    created_at: string;
+    updated_at: string;
+    // joined
+    species_name?: string;
+    species_variant?: string | null;
+    stage?: Stage;
+    size_description?: string | null;
+    listing_id?: string;
+    listing_status?: ListingStatus;
+    hatchery_uid_snapshot?: string | null;
+    contact_number_snapshot?: string | null;
+    upi_id_snapshot?: string | null;
+    email_snapshot?: string | null;
+    hatchery_name?: string;
+    hatchery_district?: string;
+    operator_name?: string;
+    operator_phone?: string;
+    farmer_name?: string;
+    farmer_phone?: string;
+    farmer_uid?: string;
+}
+
+export interface MarketplaceNotification {
+    id: string;
+    type: string;
+    title: string;
+    message: string;
+    listing_id: string | null;
+    order_id: string | null;
+    is_read: boolean;
+    created_at: string;
+}
+
+export interface HatcheryProfile {
+    id?: string;
+    name: string;
+    district?: string | null;
+    block?: string | null;
+    panchayat?: string | null;
+    capacity_kg?: number | null;
+    hatchery_uid?: string | null;
+    contact_number?: string | null;
+    email?: string | null;
+    upi_id?: string | null;
+    operator_phone?: string;
+    operator_email?: string;
+}
+
+export const hatcheryProfileService = {
+    getMe: async (): Promise<HatcheryProfile | null> => {
+        try {
+            const res = await api.get('/api/v1/hatcheries/me-profile');
+            return res.data?.data ?? null;
+        } catch (err: any) {
+            if (err?.response?.status === 404) return null;
+            throw err;
+        }
+    },
+    upsertMe: async (data: Partial<HatcheryProfile>) => {
+        const res = await api.patch('/api/v1/hatcheries/me-profile', data);
+        return res.data?.data as HatcheryProfile;
+    },
+};
+
+export interface CreateListingInput {
+    stage: Stage;
+    species_name: string;
+    species_variant?: string | null;
+    description?: string | null;
+    size_description?: string | null;
+    total_quantity: number;
+    min_order_qty: number;
+    price_per_piece: number;
+    bulk_price_per_piece?: number | null;
+    bulk_price_threshold?: number | null;
+    expected_ready_date: string; // YYYY-MM-DD
+    last_available_date: string; // YYYY-MM-DD
+    pickup_available: boolean;
+    delivery_available: boolean;
+    logistics_notes?: string | null;
+    contact_number_override?: string | null;
+    email_override?: string | null;
+    upi_id_override?: string | null;
+}
+
+export const marketplaceService = {
+    // ── Listings ──
+    browseListings: async (params: {
+        species?: string;
+        stage?: Stage;
+        district?: string;
+        pickup?: boolean;
+        delivery?: boolean;
+        includeUpcoming?: boolean;
+        sortBy?: 'ready_date' | 'price_asc';
+    } = {}) => {
+        const q: Record<string, string> = {};
+        if (params.species) q.species = params.species;
+        if (params.stage) q.stage = params.stage;
+        if (params.district) q.district = params.district;
+        if (params.pickup) q.pickup = 'true';
+        if (params.delivery) q.delivery = 'true';
+        if (params.includeUpcoming) q.includeUpcoming = 'true';
+        if (params.sortBy) q.sortBy = params.sortBy;
+        const res = await api.get('/api/v1/marketplace/listings', { params: q });
+        return res.data?.data as MarketplaceListing[];
+    },
+
+    getMyListings: async () => {
+        const res = await api.get('/api/v1/marketplace/listings/mine');
+        return res.data?.data as MarketplaceListing[];
+    },
+
+    getListing: async (id: string) => {
+        const res = await api.get(`/api/v1/marketplace/listings/${id}`);
+        return res.data?.data as MarketplaceListing;
+    },
+
+    createListing: async (data: CreateListingInput) => {
+        const res = await api.post('/api/v1/marketplace/listings', data);
+        return res.data?.data as MarketplaceListing;
+    },
+
+    updateListing: async (id: string, data: Partial<CreateListingInput>) => {
+        const res = await api.patch(`/api/v1/marketplace/listings/${id}`, data);
+        return res.data?.data as MarketplaceListing;
+    },
+
+    deleteListing: async (id: string) => {
+        await api.delete(`/api/v1/marketplace/listings/${id}`);
+    },
+
+    publishListing: async (id: string, target?: 'UPCOMING' | 'AVAILABLE') => {
+        const res = await api.post(`/api/v1/marketplace/listings/${id}/publish`, target ? { target } : {});
+        return res.data?.data as MarketplaceListing;
+    },
+
+    markAvailable: async (id: string) => {
+        const res = await api.post(`/api/v1/marketplace/listings/${id}/mark-available`);
+        return res.data?.data as MarketplaceListing;
+    },
+
+    closeListing: async (id: string) => {
+        const res = await api.post(`/api/v1/marketplace/listings/${id}/close`);
+        return res.data?.data as MarketplaceListing;
+    },
+
+    // ── Orders ──
+    placeOrder: async (data: {
+        listing_id: string;
+        quantity_requested: number;
+        logistics_preference: LogisticsPreference;
+        preferred_date?: string | null;
+        farmer_notes?: string | null;
+        delivery_address?: string | null;
+    }) => {
+        const res = await api.post('/api/v1/marketplace/orders', data);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    placeInterest: async (
+        listingId: string,
+        data: {
+            quantity_requested: number;
+            logistics_preference?: LogisticsPreference;
+            preferred_date?: string | null;
+            farmer_notes?: string | null;
+        },
+    ) => {
+        const res = await api.post(`/api/v1/marketplace/listings/${listingId}/interest`, data);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    getMyOrders: async () => {
+        const res = await api.get('/api/v1/marketplace/orders/mine');
+        return res.data?.data as MarketplaceOrder[];
+    },
+
+    getOrder: async (id: string) => {
+        const res = await api.get(`/api/v1/marketplace/orders/${id}`);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    acceptOrder: async (id: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/accept`);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    rejectOrder: async (id: string, reason?: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/reject`, { reason });
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    markPaid: async (id: string, screenshotUrl?: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/pay`, {
+            payment_screenshot_url: screenshotUrl,
+        });
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    confirmPayment: async (id: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/confirm`);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    fulfillOrder: async (id: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/fulfill`);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    cancelOrder: async (id: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/cancel`);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    raiseDispute: async (id: string, reason: DisputeReason, description?: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/dispute`, {
+            reason, description,
+        });
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    acknowledgeInterest: async (id: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/acknowledge`);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    declineInterest: async (id: string, reason?: string) => {
+        const res = await api.patch(`/api/v1/marketplace/orders/${id}/decline`, { reason });
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    convertInterest: async (
+        id: string,
+        data: {
+            logistics_preference: LogisticsPreference;
+            preferred_date?: string | null;
+            farmer_notes?: string | null;
+            delivery_address?: string | null;
+        },
+    ) => {
+        const res = await api.post(`/api/v1/marketplace/orders/${id}/convert`, data);
+        return res.data?.data as MarketplaceOrder;
+    },
+
+    // ── Notifications ──
+    getNotifications: async (unreadOnly = false) => {
+        const res = await api.get('/api/v1/marketplace/notifications', {
+            params: unreadOnly ? { unreadOnly: 'true' } : undefined,
+        });
+        return res.data?.data as MarketplaceNotification[];
+    },
+
+    markNotificationRead: async (id: string) => {
+        const res = await api.patch(`/api/v1/marketplace/notifications/${id}/read`);
+        return res.data?.data;
+    },
+
+    getSpecies: async () => {
+        const res = await api.get('/api/v1/marketplace/species');
+        return res.data?.data as string[];
+    },
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Crop Cycles & Farm Assets (gov survey Bucket 3)
+// ────────────────────────────────────────────────────────────────────────────
+
+export type CropCycleStatus = 'ONGOING' | 'HARVESTED' | 'CANCELLED';
+
+export interface CropCycle {
+    id: string;
+    pond_id: string;
+    pond_name?: string;
+    user_id: string;
+    cycle_name: string;
+    species_name: string | null;
+    start_date: string;
+    end_date: string | null;
+    status: CropCycleStatus;
+    present_production_kg: string | null;
+    total_production_kg: string | null;
+    feed_formulated_cost: string | null;
+    feed_homemade_cost: string | null;
+    probiotic_cost: string | null;
+    medicine_cost: string | null;
+    electricity_cost: string | null;
+    labour_hired_cost: string | null;
+    labour_family_cost: string | null;
+    other_cost: string | null;
+    revenue_inr: string | null;
+    remarks: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CropCycleInput {
+    pond_id: string;
+    cycle_name: string;
+    species_name?: string | null;
+    start_date: string;
+    end_date?: string | null;
+    status?: CropCycleStatus;
+    present_production_kg?: number | null;
+    total_production_kg?: number | null;
+    feed_formulated_cost?: number | null;
+    feed_homemade_cost?: number | null;
+    probiotic_cost?: number | null;
+    medicine_cost?: number | null;
+    electricity_cost?: number | null;
+    labour_hired_cost?: number | null;
+    labour_family_cost?: number | null;
+    other_cost?: number | null;
+    revenue_inr?: number | null;
+    remarks?: string | null;
+}
+
+export const cropCycleService = {
+    list: async (params: { pondId?: string; status?: CropCycleStatus } = {}) => {
+        const q: Record<string, string> = {};
+        if (params.pondId) q.pondId = params.pondId;
+        if (params.status) q.status = params.status;
+        const r = await api.get('/api/v1/crop-cycles', { params: q });
+        return r.data?.data as CropCycle[];
+    },
+    get: async (id: string) => {
+        const r = await api.get(`/api/v1/crop-cycles/${id}`);
+        return r.data?.data as CropCycle;
+    },
+    create: async (data: CropCycleInput) => {
+        const r = await api.post('/api/v1/crop-cycles', data);
+        return r.data?.data as CropCycle;
+    },
+    update: async (id: string, data: Partial<CropCycleInput>) => {
+        const r = await api.patch(`/api/v1/crop-cycles/${id}`, data);
+        return r.data?.data as CropCycle;
+    },
+    remove: async (id: string) => {
+        await api.delete(`/api/v1/crop-cycles/${id}`);
+    },
+};
+
+export type AssetType =
+    | 'AERATOR' | 'MOTOR_PUMP' | 'BOAT' | 'FISH_NET' | 'BORE_WELL'
+    | 'BIOFLOC_TANK' | 'RAS' | 'BIOFLOC_POND' | 'CIVIL_WORK_POND'
+    | 'EMBANKMENT' | 'OTHER';
+
+export interface FarmAsset {
+    id: string;
+    user_id: string;
+    pond_id: string | null;
+    pond_name?: string | null;
+    asset_type: AssetType;
+    asset_name: string;
+    purchase_date: string;
+    cost_inr: string;
+    economic_life_years: string;
+    salvage_value_inr: string;
+    annual_depreciation_inr: string;
+    remarks: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface FarmAssetInput {
+    pond_id?: string | null;
+    asset_type: AssetType;
+    asset_name: string;
+    purchase_date: string;
+    cost_inr: number;
+    economic_life_years: number;
+    salvage_value_inr?: number;
+    remarks?: string | null;
+}
+
+export const farmAssetService = {
+    list: async (params: { pondId?: string } = {}) => {
+        const q: Record<string, string> = {};
+        if (params.pondId) q.pondId = params.pondId;
+        const r = await api.get('/api/v1/farm-assets', { params: q });
+        return r.data?.data as FarmAsset[];
+    },
+    get: async (id: string) => {
+        const r = await api.get(`/api/v1/farm-assets/${id}`);
+        return r.data?.data as FarmAsset;
+    },
+    create: async (data: FarmAssetInput) => {
+        const r = await api.post('/api/v1/farm-assets', data);
+        return r.data?.data as FarmAsset;
+    },
+    update: async (id: string, data: Partial<FarmAssetInput>) => {
+        const r = await api.patch(`/api/v1/farm-assets/${id}`, data);
+        return r.data?.data as FarmAsset;
+    },
+    remove: async (id: string) => {
+        await api.delete(`/api/v1/farm-assets/${id}`);
+    },
+};
+
 export default api;

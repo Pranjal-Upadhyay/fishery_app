@@ -84,6 +84,7 @@ export default function HomeScreen() {
     { icon: 'medical-outline' as const,       label: t('home.doctorNetwork'),           screen: 'DoctorNetwork' },
     { icon: 'storefront-outline' as const,    label: 'Fingerling Market',  screen: 'MarketListings' },
     { icon: 'receipt-outline' as const,       label: 'My Orders',          screen: 'MyOrders' },
+    { icon: 'cube-outline' as const,          label: 'Farm Assets',        screen: 'FarmAssets' },
   ];
 
   const getGreeting = () => {

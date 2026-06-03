@@ -34,5 +34,26 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 5,
+      steps: [
+        addColumns({
+          table: 'ponds',
+          columns: [
+            { name: 'ownership_type', type: 'string', isOptional: true },
+            { name: 'water_availability', type: 'string', isOptional: true },
+            { name: 'culture_system_category', type: 'string', isOptional: true },
+            { name: 'pond_activity_type', type: 'string', isOptional: true },
+            { name: 'wide_angle_photo_uri', type: 'string', isOptional: true },
+            { name: 'embankment_photo_uri', type: 'string', isOptional: true },
+            { name: 'close_view_photo_uri', type: 'string', isOptional: true },
+            { name: 'farmer_with_pond_photo_uri', type: 'string', isOptional: true },
+            { name: 'is_insured', type: 'boolean', isOptional: true },
+            { name: 'flood_impact_3yrs', type: 'boolean', isOptional: true },
+            { name: 'disease_occurrence', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

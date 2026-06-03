@@ -64,6 +64,22 @@ const profileUpdateSchema = z.object({
     districtCode: z.string().min(2).max(120).optional().nullable(),
     blockCode: z.string().min(2).max(160).optional().nullable(),
     panchayatCode: z.string().min(2).max(200).optional().nullable(),
+
+    // ── New: Bucket 1 farmer profile / survey-form Section A fields ──
+    fatherOrHusbandName:    z.string().max(120).optional().nullable(),
+    aadhaarNumber:          z.string().regex(/^\d{12}$/).optional().nullable(),
+    gender:                 z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']).optional().nullable(),
+    dateOfBirth:            z.string().date().optional().nullable(),
+    educationLevel:         z.enum(['NONE','PRIMARY','SECONDARY','HIGHER_SECONDARY','GRADUATE','POSTGRADUATE'])
+                                .optional().nullable(),
+    householdSize:          z.number().int().positive().max(50).optional().nullable(),
+    farmingExperienceYears: z.number().int().nonnegative().max(80).optional().nullable(),
+    primaryOccupation:      z.enum(['FISH_FARMING','AGRICULTURE','DAIRY','LABOUR','BUSINESS','SERVICE','OTHER'])
+                                .optional().nullable(),
+    annualIncomeRange:      z.enum(['LT_50K','50K_1L','1L_3L','3L_5L','GT_5L']).optional().nullable(),
+    kccHolder:              z.boolean().optional().nullable(),
+    bplHolder:              z.boolean().optional().nullable(),
+    consentGiven:           z.boolean().optional(),
 });
 
 // Module-level flag — schema alignment only needs to run once per process startup.
@@ -175,6 +191,19 @@ async function fetchAuthenticatedUserByColumn(columnKey: 'phone' | 'id', value: 
         u.district_code AS "districtCode",
         u.block_code AS "blockCode",
         u.panchayat_code AS "panchayatCode",
+        u.father_or_husband_name   AS "fatherOrHusbandName",
+        u.aadhaar_number           AS "aadhaarNumber",
+        u.gender                   AS "gender",
+        TO_CHAR(u.date_of_birth, 'YYYY-MM-DD') AS "dateOfBirth",
+        u.education_level          AS "educationLevel",
+        u.household_size           AS "householdSize",
+        u.farming_experience_years AS "farmingExperienceYears",
+        u.primary_occupation       AS "primaryOccupation",
+        u.annual_income_range      AS "annualIncomeRange",
+        u.kcc_holder               AS "kccHolder",
+        u.bpl_holder               AS "bplHolder",
+        u.consent_given            AS "consentGiven",
+        u.consent_given_at         AS "consentGivenAt",
         d.id AS "doctorId",
         d.specialization[1] AS "doctorSpecialization",
         COALESCE(d.district_name, ud.name) AS "districtName",
@@ -429,6 +458,10 @@ router.patch('/profile/:userId', requireAuth, async (req, res) => {
         await ensureAuthRuntimeSchema();
         const payload = profileUpdateSchema.parse(req.body);
 
+        // Consent-timestamp logic is inline in the UPDATE statement — if
+        // consentGiven flips to true and no prior timestamp exists, NOW() is
+        // recorded. Otherwise the prior timestamp is preserved.
+
         const result = await query(`
             UPDATE users
             SET name = $2,
@@ -436,7 +469,23 @@ router.patch('/profile/:userId', requireAuth, async (req, res) => {
                 state_code = $4,
                 district_code = $5,
                 block_code = $6,
-                panchayat_code = $7
+                panchayat_code = $7,
+                father_or_husband_name   = COALESCE($8,  father_or_husband_name),
+                aadhaar_number           = COALESCE($9,  aadhaar_number),
+                gender                   = COALESCE($10, gender),
+                date_of_birth            = COALESCE($11::date, date_of_birth),
+                education_level          = COALESCE($12, education_level),
+                household_size           = COALESCE($13, household_size),
+                farming_experience_years = COALESCE($14, farming_experience_years),
+                primary_occupation       = COALESCE($15, primary_occupation),
+                annual_income_range      = COALESCE($16, annual_income_range),
+                kcc_holder               = COALESCE($17, kcc_holder),
+                bpl_holder               = COALESCE($18, bpl_holder),
+                consent_given            = COALESCE($19, consent_given),
+                consent_given_at         = CASE
+                    WHEN $19 = TRUE AND consent_given_at IS NULL THEN NOW()
+                    ELSE consent_given_at
+                END
             WHERE id = $1
             RETURNING id
         `, [
@@ -447,6 +496,18 @@ router.patch('/profile/:userId', requireAuth, async (req, res) => {
             payload.districtCode || null,
             payload.blockCode || null,
             payload.panchayatCode || null,
+            payload.fatherOrHusbandName ?? null,
+            payload.aadhaarNumber ?? null,
+            payload.gender ?? null,
+            payload.dateOfBirth ?? null,
+            payload.educationLevel ?? null,
+            payload.householdSize ?? null,
+            payload.farmingExperienceYears ?? null,
+            payload.primaryOccupation ?? null,
+            payload.annualIncomeRange ?? null,
+            payload.kccHolder ?? null,
+            payload.bplHolder ?? null,
+            payload.consentGiven ?? null,
         ]);
 
         if ((result.rowCount ?? 0) === 0) {

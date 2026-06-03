@@ -24,6 +24,20 @@ export interface AuthUser {
     panchayatName?: string;
     doctorId?: string;
     doctorSpecialization?: string;
+
+    // ── Bucket 1 — gov survey Section A fields ──
+    fatherOrHusbandName?: string;
+    aadhaarNumber?: string;
+    gender?: UserProfile['gender'];
+    dateOfBirth?: string;
+    educationLevel?: UserProfile['educationLevel'];
+    householdSize?: number;
+    farmingExperienceYears?: number;
+    primaryOccupation?: UserProfile['primaryOccupation'];
+    annualIncomeRange?: UserProfile['annualIncomeRange'];
+    kccHolder?: boolean;
+    bplHolder?: boolean;
+    consentGiven?: boolean;
 }
 
 interface AuthResponse {
@@ -82,6 +96,21 @@ export interface PersistedProfilePayload {
     blockName?: string;
     panchayatCode?: string;
     panchayatName?: string;
+
+    // ── Bucket 1 — gov survey Section A fields ──
+    fatherOrHusbandName?: string | null;
+    aadhaarNumber?: string | null;
+    gender?: UserProfile['gender'] | null;
+    /** ISO YYYY-MM-DD */
+    dateOfBirth?: string | null;
+    educationLevel?: UserProfile['educationLevel'] | null;
+    householdSize?: number | null;
+    farmingExperienceYears?: number | null;
+    primaryOccupation?: UserProfile['primaryOccupation'] | null;
+    annualIncomeRange?: UserProfile['annualIncomeRange'] | null;
+    kccHolder?: boolean | null;
+    bplHolder?: boolean | null;
+    consentGiven?: boolean;
 }
 
 async function persistAuthSuccess(user: AuthUser) {
@@ -102,6 +131,20 @@ async function persistAuthSuccess(user: AuthUser) {
             blockName: user.blockName || existing.blockName,
             panchayatCode: user.panchayatCode || existing.panchayatCode,
             panchayatName: user.panchayatName || existing.panchayatName,
+
+            // Bucket 1 fields — prefer server, fall back to local
+            fatherOrHusbandName:    user.fatherOrHusbandName    ?? existing.fatherOrHusbandName,
+            aadhaarNumber:          user.aadhaarNumber          ?? existing.aadhaarNumber,
+            gender:                 user.gender                 ?? existing.gender,
+            dateOfBirth:            user.dateOfBirth            ?? existing.dateOfBirth,
+            educationLevel:         user.educationLevel         ?? existing.educationLevel,
+            householdSize:          user.householdSize          ?? existing.householdSize,
+            farmingExperienceYears: user.farmingExperienceYears ?? existing.farmingExperienceYears,
+            primaryOccupation:      user.primaryOccupation      ?? existing.primaryOccupation,
+            annualIncomeRange:      user.annualIncomeRange      ?? existing.annualIncomeRange,
+            kccHolder:              user.kccHolder              ?? existing.kccHolder,
+            bplHolder:              user.bplHolder              ?? existing.bplHolder,
+            consentGiven:           user.consentGiven           ?? existing.consentGiven,
         });
     }
 }
@@ -123,6 +166,19 @@ function normalizeAuthUser(raw: any): AuthUser {
         panchayatName: raw.panchayatName,
         doctorId: raw.doctorId,
         doctorSpecialization: raw.doctorSpecialization,
+
+        fatherOrHusbandName:    raw.fatherOrHusbandName ?? undefined,
+        aadhaarNumber:          raw.aadhaarNumber ?? undefined,
+        gender:                 raw.gender ?? undefined,
+        dateOfBirth:            raw.dateOfBirth ?? undefined,
+        educationLevel:         raw.educationLevel ?? undefined,
+        householdSize:          raw.householdSize ?? undefined,
+        farmingExperienceYears: raw.farmingExperienceYears ?? undefined,
+        primaryOccupation:      raw.primaryOccupation ?? undefined,
+        annualIncomeRange:      raw.annualIncomeRange ?? undefined,
+        kccHolder:              raw.kccHolder ?? undefined,
+        bplHolder:              raw.bplHolder ?? undefined,
+        consentGiven:           raw.consentGiven ?? undefined,
     };
 }
 
@@ -196,6 +252,19 @@ export const authService = {
                 districtCode: payload.districtCode || null,
                 blockCode: payload.blockCode || null,
                 panchayatCode: payload.panchayatCode || null,
+
+                fatherOrHusbandName:    payload.fatherOrHusbandName ?? null,
+                aadhaarNumber:          payload.aadhaarNumber ?? null,
+                gender:                 payload.gender ?? null,
+                dateOfBirth:            payload.dateOfBirth ?? null,
+                educationLevel:         payload.educationLevel ?? null,
+                householdSize:          payload.householdSize ?? null,
+                farmingExperienceYears: payload.farmingExperienceYears ?? null,
+                primaryOccupation:      payload.primaryOccupation ?? null,
+                annualIncomeRange:      payload.annualIncomeRange ?? null,
+                kccHolder:              payload.kccHolder ?? null,
+                bplHolder:              payload.bplHolder ?? null,
+                consentGiven:           payload.consentGiven,
             });
 
             if (!res.data.success || !res.data.user) {

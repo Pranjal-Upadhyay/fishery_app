@@ -1,8 +1,13 @@
 /**
  * ManageListingsScreen
- * Hatchery operator views, manages and creates fingerling/fry listings.
- * Tapping "New Listing" opens CreateListingScreen.
- * Tapping a listing shows its orders.
+ * Hatchery operator manages their own listings grouped by status:
+ *   Active (AVAILABLE) · Upcoming · Drafts · Closed/Expired
+ *
+ * Per listing:
+ *   - Draft  → Publish · Delete
+ *   - Upcoming → Mark Available · Close
+ *   - Available → Close
+ *   - Any with orders → Tap to view Incoming Orders
  */
 
 import React, { useCallback, useState } from 'react';
@@ -10,44 +15,46 @@ import {
     View,
     Text,
     StyleSheet,
-    FlatList,
     TouchableOpacity,
-    ActivityIndicator,
-    RefreshControl,
     Alert,
+    ActivityIndicator,
+    FlatList,
+    ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
-import api from '../services/apiService';
+import { marketplaceService, MarketplaceListing } from '../services/apiService';
 
-interface MyListing {
-    id: string;
-    stage: 'fry' | 'fingerling';
-    species_name: string;
-    species_variant: string | null;
-    total_quantity: number;
-    quantity_available: number;
-    min_order_qty: number;
-    price_per_piece: string;
-    status: 'ACTIVE' | 'SOLD_OUT' | 'CANCELLED';
-    active_orders: number;
-    confirmed_orders: number;
-    total_revenue: string;
-    created_at: string;
-}
+type Tab = 'active' | 'upcoming' | 'drafts' | 'closed';
 
-const STATUS_META: Record<string, { label: string; color: string }> = {
-    ACTIVE:    { label: 'Active',    color: '#22c55e' },
-    SOLD_OUT:  { label: 'Sold Out',  color: '#f59e0b' },
-    CANCELLED: { label: 'Cancelled', color: '#94a3b8' },
+const TABS: { key: Tab; label: string }[] = [
+    { key: 'active',   label: 'Active' },
+    { key: 'upcoming', label: 'Upcoming' },
+    { key: 'drafts',   label: 'Drafts' },
+    { key: 'closed',   label: 'Closed' },
+];
+
+const STATUS_COLOR: Record<string, string> = {
+    AVAILABLE: '#22c55e',
+    UPCOMING:  '#f59e0b',
+    DRAFT:     '#94a3b8',
+    CLOSED:    '#64748b',
+    EXPIRED:   '#ef4444',
 };
 
-const STAGE_COLOR: Record<string, string> = {
-    fingerling: '#0ea5e9',
-    fry:        '#f59e0b',
+function formatDate(iso: string): string {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
+
+type ListingWithCounts = MarketplaceListing & {
+    active_orders?: number;
+    fulfilled_orders?: number;
+    disputed_orders?: number;
+    total_revenue?: string | number;
 };
 
 export default function ManageListingsScreen() {
@@ -55,44 +62,45 @@ export default function ManageListingsScreen() {
     const styles = getStyles(theme);
     const navigation = useNavigation<any>();
 
-    const [listings, setListings] = useState<MyListing[]>([]);
+    const [listings, setListings] = useState<ListingWithCounts[]>([]);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const [tab, setTab] = useState<Tab>('active');
 
     const load = useCallback(async () => {
         try {
-            const res = await api.get('/api/v1/marketplace/listings/mine');
-            setListings(res.data?.data ?? []);
+            const data = await marketplaceService.getMyListings() as unknown as ListingWithCounts[];
+            setListings(data);
         } catch {
-            // offline
+            Alert.alert('Error', 'Could not load your listings.');
         } finally {
             setLoading(false);
-            setRefreshing(false);
         }
     }, []);
 
     useFocusEffect(useCallback(() => { void load(); }, [load]));
-    const onRefresh = () => { setRefreshing(true); void load(); };
 
-    const handleCancel = (item: MyListing) => {
+    const filtered = listings.filter(l => {
+        if (tab === 'active')   return l.status === 'AVAILABLE';
+        if (tab === 'upcoming') return l.status === 'UPCOMING';
+        if (tab === 'drafts')   return l.status === 'DRAFT';
+        if (tab === 'closed')   return ['CLOSED', 'EXPIRED'].includes(l.status);
+        return false;
+    });
+
+    const handlePublish = (l: MarketplaceListing) => {
         Alert.alert(
-            'Cancel Listing',
-            `Cancel the listing for "${item.species_name}"? Pending orders will still need to be handled separately.`,
+            'Publish Listing',
+            'This will publish your listing to the marketplace.',
             [
-                { text: 'Keep', style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Cancel Listing',
-                    style: 'destructive',
+                    text: 'Publish',
                     onPress: async () => {
-                        setCancellingId(item.id);
                         try {
-                            await api.patch(`/api/v1/marketplace/listings/${item.id}/cancel`);
+                            await marketplaceService.publishListing(l.id);
                             await load();
-                        } catch (err: any) {
-                            Alert.alert('Error', err?.response?.data?.error ?? 'Could not cancel listing.');
-                        } finally {
-                            setCancellingId(null);
+                        } catch (e: any) {
+                            Alert.alert('Error', e?.response?.data?.error ?? 'Could not publish.');
                         }
                     },
                 },
@@ -100,118 +108,81 @@ export default function ManageListingsScreen() {
         );
     };
 
-    // Summary stats
-    const activeCount = listings.filter(l => l.status === 'ACTIVE').length;
-    const totalRevenue = listings.reduce((sum, l) => sum + parseFloat(l.total_revenue || '0'), 0);
-    const pendingOrders = listings.reduce((sum, l) => sum + (parseInt(String(l.active_orders), 10) || 0), 0);
-
-    const renderItem = ({ item }: { item: MyListing }) => {
-        const statusMeta = STATUS_META[item.status];
-        const stageColor = STAGE_COLOR[item.stage] ?? theme.colors.primary;
-        const isCancelling = cancellingId === item.id;
-        const soldPct = item.total_quantity > 0
-            ? Math.round(((item.total_quantity - item.quantity_available) / item.total_quantity) * 100)
-            : 0;
-
-        return (
-            <View style={styles.card}>
-                {/* Header */}
-                <View style={styles.cardTop}>
-                    <View style={styles.speciesBlock}>
-                        <Text style={styles.speciesName}>{item.species_name}</Text>
-                        {item.species_variant ? (
-                            <Text style={styles.speciesVariant}>{item.species_variant}</Text>
-                        ) : null}
-                    </View>
-                    <View style={{ gap: 5, alignItems: 'flex-end' }}>
-                        <View style={[styles.stageBadge, { backgroundColor: stageColor + '22' }]}>
-                            <Text style={[styles.stageBadgeText, { color: stageColor }]}>
-                                {item.stage.toUpperCase()}
-                            </Text>
-                        </View>
-                        <View style={[styles.statusBadge, { backgroundColor: statusMeta.color + '22' }]}>
-                            <Text style={[styles.statusBadgeText, { color: statusMeta.color }]}>
-                                {statusMeta.label}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Price + qty row */}
-                <View style={styles.metricsRow}>
-                    <View style={styles.metricCell}>
-                        <Text style={styles.metricValue}>
-                            ₹{parseFloat(item.price_per_piece).toFixed(2)}
-                        </Text>
-                        <Text style={styles.metricLabel}>per piece</Text>
-                    </View>
-                    <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.metricCell}>
-                        <Text style={styles.metricValue}>
-                            {item.quantity_available.toLocaleString('en-IN')}
-                        </Text>
-                        <Text style={styles.metricLabel}>remaining</Text>
-                    </View>
-                    <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.metricCell}>
-                        <Text style={styles.metricValue}>{soldPct}%</Text>
-                        <Text style={styles.metricLabel}>sold</Text>
-                    </View>
-                </View>
-
-                {/* Orders summary */}
-                <View style={styles.ordersSummary}>
-                    <View style={styles.ordersChip}>
-                        <Ionicons name="receipt-outline" size={13} color={theme.colors.primary} />
-                        <Text style={styles.ordersChipText}>
-                            {item.active_orders} active order{parseInt(String(item.active_orders), 10) !== 1 ? 's' : ''}
-                        </Text>
-                    </View>
-                    {parseFloat(item.total_revenue) > 0 && (
-                        <View style={[styles.ordersChip, { backgroundColor: '#dcfce7' }]}>
-                            <Ionicons name="cash-outline" size={13} color="#16a34a" />
-                            <Text style={[styles.ordersChipText, { color: '#16a34a' }]}>
-                                ₹{parseFloat(item.total_revenue).toLocaleString('en-IN')} earned
-                            </Text>
-                        </View>
-                    )}
-                </View>
-
-                {/* Actions */}
-                {isCancelling ? (
-                    <ActivityIndicator color={theme.colors.primary} />
-                ) : item.status === 'ACTIVE' ? (
-                    <View style={styles.actionsRow}>
-                        <TouchableOpacity
-                            style={styles.cancelListingBtn}
-                            activeOpacity={0.8}
-                            onPress={() => handleCancel(item)}
-                        >
-                            <Ionicons name="close-circle-outline" size={15} color={theme.colors.error} />
-                            <Text style={[styles.actionBtnText, { color: theme.colors.error }]}>Cancel Listing</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.viewOrdersBtn}
-                            activeOpacity={0.8}
-                            onPress={() => navigation.navigate('IncomingOrders', { listingId: item.id })}
-                        >
-                            <Ionicons name="receipt-outline" size={15} color={theme.colors.textInverse} />
-                            <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>View Orders</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : (
-                    <TouchableOpacity
-                        style={styles.viewOrdersBtn}
-                        activeOpacity={0.8}
-                        onPress={() => navigation.navigate('IncomingOrders', { listingId: item.id })}
-                    >
-                        <Ionicons name="receipt-outline" size={15} color={theme.colors.textInverse} />
-                        <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>View Orders</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
+    const handleMarkAvailable = (l: MarketplaceListing) => {
+        Alert.alert(
+            'Stock Ready?',
+            'Marking this batch as AVAILABLE will notify all interested farmers and let new orders be placed.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Mark Available',
+                    onPress: async () => {
+                        try {
+                            await marketplaceService.markAvailable(l.id);
+                            await load();
+                        } catch (e: any) {
+                            Alert.alert('Error', e?.response?.data?.error ?? 'Could not update.');
+                        }
+                    },
+                },
+            ],
         );
     };
+
+    const handleClose = (l: MarketplaceListing) => {
+        Alert.alert(
+            'Close Listing',
+            'No new orders will be accepted. Existing orders remain.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Close',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await marketplaceService.closeListing(l.id);
+                            await load();
+                        } catch (e: any) {
+                            Alert.alert('Error', e?.response?.data?.error ?? 'Could not close.');
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
+    const handleDelete = (l: MarketplaceListing) => {
+        Alert.alert(
+            'Delete Draft',
+            'This draft will be permanently deleted.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await marketplaceService.deleteListing(l.id);
+                            await load();
+                        } catch (e: any) {
+                            Alert.alert('Error', e?.response?.data?.error ?? 'Could not delete.');
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.safeArea} edges={['top']}>
+                <ScreenHeader title="My Listings" onBack={() => navigation.goBack()} />
+                <View style={styles.center}>
+                    <ActivityIndicator color={theme.colors.primary} size="large" />
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -220,161 +191,226 @@ export default function ManageListingsScreen() {
                 onBack={() => navigation.goBack()}
                 rightSlot={
                     <TouchableOpacity
-                        style={styles.newListingBtn}
-                        activeOpacity={0.85}
+                        style={styles.headerAddBtn}
                         onPress={() => navigation.navigate('CreateListing')}
                     >
-                        <Ionicons name="add" size={20} color={theme.colors.textInverse} />
+                        <Ionicons name="add" size={22} color={theme.colors.textInverse} />
                     </TouchableOpacity>
                 }
             />
 
-            {/* Summary stats */}
-            {!loading && listings.length > 0 ? (
-                <View style={styles.summaryRow}>
-                    <SummaryChip icon="checkmark-circle-outline" value={String(activeCount)} label="Active" theme={theme} />
-                    <SummaryChip icon="receipt-outline" value={String(pendingOrders)} label="Pending Orders" theme={theme} />
-                    <SummaryChip icon="cash-outline" value={`₹${totalRevenue.toLocaleString('en-IN')}`} label="Total Earned" theme={theme} accent={theme.colors.primary} />
-                </View>
-            ) : null}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                {TABS.map(t => {
+                    const count = listings.filter(l => {
+                        if (t.key === 'active')   return l.status === 'AVAILABLE';
+                        if (t.key === 'upcoming') return l.status === 'UPCOMING';
+                        if (t.key === 'drafts')   return l.status === 'DRAFT';
+                        if (t.key === 'closed')   return ['CLOSED', 'EXPIRED'].includes(l.status);
+                        return false;
+                    }).length;
+                    return (
+                        <TouchableOpacity
+                            key={t.key}
+                            style={[styles.filterChip, tab === t.key && styles.filterChipActive]}
+                            onPress={() => setTab(t.key)}
+                        >
+                            <Text style={[styles.filterChipText, tab === t.key && styles.filterChipTextActive]}>
+                                {t.label} ({count})
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
+            </ScrollView>
 
-            {loading ? (
+            {filtered.length === 0 ? (
                 <View style={styles.center}>
-                    <ActivityIndicator color={theme.colors.primary} size="large" />
+                    <Ionicons name="storefront-outline" size={48} color={theme.colors.textMuted} />
+                    <Text style={styles.emptyText}>No {tab} listings</Text>
+                    {tab !== 'closed' && (
+                        <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateListing')}>
+                            <Ionicons name="add-circle-outline" size={18} color={theme.colors.textInverse} />
+                            <Text style={styles.createBtnText}>Create Listing</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             ) : (
                 <FlatList
-                    data={listings}
-                    keyExtractor={item => item.id}
-                    renderItem={renderItem}
+                    data={filtered}
+                    keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.list}
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor={theme.colors.primary}
-                        />
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Ionicons name="storefront-outline" size={64} color={theme.colors.textMuted} />
-                            <Text style={styles.emptyTitle}>No Listings Yet</Text>
-                            <Text style={styles.emptySubtitle}>
-                                Create your first listing to sell fingerlings or fry to farmers.
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.createFirstBtn}
-                                activeOpacity={0.85}
-                                onPress={() => navigation.navigate('CreateListing')}
-                            >
-                                <Ionicons name="add-circle-outline" size={18} color={theme.colors.textInverse} />
-                                <Text style={styles.createFirstBtnText}>Create First Listing</Text>
-                            </TouchableOpacity>
-                        </View>
-                    }
+                    renderItem={({ item }) => {
+                        const statusColor = STATUS_COLOR[item.status] ?? theme.colors.primary;
+                        return (
+                            <View style={styles.card}>
+                                <View style={styles.cardHead}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.cardTitle}>{item.species_name}{item.species_variant ? ` · ${item.species_variant}` : ''}</Text>
+                                        <Text style={styles.cardSub}>{item.stage.toUpperCase()}</Text>
+                                    </View>
+                                    <View style={[styles.statusPill, { backgroundColor: statusColor + '22' }]}>
+                                        <Text style={[styles.statusPillText, { color: statusColor }]}>{item.status}</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.metaGrid}>
+                                    <Meta label="Available" value={item.quantity_available.toLocaleString('en-IN')} theme={theme} />
+                                    <Meta label="Price" value={`₹${parseFloat(item.price_per_piece).toFixed(2)}`} theme={theme} />
+                                    <Meta label="Reserved" value={item.reserved_quantity?.toString() ?? '0'} theme={theme} />
+                                    <Meta label="Confirmed" value={item.confirmed_quantity?.toString() ?? '0'} theme={theme} />
+                                </View>
+
+                                <View style={styles.timingRow}>
+                                    <Text style={styles.timingText}>Ready: {formatDate(item.expected_ready_date)}</Text>
+                                    <Text style={styles.timingDot}>·</Text>
+                                    <Text style={styles.timingText}>Expires: {formatDate(item.last_available_date)}</Text>
+                                </View>
+
+                                {Number(item.active_orders ?? 0) > 0 && (
+                                    <TouchableOpacity
+                                        style={styles.ordersBtn}
+                                        onPress={() => navigation.navigate('IncomingOrders', { listingId: item.id })}
+                                    >
+                                        <Ionicons name="receipt-outline" size={16} color={theme.colors.primary} />
+                                        <Text style={styles.ordersBtnText}>
+                                            {Number(item.active_orders)} active order{Number(item.active_orders) > 1 ? 's' : ''}
+                                        </Text>
+                                        <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} />
+                                    </TouchableOpacity>
+                                )}
+
+                                <View style={styles.actionRow}>
+                                    {item.status === 'DRAFT' && (
+                                        <>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={() => handlePublish(item)}>
+                                                <Ionicons name="rocket-outline" size={14} color={theme.colors.textInverse} />
+                                                <Text style={styles.actionBtnTextPrimary}>Publish</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => handleDelete(item)}>
+                                                <Ionicons name="trash-outline" size={14} color="#ef4444" />
+                                                <Text style={styles.actionBtnTextDanger}>Delete</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+                                    {item.status === 'UPCOMING' && (
+                                        <>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={() => handleMarkAvailable(item)}>
+                                                <Ionicons name="checkmark-circle-outline" size={14} color={theme.colors.textInverse} />
+                                                <Text style={styles.actionBtnTextPrimary}>Mark Available</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={() => handleClose(item)}>
+                                                <Text style={styles.actionBtnTextSecondary}>Close</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+                                    {item.status === 'AVAILABLE' && (
+                                        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={() => handleClose(item)}>
+                                            <Text style={styles.actionBtnTextSecondary}>Close Listing</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            </View>
+                        );
+                    }}
                 />
             )}
         </SafeAreaView>
     );
 }
 
-function SummaryChip({ icon, value, label, theme, accent }: any) {
+function Meta({ label, value, theme }: any) {
     const c = theme.colors;
-    const color = accent ?? c.textSecondary;
     return (
-        <View style={{ flex: 1, alignItems: 'center', gap: 4, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 10 }}>
-            <Ionicons name={icon} size={16} color={color} />
-            <Text style={{ fontSize: 16, fontWeight: '800', color: c.textPrimary }}>{value}</Text>
-            <Text style={{ fontSize: 10, color: c.textMuted, fontWeight: '600', textAlign: 'center' }}>{label}</Text>
+        <View style={{ flex: 1, minWidth: '40%' }}>
+            <Text style={{ fontSize: 10, color: c.textMuted, fontWeight: '700' }}>{label.toUpperCase()}</Text>
+            <Text style={{ fontSize: 14, color: c.textPrimary, fontWeight: '800', marginTop: 2 }}>{value}</Text>
         </View>
     );
 }
 
 const getStyles = (theme: any) => {
     const c = theme.colors;
-    const r = theme.borderRadius ?? {};
     return StyleSheet.create({
-        safeArea:   { flex: 1, backgroundColor: c.background },
-        center:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
-        summaryRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
-        list:       { padding: 16, paddingTop: 4, gap: 14 },
-        card: {
-            backgroundColor: c.surface,
-            borderRadius: r.lg ?? 16,
-            borderWidth: 1,
-            borderColor: c.border,
-            padding: 16,
-            gap: 12,
-            ...(theme.shadows?.sm ?? {}),
+        safeArea: { flex: 1, backgroundColor: c.background },
+        center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32 },
+        emptyText: { fontSize: 16, fontWeight: '800', color: c.textPrimary },
+        headerAddBtn: {
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: c.primary,
+            alignItems: 'center', justifyContent: 'center',
         },
-        cardTop:      { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-        speciesBlock: { flex: 1, gap: 2 },
-        speciesName:  { fontSize: 17, fontWeight: '800', color: c.textPrimary },
-        speciesVariant: { fontSize: 13, color: c.textSecondary },
-        stageBadge:   { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-        stageBadgeText: { fontSize: 11, fontWeight: '800' },
-        statusBadge:  { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-        statusBadgeText: { fontSize: 11, fontWeight: '700' },
-        metricsRow:   { flexDirection: 'row', backgroundColor: c.background, borderRadius: 12, padding: 12, alignItems: 'center' },
-        metricCell:   { flex: 1, alignItems: 'center', gap: 3 },
-        metricValue:  { fontSize: 16, fontWeight: '800', color: c.textPrimary },
-        metricLabel:  { fontSize: 10, color: c.textMuted, fontWeight: '600' },
-        metricDivider:{ width: 1, height: 32, marginHorizontal: 4 },
-        ordersSummary:{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-        ordersChip: {
+        createBtn: {
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 5,
-            backgroundColor: c.primaryLight ?? '#e0fdf4',
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 999,
+            gap: 8,
+            backgroundColor: c.primary,
+            paddingHorizontal: 22,
+            paddingVertical: 12,
+            borderRadius: 14,
         },
-        ordersChipText: { fontSize: 12, fontWeight: '700', color: c.primary },
-        actionsRow:   { flexDirection: 'row', gap: 10 },
-        cancelListingBtn: {
+        createBtnText: { color: c.textInverse, fontSize: 14, fontWeight: '800' },
+        filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+        filterChip: {
+            alignSelf: 'flex-start',
+            paddingHorizontal: 14,
+            paddingVertical: 7,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: c.border,
+            backgroundColor: c.surface,
+        },
+        filterChipActive: { backgroundColor: c.primary, borderColor: c.primary },
+        filterChipText: { fontSize: 12, fontWeight: '700', color: c.textSecondary },
+        filterChipTextActive: { color: c.textInverse },
+        list: { padding: 16, gap: 12 },
+        card: {
+            backgroundColor: c.surface,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: c.border,
+            padding: 14,
+            gap: 10,
+            marginBottom: 12,
+        },
+        cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+        cardTitle: { fontSize: 15, fontWeight: '800', color: c.textPrimary },
+        cardSub: { fontSize: 11, color: c.textMuted, fontWeight: '700', letterSpacing: 0.5 },
+        statusPill: {
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 999,
+            alignSelf: 'flex-start',
+        },
+        statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+        metaGrid: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
+        timingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+        timingText: { fontSize: 12, color: c.textMuted },
+        timingDot: { color: c.textMuted },
+        ordersBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            backgroundColor: c.primary + '15',
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+        },
+        ordersBtnText: { flex: 1, fontSize: 13, fontWeight: '700', color: c.primary },
+        actionRow: { flexDirection: 'row', gap: 8 },
+        actionBtn: {
             flex: 1,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 6,
+            paddingVertical: 10,
+            borderRadius: 10,
             borderWidth: 1,
-            borderColor: c.error ?? '#ef4444',
-            borderRadius: 12,
-            paddingVertical: 10,
         },
-        viewOrdersBtn: {
-            flex: 2,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            backgroundColor: c.primary,
-            borderRadius: 12,
-            paddingVertical: 10,
-        },
-        actionBtnText: { fontSize: 13, fontWeight: '800' },
-        newListingBtn: {
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: c.primary,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        emptyContainer: { padding: 48, alignItems: 'center', gap: 14 },
-        emptyTitle:     { fontSize: 20, fontWeight: '800', color: c.textPrimary },
-        emptySubtitle:  { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 21 },
-        createFirstBtn: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            backgroundColor: c.primary,
-            paddingHorizontal: 20,
-            paddingVertical: 12,
-            borderRadius: 14,
-        },
-        createFirstBtnText: { color: c.textInverse, fontWeight: '800', fontSize: 14 },
+        actionBtnPrimary: { backgroundColor: c.primary, borderColor: c.primary },
+        actionBtnSecondary: { backgroundColor: c.surface, borderColor: c.border },
+        actionBtnDanger: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+        actionBtnTextPrimary: { fontSize: 13, fontWeight: '800', color: c.textInverse },
+        actionBtnTextSecondary: { fontSize: 13, fontWeight: '800', color: c.textSecondary },
+        actionBtnTextDanger: { fontSize: 13, fontWeight: '800', color: '#ef4444' },
     });
 };
