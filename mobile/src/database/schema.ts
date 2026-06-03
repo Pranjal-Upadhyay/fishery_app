@@ -6,7 +6,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-  version: 4,
+  version: 5,
   tables: [
     tableSchema({
       name: 'species',
@@ -59,6 +59,18 @@ export default appSchema({
         { name: 'fingerling_transaction_ref', type: 'string', isOptional: true },
         { name: 'species_variant', type: 'string', isOptional: true },
         { name: 'expected_harvest_date', type: 'number', isOptional: true },
+        // ── v5 — gov survey Section B/D/F fields ──
+        { name: 'ownership_type', type: 'string', isOptional: true },
+        { name: 'water_availability', type: 'string', isOptional: true },
+        { name: 'culture_system_category', type: 'string', isOptional: true },
+        { name: 'pond_activity_type', type: 'string', isOptional: true },
+        { name: 'wide_angle_photo_uri', type: 'string', isOptional: true },
+        { name: 'embankment_photo_uri', type: 'string', isOptional: true },
+        { name: 'close_view_photo_uri', type: 'string', isOptional: true },
+        { name: 'farmer_with_pond_photo_uri', type: 'string', isOptional: true },
+        { name: 'is_insured', type: 'boolean', isOptional: true },
+        { name: 'flood_impact_3yrs', type: 'boolean', isOptional: true },
+        { name: 'disease_occurrence', type: 'string', isOptional: true },
         { name: 'sync_status', type: 'string' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },

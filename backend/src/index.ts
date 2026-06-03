@@ -31,6 +31,7 @@ import { labReportsRouter } from './routes/labReports';
 import { hatcheriesRouter } from './routes/hatcheries';
 import { marketplaceRouter } from './routes/marketplace';
 import { notificationsRouter } from './routes/notifications';
+import { cropCyclesAndAssetsRouter } from './routes/cropCyclesAndAssets';
 import { startHatcheryCron } from './cron/hatcheryNotifications';
 
 // Load environment variables
@@ -187,6 +188,7 @@ app.use('/api/v1/appointments', appointmentsRouter);
 app.use('/api/v1/hatcheries', hatcheriesRouter);
 app.use('/api/v1/marketplace', marketplaceRouter);
 app.use('/api/v1/notifications', notificationsRouter);
+app.use('/api/v1', cropCyclesAndAssetsRouter);  // /api/v1/crop-cycles, /api/v1/farm-assets
 app.use('/api/v1/treatments', treatmentsRouter);
 app.use('/api/v1/lab-reports', labReportsRouter);
 app.use('/api/v1/locations', locationsRouter);

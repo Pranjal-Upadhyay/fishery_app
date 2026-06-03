@@ -10,6 +10,8 @@ Designed for Bihar and expanding to all Indian states, MatsyaMitra bridges the g
 
 - [Why MatsyaMitra](#why-matsyamitra)
 - [Features](#features)
+- [Hatchery Marketplace](#hatchery-marketplace)
+- [Government Survey Compliance](#government-survey-compliance)
 - [Screens](#screens)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
@@ -34,6 +36,8 @@ Many Indian aquaculture farmers operate in remote areas with limited internet ac
 - **Doctor Network:** Every farmer is routed to a certified aquaculture expert based on their panchayat for on-demand consultations and disease diagnosis.
 - **Disease Intelligence:** Searchable disease library with causes, symptoms, treatments, and prevention protocols with clinical images.
 - **Multi-language ready:** i18n architecture supports Hindi and English today; additional Indian languages can be added.
+- **Three roles, one app:** Farmers, Hatchery operators, and Doctors share infrastructure but get role-specific dashboards, schemas, and workflows.
+- **Government survey compliant:** Full coverage of the Section A (farmer profile), Section B (per-pond), Section B-recurring + B-16 (cycle production & costs), and Section E (asset depreciation) fields of the State Fisheries Department field survey form.
 
 ---
 
@@ -116,10 +120,51 @@ Many Indian aquaculture farmers operate in remote areas with limited internet ac
 - Equipment: aerators, nets, feeders, water testing kits
 - Supplier contact information and shop links
 
+### 🐠 Hatchery Marketplace (v2)
+- Farmers browse live hatchery listings for **fry** and **fingerlings**
+- Hatchery operators manage full listing lifecycle: `DRAFT → UPCOMING → AVAILABLE → CLOSED / EXPIRED`
+- Auto-expiry at `last_available_date` on every browse read (no scheduler needed)
+- **Government UID required** on every listing — displayed prominently as the trust anchor (no ratings/reviews)
+- Per-listing snapshot of contact phone, email, and UPI ID — frozen at create time so price changes don't retroactively alter old orders
+- **Bulk pricing tier** — set a discounted `bulk_price_per_piece` that auto-applies above a threshold
+- **Logistics flags** — pickup-only, delivery-only, or both, with logistics notes (delivery radius, fee)
+- **Two order modes:**
+  - **PURCHASE_ORDER**: `REQUESTED → ACCEPTED → FARMER_PAID → HATCHERY_CONFIRMED → FULFILLED` with `REJECTED` / `CANCELLED` / `DISPUTED` terminal states
+  - **ADVANCE_INTEREST** (on UPCOMING listings): `INTEREST_REQUESTED → INTEREST_ACKNOWLEDGED → INTEREST_CONVERTED` (becomes a real order when stock is ready)
+- **Reserved + confirmed inventory model** — `available_quantity = batch_size − reserved_quantity − confirmed_quantity`. Quantity is reserved at ACCEPT, moved to confirmed at HATCHERY_CONFIRMED, released on cancel
+- **Off-platform payment** — app shows hatchery's UPI/phone with copy-friendly share sheet; farmer marks "I have paid" → hatchery confirms receipt
+- **Dispute flow** — 5 reasons (Quantity mismatch, High mortality, Not as described, Payment not received, Other) raised from either party after HATCHERY_CONFIRMED
+- **In-app marketplace notifications** — order placed, accepted, payment confirmed, dispute raised, interest converted prompt, etc.
+
+### 📊 Crop Cycles (Government Survey Section B Recurring)
+- Per-pond, per-season log — one record per crop cycle
+- Cycle name, species, start/end dates (via shared calendar picker)
+- Status tabs: `Ongoing` / `Harvested` / `Cancelled`
+- **Production tracking:** present (running) + total (at harvest) in kg
+- **Full 8-row input cost breakdown** (₹): Feed-Formulated, Feed-Homemade, Probiotic, Medicine, Electricity, Labour-Hired, Labour-Family, Other
+- **Revenue + auto-computed profit** (green if positive, red if negative)
+- Year-over-year comparison and audit-ready historical records — values stored on backend (server is source of truth for survey data)
+- Reachable from any existing pond's edit screen → "Crop Cycles" nav card
+
+### 🧰 Farm Assets (Government Survey Section E)
+- Track 11 asset types: Aerator, Motor Pump, Boat, Fish-net, Bore-well, Biofloc Tank, RAS, Biofloc Pond, Civil Work Pond, Embankment, Other
+- Per-asset: type, name, purchase date (via calendar), cost (A), economic life in years (B), salvage value (C)
+- **Auto-computed annual depreciation** via Postgres `GENERATED ALWAYS AS ((cost − salvage) / life) STORED` — formula can never drift between server and mobile
+- **Live preview** while entering values in the mobile form
+- Summary strip on list view: total assets, total cost, total annual depreciation
+- Optional pond link — assets shared across ponds (most aerators/pumps are) live at the farmer level
+
+### 📅 Reusable Calendar Picker
+- `CalendarPickerModal` component matches the app's bottom-sheet aesthetic
+- `<<` / `>>` year-jump arrows for fields like Date-of-Birth that span decades
+- Min/max date bounds, default month, "Use today" + "Clear date" actions
+- Used across PersonalInfo (DOB), CropCycle (start/end), FarmAssets (purchase date)
+
 ### 🔔 Notification Center
 - In-app notification feed
 - Unread count badge on home screen bell
 - Mark-as-read tracking via AsyncStorage
+- Marketplace events: order placed, accepted, rejected, paid, confirmed, fulfilled, disputed; advance interest acknowledged/declined/converted; listing due-today reminders
 
 ### 🗺️ Map View
 - Pond location plotting on Google Maps (Android) / Apple Maps (iOS)
@@ -127,38 +172,131 @@ Many Indian aquaculture farmers operate in remote areas with limited internet ac
 
 ### 👤 Profile & Settings
 - Personal info: name, phone, farmer category, home location
+- **Government survey Section A fields** — father/husband name, Aadhaar (12-digit validated), gender, date-of-birth (calendar picker), education level, household size, years of farming experience, primary occupation, annual income range, KCC holder Y/N, BPL holder Y/N
+- **Consent toggle** — one-time confirmation that submitted info is correct; timestamp recorded server-side via `consent_given_at`
 - Language toggle (English / Hindi)
 - Dark / Light mode toggle
 - Notification preferences
 - All toggles vertically centered and full-row tappable
+- Offline-safe: profile saves to AsyncStorage first, then sync queue replays on next online event
+
+### 🏞️ Pond Editor (Government Survey Section B)
+The Add/Edit Pond screen captures the per-pond survey fields:
+- Pond ownership type (Owned / Leased / Shared / Government)
+- Water availability (Seasonal / Perennial)
+- Culture system category (Extensive / Semi-intensive / Intensive)
+- Pond activity type (Nursery / Rearing / Grow-out / Broodstock / Mixed)
+- **4 survey photo slots** (Section D): Wide Angle, Embankment, Close View, Farmer with Pond
+- Risk fields (Section F): Is pond insured? Flood impact in last 3 years? Disease occurrence (None / Minor / Major)
+- All fields optional and additive — existing ponds keep working with empty values
+
+---
+
+## Hatchery Marketplace
+
+The marketplace is a fully-implemented, government-grade e-commerce layer connecting hatchery operators (fish breeders) with farmers (buyers of fry/fingerlings).
+
+### Data Model
+
+**Listings** (`fingerling_listings`): one row per batch posted by a hatchery.
+- Identity: `hatchery_id`, snapshot of `hatchery_uid` (gov registration), `contact_number`, `email`, `upi_id`, district/block/panchayat
+- Product: `stage` (fry/fingerling), `species_name`, `species_variant`, `size_description`, `description`
+- Quantity: `total_quantity`, `reserved_quantity`, `confirmed_quantity`, `min_order_qty`, `quantity_available` (derived)
+- Pricing: `price_per_piece` plus optional `bulk_price_per_piece` + `bulk_price_threshold`
+- Timing: `expected_ready_date`, `last_available_date` (auto-expiry)
+- Logistics: `pickup_available`, `delivery_available`, `logistics_notes`
+- Status: `DRAFT` / `UPCOMING` / `AVAILABLE` / `CLOSED` / `EXPIRED`
+
+**Orders** (`fingerling_orders`): one row per farmer's intent against a listing.
+- `order_type`: `PURCHASE_ORDER` or `ADVANCE_INTEREST`
+- 8 purchase-order statuses + 4 interest statuses (see Features)
+- Price snapshot at order time (`price_per_piece_at_order`, `bulk_price_applied`) so listing edits don't retroactively change agreements
+- `logistics_preference` (PICKUP / DELIVERY), `preferred_date`, `payment_screenshot_url`
+- Dispute: `dispute_reason` (5 enum values), `dispute_description`, `disputed_at`, `disputed_by`
+- Advance-interest helpers: `interest_converted_to` FK, `interest_lapsed_at`
+
+**Notifications** (`marketplace_notifications`): in-app feed of marketplace events.
+
+### Order Lifecycle
+
+```
+PURCHASE ORDER:
+  REQUESTED → ACCEPTED          → FARMER_PAID → HATCHERY_CONFIRMED → FULFILLED
+              (reserves qty)      ↑              (moves to confirmed_quantity)
+              ↓                   |
+           REJECTED           DISPUTED ←── either party after CONFIRMED
+              CANCELLED ←──── either party at any pre-CONFIRMED step
+
+ADVANCE INTEREST (on UPCOMING listings):
+  INTEREST_REQUESTED → INTEREST_ACKNOWLEDGED ──→ [listing becomes AVAILABLE]
+                                              ↓
+                                       INTEREST_CONVERTED  (creates real PURCHASE_ORDER)
+                       ↓
+                  INTEREST_DECLINED
+```
+
+### Off-Platform Payment
+
+By design, the app **does not process money**. It only records intent and confirmation:
+
+1. Hatchery accepts farmer's order → app shows farmer the UPI / phone snapshot
+2. Farmer pays via UPI / bank transfer / cash and taps **"I have paid"**
+3. Hatchery verifies receipt and taps **"Confirm Payment"** → quantity moves from reserved to confirmed
+4. Either party marks **"Fulfilled"** after delivery; either can raise a dispute
+
+---
+
+## Government Survey Compliance
+
+MatsyaMitra implements the State Fisheries Department field survey form. Fields are organised by their natural collection cadence:
+
+| Bucket | Where filled | What's captured |
+|---|---|---|
+| **A — Farmer Profile** (one-time) | `PersonalInfo` screen | Section A: father/husband name, Aadhaar, gender, DOB, education, household size, experience, occupation, income range, KCC/BPL, consent + signature timestamp. Sections G+H surveyor fields are intentionally **not collected in the farmer app** — they belong on a future government officer portal. |
+| **B — Per Pond** (per add/edit) | `AddEditPond` screen | Section B: patch name, area, ownership, water source, water availability, culture intensity, pond activity type. Section D: 4 photos (wide / embankment / close / farmer with pond). Section F: insurance, flood impact 3yrs, disease occurrence. |
+| **C — Per Cycle / Season** (recurring) | `CropCycle` screen | Section B-recurring + B-16: present production, total production, revenue, and the full 8-row input cost breakdown (feeds, probiotic, medicine, electricity, labour, other). |
+| **E — Capital Assets** (one-time per asset) | `FarmAssets` screen | Section E: 11 asset types with cost / economic life / salvage value and Postgres-computed annual depreciation. |
+
+This separation matches how the form is actually filled in the field — profile once at registration, pond once at survey, then cycles + assets logged as they happen.
 
 ---
 
 ## Screens
 
-| Screen | Route Name |
-|--------|-----------|
-| Auth (Login / Register) | `Auth` |
-| Home Dashboard | `Home` |
-| Ponds List | `PondsList` |
-| Add / Edit Pond | `AddEditPond` |
-| Species Browser | `Species` |
-| Species Detail | `SpeciesDetail` |
-| Economics / ROI | `Economics` |
-| Economics Result | `EconomicsResult` |
-| Policy Guidance | `PolicyGuidance` |
-| Water Quality | `WaterQuality` |
-| Market Prices | `MarketPrices` |
-| Disease List | `DiseaseList` |
-| Disease Detail | `DiseaseDetail` |
-| Doctor Network | `DoctorNetwork` |
-| Equipment Catalog | `EquipmentCatalog` |
-| Feed Catalog | `FeedCatalog` |
-| Learning Center | `LearningCenter` |
-| Map | `Map` |
-| Notifications | `Notifications` |
-| Personal Info | `PersonalInfo` |
-| Profile & Settings | `Profile` |
+| Screen | Route Name | Role |
+|--------|-----------|------|
+| Auth (Login / Register) | `Auth` | All |
+| Home Dashboard | `Home` | Farmer |
+| Ponds List | `PondsList` | Farmer |
+| Add / Edit Pond | `AddEditPond` | Farmer |
+| Crop Cycles | `CropCycle` | Farmer |
+| Farm Assets | `FarmAssets` | Farmer |
+| Species Browser | `Species` | Farmer |
+| Species Detail | `SpeciesDetail` | Farmer |
+| Economics / ROI | `Economics` | Farmer |
+| Economics Result | `EconomicsResult` | Farmer |
+| Policy Guidance | `PolicyGuidance` | Farmer |
+| Water Quality | `WaterQuality` | Farmer |
+| Market Prices | `MarketPrices` | Farmer |
+| Disease List | `DiseaseList` | Farmer |
+| Disease Detail | `DiseaseDetail` | Farmer |
+| Doctor Network | `DoctorNetwork` | Farmer |
+| Equipment Catalog | `EquipmentCatalog` | Farmer |
+| Feed Catalog | `FeedCatalog` | Farmer |
+| Learning Center | `LearningCenter` | Farmer |
+| Map | `Map` | Farmer |
+| Notifications | `Notifications` | All |
+| Personal Info | `PersonalInfo` | All |
+| Profile & Settings | `Profile` | All |
+| Marketplace Browse | `MarketListings` | Farmer |
+| Listing Detail | `ListingDetail` | Farmer |
+| My Orders | `MyOrders` | Farmer |
+| Hatchery Dashboard | `HatcheryDashboard` | Hatchery |
+| Hatchery Profile | `AddHatchery` | Hatchery |
+| Manage Listings | `ManageListings` | Hatchery |
+| Create Listing | `CreateListing` | Hatchery |
+| Incoming Orders | `IncomingOrders` | Hatchery |
+| Doctor Dashboard | `DoctorDashboard` | Doctor |
 
 ---
 
@@ -171,7 +309,7 @@ fishery_app/
 │   ├── eas.json              # EAS Build profiles (development, preview, apk, production)
 │   ├── .env                  # EXPO_PUBLIC_BACKEND_URL=https://fishery-app.onrender.com
 │   └── src/
-│       ├── screens/          # 22 screens
+│       ├── screens/          # 30+ screens (Farmer + Hatchery + Doctor)
 │       ├── components/       # Shared components (LocationCascadePicker, WeatherCard, …)
 │       ├── services/         # apiService.ts (axios), authService.ts, locationService
 │       ├── database/         # WatermelonDB schema, adapter (SQLite native / LokiJS web)
@@ -189,7 +327,7 @@ fishery_app/
     │   │   ├── migrate.ts    # Migration runner (reads migrations/ alphabetically)
     │   │   └── seed.ts       # Seed helpers
     │   └── index.ts          # Express app entry
-    └── migrations/           # 24 SQL migration files (001–024)
+    └── migrations/           # 41+ SQL migration files (001–041)
 ```
 
 ### Offline-First Data Flow
@@ -249,22 +387,77 @@ Render.com API (PostgreSQL)       ←──── sync, location lookup, market 
 ### Key API Endpoints
 
 ```
-GET  /api/v1/species                          All species
-GET  /api/v1/species/:id                      Species detail
+# Catalogs & knowledge
+GET    /api/v1/species                                    All species
+GET    /api/v1/species/:id                                Species detail
+GET    /api/v1/knowledge-rules                            Subsidy/policy rules
+GET    /api/v1/diseases                                   Disease library
+GET    /api/v1/market-prices                              Current prices by state
 
-GET  /api/v1/locations/districts?stateCode=BR  Bihar districts (38)
-GET  /api/v1/locations/blocks?districtCode=BR-PATNA  Blocks for district
-GET  /api/v1/locations/panchayats?blockCode=BR-PATNA-SADAR  Panchayats
+# Locations
+GET    /api/v1/locations/districts?stateCode=BR            Bihar districts (38)
+GET    /api/v1/locations/blocks?districtCode=BR-PATNA      Blocks for district
+GET    /api/v1/locations/panchayats?blockCode=BR-...       Panchayats
 
-GET  /api/v1/market-prices                    Current prices by state
-GET  /api/v1/knowledge-rules                  Subsidy/policy rules
-GET  /api/v1/diseases                         Disease library
+# Auth (extended with Bucket 1 / Section A survey fields)
+POST   /api/v1/auth/signup                                 Register (FARMER / DOCTOR / HATCHERY)
+POST   /api/v1/auth/login                                  Login → JWT
+PATCH  /api/v1/auth/profile/:userId                        Update profile incl. Section A fields
 
-POST /api/v1/auth/register                    New user registration
-POST /api/v1/auth/login                       Login → JWT token
+# Doctors
+GET    /api/v1/doctors                                     Doctor list (filtered by panchayat)
+POST   /api/v1/doctors/mapping                             Assign doctor to farmer
 
-GET  /api/v1/doctors                          Doctor list (filtered by panchayat)
-POST /api/v1/doctors/mapping                  Assign doctor to farmer
+# Hatcheries
+GET    /api/v1/hatcheries/me-profile                       Get my hatchery profile
+PATCH  /api/v1/hatcheries/me-profile                       Update gov UID, contact, email, UPI
+
+# Marketplace — Listings
+GET    /api/v1/marketplace/listings                        Browse (?includeUpcoming, ?stage, ?species, ?district)
+GET    /api/v1/marketplace/listings/mine                   Hatchery's own listings
+GET    /api/v1/marketplace/listings/:id                    Listing detail
+POST   /api/v1/marketplace/listings                        Create DRAFT
+PATCH  /api/v1/marketplace/listings/:id                    Update (status-gated fields)
+DELETE /api/v1/marketplace/listings/:id                    Delete (DRAFT only)
+POST   /api/v1/marketplace/listings/:id/publish            DRAFT → UPCOMING / AVAILABLE
+POST   /api/v1/marketplace/listings/:id/mark-available     UPCOMING → AVAILABLE
+POST   /api/v1/marketplace/listings/:id/close              any → CLOSED
+
+# Marketplace — Orders
+POST   /api/v1/marketplace/orders                          Place purchase order
+GET    /api/v1/marketplace/orders/mine                     My orders (farmer or hatchery side)
+GET    /api/v1/marketplace/orders/:id                      Order detail
+PATCH  /api/v1/marketplace/orders/:id/accept               Hatchery accepts (reserves qty)
+PATCH  /api/v1/marketplace/orders/:id/reject               Hatchery rejects
+PATCH  /api/v1/marketplace/orders/:id/pay                  Farmer marks paid
+PATCH  /api/v1/marketplace/orders/:id/confirm              Hatchery confirms (reserved → confirmed)
+PATCH  /api/v1/marketplace/orders/:id/fulfill              Either marks fulfilled
+PATCH  /api/v1/marketplace/orders/:id/cancel               Either cancels
+PATCH  /api/v1/marketplace/orders/:id/dispute              Either raises dispute (5 reasons)
+
+# Marketplace — Advance Interest
+POST   /api/v1/marketplace/listings/:id/interest           Farmer expresses interest
+PATCH  /api/v1/marketplace/orders/:id/acknowledge          Hatchery acknowledges interest
+PATCH  /api/v1/marketplace/orders/:id/decline              Hatchery declines interest
+POST   /api/v1/marketplace/orders/:id/convert              Farmer converts interest → real order
+
+# Marketplace — Notifications
+GET    /api/v1/marketplace/notifications                   List in-app notifications
+PATCH  /api/v1/marketplace/notifications/:id/read          Mark read
+
+# Survey — Crop cycles (Section B recurring + B-16 costs)
+GET    /api/v1/crop-cycles?pondId=&status=                 List cycles
+GET    /api/v1/crop-cycles/:id                             Cycle detail
+POST   /api/v1/crop-cycles                                 Create cycle
+PATCH  /api/v1/crop-cycles/:id                             Update cycle (explicit allowlist)
+DELETE /api/v1/crop-cycles/:id                             Delete
+
+# Survey — Farm assets (Section E, auto-depreciation)
+GET    /api/v1/farm-assets?pondId=                         List assets
+GET    /api/v1/farm-assets/:id                             Asset detail
+POST   /api/v1/farm-assets                                 Create asset
+PATCH  /api/v1/farm-assets/:id                             Update asset
+DELETE /api/v1/farm-assets/:id                             Delete
 ```
 
 ### Location Code Format
@@ -448,7 +641,19 @@ Migrations live in `backend/migrations/` and are run automatically on container 
 | 021 | `fix_location_code_widths` | Increase VARCHAR widths for longer codes |
 | 022 | `seed_pmmsy_knowledge_rules` | PMMSY subsidy rules, NABARD highlights, Bihar benchmarks (22 rules) |
 | 023 | `add_disease_image_urls` | Disease clinical image URLs |
-| **024** | **`seed_bihar_location_data`** | **Full Bihar seed: 38 districts, 250+ blocks, major panchayats. Creates tables IF NOT EXISTS (handles Render baseline-skip edge case). Idempotent via `ON CONFLICT DO UPDATE`.** |
+| 024 | `seed_bihar_location_data` | Full Bihar seed: 38 districts, 250+ blocks, major panchayats. Creates tables IF NOT EXISTS (handles Render baseline-skip edge case). Idempotent via `ON CONFLICT DO UPDATE` |
+| 025–026 | `fix_location_column_names` + `doctor_auth_dashboard` | Doctor-side schema, auth role expansion |
+| 027 | `seed_indian_aquaculture_diseases` | Disease library expansion |
+| 028–029 | `biofloc_equipment` + `ras_equipment` + `remove_coastal_species` | Catalog expansion |
+| 030–032 | `pangasius_enrichment` + `new_species_from_research` + `seed_government_suppliers` | Species + supplier seed |
+| 033 | `farmer_notifications` | Farmer notification table |
+| 034–035 | `hatchery_core` + `hatchery_stage_logs` | Hatchery operator: facilities, batches, stage logs |
+| 036 | `ponds_grow_out_fields` | Pond grow-out lifecycle: stocking + harvest fields |
+| 037 | `user_uid_and_hatchery_role` | Adds HATCHERY role + auto-generated `uid` (prefix FM/HC/DR + district + 4 digits) |
+| 038 | `marketplace` | Initial marketplace v1: `fingerling_listings`, `fingerling_orders` |
+| 039 | `marketplace_v2` | **Marketplace v2:** government UID + contact snapshots on listings, expected_ready_date + last_available_date with auto-expiry, bulk pricing, pickup/delivery flags, reserved + confirmed inventory model, 8 purchase-order statuses + 4 advance-interest statuses, dispute fields, `marketplace_notifications` table |
+| 040 | `farmer_profile_and_pond_survey` | **Gov survey Buckets 1 + 2:** 13 new `users` columns (father/husband, Aadhaar, gender, DOB, education, household, experience, occupation, income, KCC/BPL, consent) + 11 new `ponds` columns (ownership, water availability, culture intensity, activity type, 4 survey photos, insurance, flood impact, disease occurrence). All with CHECK enum constraints |
+| **041** | **`crop_cycles_and_farm_assets`** | **Gov survey Bucket 3:** `crop_cycles` (per-pond per-season: production, 8 input cost rows, revenue) + `farm_assets` (11 asset types with `GENERATED ALWAYS AS ((cost − salvage) / life) STORED` annual depreciation column). Per-user RLS via WHERE clauses; PATCH uses explicit column allowlist |
 
 ### Render Baseline-Skip Fix
 
@@ -458,7 +663,93 @@ On first Render deploy, if core tables (`ponds`, `users`, etc.) already existed,
 
 ## Changelog
 
-### v1.0.0 — Current (May 2026)
+### v2.0.0 — Current (June 2026)
+
+#### Hatchery Marketplace v2 (Migration 039 + `routes/marketplace.ts` rewrite)
+
+A full-spec rewrite of the marketplace layer connecting hatcheries and farmers.
+
+**Listings**
+- New columns on `fingerling_listings`: government UID snapshot, contact/email/UPI snapshots, district/block/panchayat snapshots, geo lat/lng, size description, bulk price + threshold, expected ready date, last available date, pickup_available, delivery_available, logistics notes, reserved_quantity, confirmed_quantity
+- Status enum expanded: `DRAFT / UPCOMING / AVAILABLE / CLOSED / EXPIRED`
+- Auto-expiry runs lazily on every browse/detail read (no scheduler infra needed)
+
+**Orders**
+- New columns: order_type (PURCHASE_ORDER / ADVANCE_INTEREST), price snapshot, bulk_price_applied, logistics_preference, preferred_date, payment_screenshot_url, dispute fields, interest_converted_to FK
+- Purchase-order status enum expanded to 8 values; advance-interest enum adds 4 more
+- New: `marketplace_notifications` table with `recipient_id`, `type`, `listing_id`/`order_id` FKs
+
+**Hatchery profile gating**
+- `GET/PATCH /api/v1/hatcheries/me-profile` endpoints
+- Listing creation refuses without `hatchery_uid` + `contact_number` — forces hatcheries to complete profile first
+- `AddHatcheryScreen` becomes dual-mode (create OR edit)
+
+**Mobile screens** — full rewrites of:
+- `MarketListingsScreen` (browse with UPCOMING toggle)
+- `ListingDetailScreen` (purchase or interest based on status)
+- `MyOrdersScreen` (7 status tabs + payment flow + interest conversion + dispute modal)
+- `ManageListingsScreen` (4 status tabs + publish/close/delete)
+- `IncomingOrdersScreen` (accept/reject/confirm/fulfill/dispute + interest acknowledge/decline)
+- `CreateListingScreen` (gated by profile completeness)
+- Inline dispute UI as bottom-sheet modal (5 reasons)
+
+#### Government Survey Compliance — Bucket 1 (Migration 040)
+
+`PersonalInfoScreen` extended with Section A fields:
+- Father / husband name, Aadhaar (12-digit validated), gender, **DOB via reusable `CalendarPickerModal`** with year-jump arrows
+- Education level (6-step enum), household size, years of farming experience
+- Primary occupation (7 enum values), annual income range (5 brackets)
+- KCC holder, BPL holder, consent toggle with server-side timestamp
+
+Backend `auth.ts` profile update uses `COALESCE($N, existing_column)` so missing fields preserve their value. Consent timestamp recorded only on first true flip.
+
+#### Government Survey Compliance — Bucket 2 (Migration 040 cont'd)
+
+`AddEditPondScreen` extended with Section B/D/F fields:
+- Pond ownership (Owned / Leased / Shared / Government)
+- Water availability (Seasonal / Perennial)
+- Culture intensity (Extensive / Semi-intensive / Intensive)
+- Pond activity (Nursery / Rearing / Grow-out / Broodstock / Mixed)
+- 4 survey photo slots (Wide / Embankment / Close / Farmer-with-pond)
+- Risk: insurance Y/N, flood impact last 3yrs Y/N, disease occurrence (None/Minor/Major)
+
+WatermelonDB schema bumped to **v5** with additive migration adding the 11 new pond columns. Pond model extended with typed enums (`OwnershipType`, `WaterAvailability`, `CultureSystemCategory`, `PondActivityType`, `DiseaseOccurrence`).
+
+#### Government Survey Compliance — Bucket 3 (Migration 041)
+
+Two new tables + screens for cycle-based survey data:
+
+**`crop_cycles`** (per-pond, per-season)
+- Cycle name, species, start/end dates, status (Ongoing/Harvested/Cancelled)
+- Present production + total production (kg)
+- Full 8-row input cost breakdown: Feed-Formulated, Feed-Homemade, Probiotic, Medicine, Electricity, Labour-Hired, Labour-Family, Other
+- Revenue + auto-computed profit display
+
+**`farm_assets`** (per-farmer, optional pond link)
+- 11 asset types
+- Cost / economic life / salvage value
+- `annual_depreciation_inr NUMERIC GENERATED ALWAYS AS (ROUND((cost - salvage) / NULLIF(life, 0), 2)) STORED` — Postgres computes, mobile mirrors for live preview only
+- Summary strip: total assets, total cost, total annual depreciation
+
+**Reusable `CalendarPickerModal`** component extracted — bottom-sheet calendar with year-jump arrows, used by DOB, cycle dates, and asset purchase dates.
+
+**Navigation entry points:**
+- From any existing pond's edit screen → "Crop Cycles" + "Pond Assets" nav cards
+- From Home screen → "Farm Assets" quick action tile
+
+**Bucket 4 (Surveyor remarks/signature) intentionally skipped** — those fields belong on a future government officer portal, not the farmer app.
+
+#### Other Improvements
+- `app.json`: removed `experiments.baseUrl` that was leaking into Metro bundle URL (broke Expo Go loading)
+- `app.json`: added `"checkAutomatically": "ON_ERROR_RECOVERY"` to updates config so `expo start` doesn't block on EAS server pings
+- `LocationCascadePicker`: panchayat manual entry moved inside the modal (was floating below cascade row, confusing users)
+- Filter chip rendering: added `alignSelf: 'flex-start'` to MyOrders/MarketListings/etc. so chips hug their text instead of stretching
+- DB migration 040: all new CHECK enum constraints wrapped in `IF NOT EXISTS` `DO $$` blocks for idempotency
+- Backend dynamic PATCH operations use explicit allowlist column maps — no string interpolation, SQL-injection safe
+
+---
+
+### v1.0.0 — May 2026
 
 #### App Rename & Branding
 - **Renamed:** "Fishing God" → **"MatsyaMitra"** across all user-visible surfaces

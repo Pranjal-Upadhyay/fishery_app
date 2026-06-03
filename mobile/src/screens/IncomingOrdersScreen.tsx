@@ -1,8 +1,13 @@
 /**
  * IncomingOrdersScreen
- * Hatchery operator views orders on their listings and confirms payments.
+ * Hatchery operator views incoming orders + interest with v2 status flow.
  * Accepts optional listingId param to pre-filter to a single listing.
- * Status flow: PENDING → FARMER_PAID → HATCHERY_CONFIRMED
+ *
+ * Status flow:
+ *   PURCHASE: REQUESTED → ACCEPTED → FARMER_PAID → HATCHERY_CONFIRMED → FULFILLED
+ *           ↘ REJECTED          ↘ CANCELLED         ↘ DISPUTED
+ *   INTEREST: INTEREST_REQUESTED → INTEREST_ACKNOWLEDGED → INTEREST_CONVERTED
+ *                                ↘ INTEREST_DECLINED
  */
 
 import React, { useCallback, useState } from 'react';
@@ -16,51 +21,52 @@ import {
     RefreshControl,
     Alert,
     ScrollView,
+    Linking,
+    Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
-import api from '../services/apiService';
+import { marketplaceService, MarketplaceOrder, DisputeReason } from '../services/apiService';
 
 type IncomingOrdersRouteParams = {
     IncomingOrders: { listingId?: string };
 };
 
-interface IncomingOrder {
-    id: string;
-    listing_id: string;
-    species_name: string;
-    species_variant: string | null;
-    stage: string;
-    farmer_uid: string | null;
-    farmer_name: string;
-    farmer_phone: string;
-    quantity_ordered: number;
-    price_per_piece: string;
-    total_amount: string;
-    status: 'PENDING' | 'FARMER_PAID' | 'HATCHERY_CONFIRMED' | 'CANCELLED';
-    farmer_notes: string | null;
-    delivery_address: string | null;
-    farmer_paid_at: string | null;
-    hatchery_confirmed_at: string | null;
-    created_at: string;
-}
+type Tab = 'new' | 'paid' | 'confirmed' | 'fulfilled' | 'interest' | 'disputed';
+
+const TABS: { key: Tab; label: string }[] = [
+    { key: 'new',       label: 'New' },
+    { key: 'paid',      label: 'Paid' },
+    { key: 'confirmed', label: 'Confirmed' },
+    { key: 'fulfilled', label: 'Fulfilled' },
+    { key: 'interest',  label: 'Interest' },
+    { key: 'disputed',  label: 'Disputed' },
+];
 
 const STATUS_META: Record<string, { label: string; color: string; icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap }> = {
-    PENDING:            { label: 'Pending',      color: '#f59e0b', icon: 'time-outline' },
-    FARMER_PAID:        { label: 'Farmer Paid',  color: '#0ea5e9', icon: 'card-outline' },
-    HATCHERY_CONFIRMED: { label: 'Confirmed',    color: '#22c55e', icon: 'checkmark-circle-outline' },
-    CANCELLED:          { label: 'Cancelled',    color: '#94a3b8', icon: 'close-circle-outline' },
+    REQUESTED:             { label: 'New Request',     color: '#f59e0b', icon: 'time-outline' },
+    ACCEPTED:              { label: 'Accepted',         color: '#0ea5e9', icon: 'checkmark-outline' },
+    REJECTED:              { label: 'Rejected',         color: '#ef4444', icon: 'close-circle-outline' },
+    FARMER_PAID:           { label: 'Farmer Paid',      color: '#a855f7', icon: 'card-outline' },
+    HATCHERY_CONFIRMED:    { label: 'Confirmed',        color: '#22c55e', icon: 'checkmark-circle-outline' },
+    FULFILLED:             { label: 'Fulfilled',        color: '#16a34a', icon: 'trophy-outline' },
+    CANCELLED:             { label: 'Cancelled',        color: '#94a3b8', icon: 'close-circle-outline' },
+    DISPUTED:              { label: 'Disputed',         color: '#dc2626', icon: 'warning-outline' },
+    INTEREST_REQUESTED:    { label: 'New Interest',     color: '#f59e0b', icon: 'star-outline' },
+    INTEREST_ACKNOWLEDGED: { label: 'Acknowledged',     color: '#0ea5e9', icon: 'star' },
+    INTEREST_DECLINED:     { label: 'Declined',         color: '#ef4444', icon: 'star-outline' },
+    INTEREST_CONVERTED:    { label: 'Converted',        color: '#22c55e', icon: 'checkmark-circle' },
 };
 
-const FILTER_TABS = [
-    { key: '',                   label: 'All' },
-    { key: 'PENDING',            label: 'Pending' },
-    { key: 'FARMER_PAID',        label: 'Paid' },
-    { key: 'HATCHERY_CONFIRMED', label: 'Confirmed' },
-    { key: 'CANCELLED',          label: 'Cancelled' },
+const DISPUTE_REASONS: { key: DisputeReason; label: string }[] = [
+    { key: 'QUANTITY_MISMATCH',     label: 'Quantity mismatch' },
+    { key: 'HIGH_MORTALITY',        label: 'High mortality on arrival' },
+    { key: 'NOT_AS_DESCRIBED',      label: 'Fish not as described' },
+    { key: 'PAYMENT_NOT_RECEIVED',  label: 'Payment not received' },
+    { key: 'OTHER',                 label: 'Other' },
 ];
 
 export default function IncomingOrdersScreen() {
@@ -70,20 +76,22 @@ export default function IncomingOrdersScreen() {
     const route = useRoute<RouteProp<IncomingOrdersRouteParams, 'IncomingOrders'>>();
     const listingId = route.params?.listingId;
 
-    const [orders, setOrders] = useState<IncomingOrder[]>([]);
+    const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [filter, setFilter] = useState('');
-    const [actionId, setActionId] = useState<string | null>(null);
+    const [tab, setTab] = useState<Tab>('new');
+
+    // Dispute modal state
+    const [disputeOrder, setDisputeOrder] = useState<MarketplaceOrder | null>(null);
+    const [disputeReason, setDisputeReason] = useState<DisputeReason>('PAYMENT_NOT_RECEIVED');
 
     const load = useCallback(async () => {
         try {
-            const res = await api.get('/api/v1/marketplace/orders/mine');
-            const all: IncomingOrder[] = res.data?.data ?? [];
-            // Client-side filter by listing when navigated from ManageListings
+            const all = await marketplaceService.getMyOrders();
+            // Client-side filter when listingId param is supplied
             setOrders(listingId ? all.filter(o => o.listing_id === listingId) : all);
         } catch {
-            // offline — keep cached data
+            Alert.alert('Error', 'Could not load orders.');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -91,281 +99,327 @@ export default function IncomingOrdersScreen() {
     }, [listingId]);
 
     useFocusEffect(useCallback(() => { void load(); }, [load]));
-    const onRefresh = () => { setRefreshing(true); void load(); };
 
-    const handleConfirm = (item: IncomingOrder) => {
-        Alert.alert(
-            'Confirm Payment Received',
-            `Confirm that you have received ₹${parseFloat(item.total_amount).toLocaleString('en-IN')} from ${item.farmer_name} for ${item.quantity_ordered.toLocaleString('en-IN')} ${item.stage}s?`,
-            [
-                { text: 'Not Yet', style: 'cancel' },
-                {
-                    text: 'Yes, Confirm',
-                    onPress: async () => {
-                        setActionId(item.id);
-                        try {
-                            await api.patch(`/api/v1/marketplace/orders/${item.id}/confirm`);
-                            await load();
-                        } catch (err: any) {
-                            Alert.alert('Error', err?.response?.data?.error ?? 'Could not confirm order.');
-                        } finally {
-                            setActionId(null);
-                        }
-                    },
-                },
-            ],
-        );
+    const onRefresh = useCallback(() => { setRefreshing(true); void load(); }, [load]);
+
+    const filtered = orders.filter(o => {
+        if (tab === 'new')       return ['REQUESTED'].includes(o.status);
+        if (tab === 'paid')      return ['ACCEPTED', 'FARMER_PAID'].includes(o.status);
+        if (tab === 'confirmed') return o.status === 'HATCHERY_CONFIRMED';
+        if (tab === 'fulfilled') return o.status === 'FULFILLED';
+        if (tab === 'disputed')  return o.status === 'DISPUTED';
+        if (tab === 'interest')  return o.order_type === 'ADVANCE_INTEREST';
+        return true;
+    });
+
+    const callApi = async (fn: () => Promise<any>, errPrefix = 'Failed') => {
+        try {
+            await fn();
+            await load();
+        } catch (e: any) {
+            Alert.alert(errPrefix, e?.response?.data?.error ?? 'Unknown error.');
+        }
     };
 
-    const handleCancel = (item: IncomingOrder) => {
-        Alert.alert(
-            'Cancel Order',
-            `Cancel the order from ${item.farmer_name}? This will restore ${item.quantity_ordered.toLocaleString('en-IN')} pieces back to the listing.`,
-            [
-                { text: 'Keep', style: 'cancel' },
-                {
-                    text: 'Cancel Order',
-                    style: 'destructive',
-                    onPress: async () => {
-                        setActionId(item.id);
-                        try {
-                            await api.patch(`/api/v1/marketplace/orders/${item.id}/cancel`);
-                            await load();
-                        } catch (err: any) {
-                            Alert.alert('Error', err?.response?.data?.error ?? 'Could not cancel order.');
-                        } finally {
-                            setActionId(null);
-                        }
-                    },
-                },
-            ],
-        );
+    const accept = (o: MarketplaceOrder) =>
+        Alert.alert('Accept Order', `Reserve ${o.quantity_ordered} pieces for this farmer?`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Accept', onPress: () => callApi(() => marketplaceService.acceptOrder(o.id)) },
+        ]);
+
+    const reject = (o: MarketplaceOrder) =>
+        Alert.alert('Reject Order', 'Are you sure you want to reject this order?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Reject', style: 'destructive', onPress: () => callApi(() => marketplaceService.rejectOrder(o.id)) },
+        ]);
+
+    const confirmPaid = (o: MarketplaceOrder) =>
+        Alert.alert('Confirm Payment', 'Confirm that you received the payment from this farmer?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Confirm', onPress: () => callApi(() => marketplaceService.confirmPayment(o.id)) },
+        ]);
+
+    const fulfill = (o: MarketplaceOrder) =>
+        Alert.alert('Mark Fulfilled', 'Has the farmer received the fish?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Yes, Fulfilled', onPress: () => callApi(() => marketplaceService.fulfillOrder(o.id)) },
+        ]);
+
+    const cancel = (o: MarketplaceOrder) =>
+        Alert.alert('Cancel Order', 'Cancel this order?', [
+            { text: 'No', style: 'cancel' },
+            { text: 'Yes, Cancel', style: 'destructive', onPress: () => callApi(() => marketplaceService.cancelOrder(o.id)) },
+        ]);
+
+    const acknowledgeInterest = (o: MarketplaceOrder) =>
+        callApi(() => marketplaceService.acknowledgeInterest(o.id));
+
+    const declineInterest = (o: MarketplaceOrder) =>
+        Alert.alert('Decline Interest', 'Decline this advance interest?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Decline', style: 'destructive', onPress: () => callApi(() => marketplaceService.declineInterest(o.id)) },
+        ]);
+
+    const openDispute = (o: MarketplaceOrder) => {
+        setDisputeOrder(o);
+        setDisputeReason('PAYMENT_NOT_RECEIVED');
     };
 
-    const filtered = filter ? orders.filter(o => o.status === filter) : orders;
+    const submitDispute = async () => {
+        if (!disputeOrder) return;
+        try {
+            await marketplaceService.raiseDispute(disputeOrder.id, disputeReason);
+            setDisputeOrder(null);
+            await load();
+            Alert.alert('Dispute Raised', 'The platform operator will resolve this.');
+        } catch (e: any) {
+            Alert.alert('Error', e?.response?.data?.error ?? 'Could not raise dispute.');
+        }
+    };
 
-    // Summary stats
-    const pendingCount = orders.filter(o => o.status === 'PENDING').length;
-    const awaitingConfirmCount = orders.filter(o => o.status === 'FARMER_PAID').length;
-    const confirmedRevenue = orders
-        .filter(o => o.status === 'HATCHERY_CONFIRMED')
-        .reduce((sum, o) => sum + parseFloat(o.total_amount || '0'), 0);
-
-    const renderItem = ({ item }: { item: IncomingOrder }) => {
-        const meta = STATUS_META[item.status];
-        const isActioning = actionId === item.id;
-
+    if (loading) {
         return (
-            <View style={styles.card}>
-                {/* Header */}
-                <View style={styles.cardTop}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={styles.speciesName}>
-                            {item.species_name}
-                            {item.species_variant ? ` · ${item.species_variant}` : ''}
-                        </Text>
-                        <Text style={styles.stageName}>{item.stage.toUpperCase()}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: meta.color + '22' }]}>
-                        <Ionicons name={meta.icon} size={12} color={meta.color} />
-                        <Text style={[styles.statusBadgeText, { color: meta.color }]}>{meta.label}</Text>
-                    </View>
+            <SafeAreaView style={styles.safeArea} edges={['top']}>
+                <ScreenHeader title="Incoming Orders" onBack={() => navigation.goBack()} />
+                <View style={styles.center}>
+                    <ActivityIndicator color={theme.colors.primary} size="large" />
                 </View>
-
-                {/* Farmer info */}
-                <View style={styles.farmerRow}>
-                    <Ionicons name="person-outline" size={14} color={theme.colors.textSecondary} />
-                    <Text style={styles.farmerName}>{item.farmer_name}</Text>
-                    {item.farmer_uid ? <Text style={styles.farmerMeta}>· {item.farmer_uid}</Text> : null}
-                    {item.farmer_phone ? <Text style={styles.farmerMeta}>· {item.farmer_phone}</Text> : null}
-                </View>
-
-                {/* Order metrics */}
-                <View style={styles.metricsRow}>
-                    <View style={styles.metricCell}>
-                        <Text style={styles.metricValue}>{item.quantity_ordered.toLocaleString('en-IN')}</Text>
-                        <Text style={styles.metricLabel}>qty</Text>
-                    </View>
-                    <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.metricCell}>
-                        <Text style={styles.metricValue}>₹{parseFloat(item.price_per_piece).toFixed(2)}</Text>
-                        <Text style={styles.metricLabel}>per piece</Text>
-                    </View>
-                    <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.metricCell}>
-                        <Text style={[styles.metricValue, { color: theme.colors.primary }]}>
-                            ₹{parseFloat(item.total_amount).toLocaleString('en-IN')}
-                        </Text>
-                        <Text style={styles.metricLabel}>total</Text>
-                    </View>
-                </View>
-
-                {/* Delivery / Notes */}
-                {item.delivery_address ? (
-                    <View style={styles.infoRow}>
-                        <Ionicons name="location-outline" size={13} color={theme.colors.textMuted} />
-                        <Text style={styles.infoText} numberOfLines={2}>{item.delivery_address}</Text>
-                    </View>
-                ) : null}
-                {item.farmer_notes ? (
-                    <View style={styles.infoRow}>
-                        <Ionicons name="chatbubble-outline" size={13} color={theme.colors.textMuted} />
-                        <Text style={styles.infoText} numberOfLines={2}>{item.farmer_notes}</Text>
-                    </View>
-                ) : null}
-
-                {/* Timestamp */}
-                <Text style={styles.timestamp}>
-                    {'Ordered ' + new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    {item.farmer_paid_at
-                        ? ' · Paid ' + new Date(item.farmer_paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                        : ''}
-                    {item.hatchery_confirmed_at
-                        ? ' · Confirmed ' + new Date(item.hatchery_confirmed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                        : ''}
-                </Text>
-
-                {/* Actions */}
-                {isActioning ? (
-                    <ActivityIndicator color={theme.colors.primary} />
-                ) : item.status === 'FARMER_PAID' ? (
-                    <View style={styles.actionsRow}>
-                        <TouchableOpacity
-                            style={styles.cancelBtn}
-                            activeOpacity={0.8}
-                            onPress={() => handleCancel(item)}
-                        >
-                            <Ionicons name="close-circle-outline" size={15} color={theme.colors.error} />
-                            <Text style={[styles.actionBtnText, { color: theme.colors.error }]}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.confirmBtn}
-                            activeOpacity={0.8}
-                            onPress={() => handleConfirm(item)}
-                        >
-                            <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
-                            <Text style={[styles.actionBtnText, { color: '#fff' }]}>Confirm Payment</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : item.status === 'PENDING' ? (
-                    <TouchableOpacity
-                        style={[styles.cancelBtn, { alignSelf: 'flex-start' }]}
-                        activeOpacity={0.8}
-                        onPress={() => handleCancel(item)}
-                    >
-                        <Ionicons name="close-circle-outline" size={15} color={theme.colors.error} />
-                        <Text style={[styles.actionBtnText, { color: theme.colors.error }]}>Cancel Order</Text>
-                    </TouchableOpacity>
-                ) : item.status === 'HATCHERY_CONFIRMED' ? (
-                    <View style={styles.confirmedBanner}>
-                        <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
-                        <Text style={styles.confirmedText}>Payment confirmed — order complete</Text>
-                    </View>
-                ) : null}
-            </View>
+            </SafeAreaView>
         );
-    };
+    }
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-            <ScreenHeader
-                title={listingId ? 'Listing Orders' : 'Incoming Orders'}
-                onBack={() => navigation.goBack()}
-            />
+            <ScreenHeader title="Incoming Orders" onBack={() => navigation.goBack()} />
 
             {/* Summary chips */}
-            {!loading && orders.length > 0 ? (
-                <View style={styles.summaryRow}>
-                    <SummaryChip icon="time-outline"             value={String(pendingCount)}        label="Pending"    color="#f59e0b" theme={theme} />
-                    <SummaryChip icon="card-outline"             value={String(awaitingConfirmCount)} label="Needs Confirm" color="#0ea5e9" theme={theme} />
-                    <SummaryChip icon="cash-outline"             value={`₹${confirmedRevenue.toLocaleString('en-IN')}`} label="Confirmed" color="#22c55e" theme={theme} />
-                </View>
-            ) : null}
+            <View style={styles.summaryRow}>
+                <SummaryChip label="New" value={orders.filter(o => o.status === 'REQUESTED').length} color="#f59e0b" theme={theme} />
+                <SummaryChip label="Awaiting" value={orders.filter(o => ['ACCEPTED', 'FARMER_PAID'].includes(o.status)).length} color="#0ea5e9" theme={theme} />
+                <SummaryChip label="Disputed" value={orders.filter(o => o.status === 'DISPUTED').length} color="#dc2626" theme={theme} />
+            </View>
 
-            {/* Filter tabs */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterRow}
-            >
-                {FILTER_TABS.map(tab => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                {TABS.map(t => (
                     <TouchableOpacity
-                        key={tab.key}
-                        style={[styles.filterChip, filter === tab.key && styles.filterChipActive]}
-                        onPress={() => setFilter(tab.key)}
-                        activeOpacity={0.8}
+                        key={t.key}
+                        style={[styles.filterChip, tab === t.key && styles.filterChipActive]}
+                        onPress={() => setTab(t.key)}
                     >
-                        <Text style={[styles.filterChipText, filter === tab.key && styles.filterChipTextActive]}>
-                            {tab.label}
+                        <Text style={[styles.filterChipText, tab === t.key && styles.filterChipTextActive]}>
+                            {t.label}
                         </Text>
                     </TouchableOpacity>
                 ))}
             </ScrollView>
 
-            {loading ? (
+            {filtered.length === 0 ? (
                 <View style={styles.center}>
-                    <ActivityIndicator color={theme.colors.primary} size="large" />
+                    <Ionicons name="mail-open-outline" size={48} color={theme.colors.textMuted} />
+                    <Text style={styles.emptyText}>No {tab} orders</Text>
                 </View>
             ) : (
                 <FlatList
                     data={filtered}
-                    keyExtractor={item => item.id}
-                    renderItem={renderItem}
+                    keyExtractor={(o) => o.id}
                     contentContainerStyle={styles.list}
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor={theme.colors.primary}
-                        />
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Ionicons name="receipt-outline" size={64} color={theme.colors.textMuted} />
-                            <Text style={styles.emptyTitle}>No Orders Yet</Text>
-                            <Text style={styles.emptySubtitle}>
-                                {filter
-                                    ? `No ${filter.replace(/_/g, ' ').toLowerCase()} orders.`
-                                    : 'Orders placed by farmers will appear here.'}
-                            </Text>
-                        </View>
-                    }
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+                    renderItem={({ item }) => {
+                        const meta = STATUS_META[item.status] ?? STATUS_META.REQUESTED;
+                        return (
+                            <View style={styles.card}>
+                                <View style={styles.cardHead}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.cardTitle}>{item.species_name}{item.species_variant ? ` · ${item.species_variant}` : ''}</Text>
+                                        <Text style={styles.cardSub}>
+                                            {item.quantity_ordered.toLocaleString('en-IN')} {item.stage} from {item.farmer_name}
+                                        </Text>
+                                        {item.farmer_uid && (
+                                            <Text style={styles.uidLine}>UID: {item.farmer_uid}</Text>
+                                        )}
+                                    </View>
+                                    <View style={[styles.statusPill, { backgroundColor: meta.color + '22' }]}>
+                                        <Ionicons name={meta.icon} size={12} color={meta.color} />
+                                        <Text style={[styles.statusPillText, { color: meta.color }]}>{meta.label}</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.cardMetaRow}>
+                                    <Text style={styles.cardAmount}>₹{parseFloat(item.total_amount).toLocaleString('en-IN')}</Text>
+                                    {item.logistics_preference && (
+                                        <Text style={styles.logText}>· {item.logistics_preference}</Text>
+                                    )}
+                                </View>
+
+                                {item.farmer_notes && (
+                                    <View style={styles.notesBox}>
+                                        <Ionicons name="chatbubble-outline" size={14} color={theme.colors.textMuted} />
+                                        <Text style={styles.notesText}>{item.farmer_notes}</Text>
+                                    </View>
+                                )}
+
+                                {item.delivery_address && (
+                                    <View style={styles.notesBox}>
+                                        <Ionicons name="location-outline" size={14} color={theme.colors.textMuted} />
+                                        <Text style={styles.notesText}>{item.delivery_address}</Text>
+                                    </View>
+                                )}
+
+                                {item.dispute_reason && (
+                                    <View style={[styles.notesBox, { backgroundColor: '#fef2f2', borderColor: '#fecaca' }]}>
+                                        <Ionicons name="warning-outline" size={14} color="#dc2626" />
+                                        <Text style={[styles.notesText, { color: '#dc2626' }]}>
+                                            {item.dispute_reason}{item.dispute_description ? ` — ${item.dispute_description}` : ''}
+                                        </Text>
+                                    </View>
+                                )}
+
+                                {/* Call farmer (always) */}
+                                {item.farmer_phone && (
+                                    <TouchableOpacity style={styles.callRow} onPress={() => Linking.openURL(`tel:${item.farmer_phone}`)}>
+                                        <Ionicons name="call-outline" size={16} color={theme.colors.primary} />
+                                        <Text style={styles.callText}>{item.farmer_phone}</Text>
+                                        <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} />
+                                    </TouchableOpacity>
+                                )}
+
+                                {/* Action buttons by status */}
+                                <View style={styles.actionRow}>
+                                    {item.status === 'REQUESTED' && (
+                                        <>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => reject(item)}>
+                                                <Ionicons name="close-outline" size={16} color="#ef4444" />
+                                                <Text style={styles.actionBtnTextDanger}>Reject</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={() => accept(item)}>
+                                                <Ionicons name="checkmark-outline" size={16} color={theme.colors.textInverse} />
+                                                <Text style={styles.actionBtnTextPrimary}>Accept</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+
+                                    {item.status === 'ACCEPTED' && (
+                                        <>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={() => cancel(item)}>
+                                                <Text style={styles.actionBtnTextSecondary}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <View style={[styles.actionBtn, { backgroundColor: '#a855f710', borderColor: '#a855f733', borderWidth: 1 }]}>
+                                                <Text style={[styles.actionBtnTextSecondary, { color: '#a855f7' }]}>Awaiting payment</Text>
+                                            </View>
+                                        </>
+                                    )}
+
+                                    {item.status === 'FARMER_PAID' && (
+                                        <>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={() => cancel(item)}>
+                                                <Text style={styles.actionBtnTextSecondary}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={() => confirmPaid(item)}>
+                                                <Ionicons name="card-outline" size={16} color={theme.colors.textInverse} />
+                                                <Text style={styles.actionBtnTextPrimary}>Confirm Payment</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+
+                                    {item.status === 'HATCHERY_CONFIRMED' && (
+                                        <>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => openDispute(item)}>
+                                                <Ionicons name="warning-outline" size={16} color="#ef4444" />
+                                                <Text style={styles.actionBtnTextDanger}>Dispute</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={() => fulfill(item)}>
+                                                <Ionicons name="trophy-outline" size={16} color={theme.colors.textInverse} />
+                                                <Text style={styles.actionBtnTextPrimary}>Mark Fulfilled</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+
+                                    {item.status === 'INTEREST_REQUESTED' && (
+                                        <>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => declineInterest(item)}>
+                                                <Text style={styles.actionBtnTextDanger}>Decline</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={() => acknowledgeInterest(item)}>
+                                                <Ionicons name="star-outline" size={16} color={theme.colors.textInverse} />
+                                                <Text style={styles.actionBtnTextPrimary}>Acknowledge</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+
+                                    {item.status === 'INTEREST_ACKNOWLEDGED' && (
+                                        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => declineInterest(item)}>
+                                            <Text style={styles.actionBtnTextDanger}>Decline Interest</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            </View>
+                        );
+                    }}
                 />
             )}
+
+            {/* Dispute modal */}
+            <Modal visible={!!disputeOrder} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalSheet}>
+                        <Text style={styles.modalTitle}>Raise a Dispute</Text>
+                        <Text style={styles.modalSub}>Why is this order disputed?</Text>
+                        {DISPUTE_REASONS.map(r => (
+                            <TouchableOpacity
+                                key={r.key}
+                                style={[styles.modalItem, disputeReason === r.key && styles.modalItemActive]}
+                                onPress={() => setDisputeReason(r.key)}
+                            >
+                                <Text style={[styles.modalItemText, disputeReason === r.key && { color: theme.colors.primary, fontWeight: '800' }]}>
+                                    {r.label}
+                                </Text>
+                                {disputeReason === r.key && (
+                                    <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={[styles.modalBtn, styles.modalBtnSecondary]} onPress={() => setDisputeOrder(null)}>
+                                <Text style={styles.modalBtnTextSecondary}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={submitDispute}>
+                                <Text style={styles.modalBtnTextPrimary}>Submit Dispute</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
 
-function SummaryChip({ icon, value, label, color, theme }: any) {
+function SummaryChip({ label, value, color, theme }: any) {
     const c = theme.colors;
     return (
         <View style={{
-            flex: 1,
-            alignItems: 'center',
-            gap: 4,
-            backgroundColor: c.surface,
-            borderWidth: 1,
-            borderColor: c.border,
+            flex: 1, padding: 10,
+            backgroundColor: color + '10',
             borderRadius: 12,
-            padding: 10,
+            borderWidth: 1,
+            borderColor: color + '33',
+            alignItems: 'center',
         }}>
-            <Ionicons name={icon} size={16} color={color} />
-            <Text style={{ fontSize: 14, fontWeight: '800', color: c.textPrimary }}>{value}</Text>
-            <Text style={{ fontSize: 10, color: c.textMuted, fontWeight: '600', textAlign: 'center' }}>{label}</Text>
+            <Text style={{ fontSize: 18, fontWeight: '800', color }}>{value}</Text>
+            <Text style={{ fontSize: 11, color: c.textMuted, fontWeight: '700' }}>{label.toUpperCase()}</Text>
         </View>
     );
 }
 
 const getStyles = (theme: any) => {
     const c = theme.colors;
-    const r = theme.borderRadius ?? {};
     return StyleSheet.create({
-        safeArea:   { flex: 1, backgroundColor: c.background },
-        center:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
-        summaryRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
-        filterRow:  { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+        safeArea: { flex: 1, backgroundColor: c.background },
+        center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32 },
+        emptyText: { fontSize: 16, fontWeight: '800', color: c.textPrimary },
+        summaryRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10 },
+        filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
         filterChip: {
+            alignSelf: 'flex-start',
             paddingHorizontal: 14,
             paddingVertical: 7,
             borderRadius: 999,
@@ -373,71 +427,110 @@ const getStyles = (theme: any) => {
             borderColor: c.border,
             backgroundColor: c.surface,
         },
-        filterChipActive:     { backgroundColor: c.primary, borderColor: c.primary },
-        filterChipText:       { fontSize: 12, fontWeight: '700', color: c.textSecondary },
+        filterChipActive: { backgroundColor: c.primary, borderColor: c.primary },
+        filterChipText: { fontSize: 12, fontWeight: '700', color: c.textSecondary },
         filterChipTextActive: { color: c.textInverse },
-        list: { padding: 16, paddingTop: 4, gap: 14 },
+        list: { padding: 16, gap: 12 },
         card: {
             backgroundColor: c.surface,
-            borderRadius: r.lg ?? 16,
+            borderRadius: 16,
             borderWidth: 1,
             borderColor: c.border,
-            padding: 16,
+            padding: 14,
             gap: 10,
-            ...(theme.shadows?.sm ?? {}),
+            marginBottom: 12,
         },
-        cardTop:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-        speciesName:    { fontSize: 16, fontWeight: '800', color: c.textPrimary },
-        stageName:      { fontSize: 11, color: c.textMuted, fontWeight: '700', letterSpacing: 0.5 },
-        statusBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-        statusBadgeText:{ fontSize: 11, fontWeight: '700' },
-        farmerRow:      { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
-        farmerName:     { fontSize: 13, fontWeight: '700', color: c.textSecondary },
-        farmerMeta:     { fontSize: 12, color: c.textMuted },
-        metricsRow:     { flexDirection: 'row', backgroundColor: c.background, borderRadius: 12, padding: 12, alignItems: 'center' },
-        metricCell:     { flex: 1, alignItems: 'center', gap: 3 },
-        metricValue:    { fontSize: 15, fontWeight: '800', color: c.textPrimary },
-        metricLabel:    { fontSize: 10, color: c.textMuted, fontWeight: '600' },
-        metricDivider:  { width: 1, height: 28, marginHorizontal: 4 },
-        infoRow:        { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-        infoText:       { flex: 1, fontSize: 13, color: c.textSecondary, lineHeight: 18 },
-        timestamp:      { fontSize: 11, color: c.textMuted, fontWeight: '500' },
-        actionsRow:     { flexDirection: 'row', gap: 10 },
-        cancelBtn: {
+        cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+        cardTitle: { fontSize: 15, fontWeight: '800', color: c.textPrimary },
+        cardSub: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+        uidLine: { fontSize: 11, color: c.textMuted, marginTop: 2 },
+        statusPill: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 999,
+            alignSelf: 'flex-start',
+        },
+        statusPillText: { fontSize: 11, fontWeight: '800' },
+        cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+        cardAmount: { fontSize: 16, fontWeight: '800', color: c.primary },
+        logText: { fontSize: 12, color: c.textMuted, fontWeight: '700' },
+        notesBox: {
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 8,
+            backgroundColor: c.surfaceLow ?? c.background,
+            borderRadius: 10,
+            padding: 10,
+            borderWidth: 1,
+            borderColor: c.border,
+        },
+        notesText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+        callRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            backgroundColor: c.primary + '15',
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+        },
+        callText: { flex: 1, fontSize: 13, fontWeight: '700', color: c.primary },
+        actionRow: { flexDirection: 'row', gap: 8 },
+        actionBtn: {
             flex: 1,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 6,
-            borderWidth: 1,
-            borderColor: c.error ?? '#ef4444',
-            borderRadius: 12,
             paddingVertical: 10,
-            paddingHorizontal: 12,
-        },
-        confirmBtn: {
-            flex: 2,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            backgroundColor: '#22c55e',
-            borderRadius: 12,
-            paddingVertical: 10,
-        },
-        actionBtnText:  { fontSize: 13, fontWeight: '800' },
-        confirmedBanner:{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            backgroundColor: '#dcfce7',
             borderRadius: 10,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
+            borderWidth: 1,
         },
-        confirmedText:  { fontSize: 13, fontWeight: '700', color: '#16a34a' },
-        emptyContainer: { padding: 48, alignItems: 'center', gap: 14 },
-        emptyTitle:     { fontSize: 20, fontWeight: '800', color: c.textPrimary },
-        emptySubtitle:  { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 21 },
+        actionBtnPrimary: { backgroundColor: c.primary, borderColor: c.primary },
+        actionBtnSecondary: { backgroundColor: c.surface, borderColor: c.border },
+        actionBtnDanger: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+        actionBtnTextPrimary: { fontSize: 13, fontWeight: '800', color: c.textInverse },
+        actionBtnTextSecondary: { fontSize: 13, fontWeight: '800', color: c.textSecondary },
+        actionBtnTextDanger: { fontSize: 13, fontWeight: '800', color: '#ef4444' },
+        // Modal
+        modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+        modalSheet: {
+            backgroundColor: c.background,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 20,
+            paddingBottom: 28,
+            gap: 8,
+        },
+        modalTitle: { fontSize: 17, fontWeight: '800', color: c.textPrimary, textAlign: 'center' },
+        modalSub: { fontSize: 13, color: c.textMuted, textAlign: 'center', marginBottom: 10 },
+        modalItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 14,
+            paddingVertical: 14,
+            backgroundColor: c.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: c.border,
+            marginBottom: 6,
+        },
+        modalItemActive: { borderColor: c.primary, backgroundColor: c.primary + '10' },
+        modalItemText: { fontSize: 14, color: c.textPrimary, fontWeight: '700' },
+        modalActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+        modalBtn: {
+            flex: 1,
+            paddingVertical: 14,
+            borderRadius: 14,
+            alignItems: 'center',
+        },
+        modalBtnSecondary: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
+        modalBtnPrimary: { backgroundColor: '#dc2626' },
+        modalBtnTextSecondary: { fontSize: 14, fontWeight: '800', color: c.textSecondary },
+        modalBtnTextPrimary: { fontSize: 14, fontWeight: '800', color: '#fff' },
     });
 };

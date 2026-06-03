@@ -5,6 +5,12 @@
 import { Model } from '@nozbe/watermelondb';
 import { field, date, readonly } from '@nozbe/watermelondb/decorators';
 
+export type OwnershipType = 'OWNED' | 'LEASED' | 'SHARED' | 'GOVT';
+export type WaterAvailability = 'SEASONAL' | 'PERENNIAL';
+export type CultureSystemCategory = 'EXTENSIVE' | 'SEMI_INTENSIVE' | 'INTENSIVE';
+export type PondActivityType = 'NURSERY' | 'REARING' | 'GROW_OUT' | 'BROODSTOCK' | 'MIXED';
+export type DiseaseOccurrence = 'NONE' | 'MINOR' | 'MAJOR';
+
 export default class Pond extends Model {
   static table = 'ponds';
 
@@ -31,6 +37,20 @@ export default class Pond extends Model {
   @field('fingerling_transaction_ref') fingerlingTransactionRef?: string;
   @field('species_variant') speciesVariant?: string;
   @field('expected_harvest_date') expectedHarvestDate?: number;
+
+  // ── v5 — gov survey Section B/D/F fields ──
+  @field('ownership_type') ownershipType?: OwnershipType;
+  @field('water_availability') waterAvailability?: WaterAvailability;
+  @field('culture_system_category') cultureSystemCategory?: CultureSystemCategory;
+  @field('pond_activity_type') pondActivityType?: PondActivityType;
+  @field('wide_angle_photo_uri') wideAnglePhotoUri?: string;
+  @field('embankment_photo_uri') embankmentPhotoUri?: string;
+  @field('close_view_photo_uri') closeViewPhotoUri?: string;
+  @field('farmer_with_pond_photo_uri') farmerWithPondPhotoUri?: string;
+  @field('is_insured') isInsured?: boolean;
+  @field('flood_impact_3yrs') floodImpact3Yrs?: boolean;
+  @field('disease_occurrence') diseaseOccurrence?: DiseaseOccurrence;
+
   @field('sync_status') localSyncStatus!: string;
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;

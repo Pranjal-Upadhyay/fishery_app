@@ -16,9 +16,6 @@
         }
       ]
     ],
-    "experiments": {
-      "baseUrl": "/fishery_app"
-    },
     "ios": {
       "bundleIdentifier": "com.pranjalupadhyay.matsyamitra",
       "buildNumber": "1",
@@ -58,7 +55,8 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/2d8baa63-8bf9-4d0b-b463-d4f8d56a7a34"
+      "url": "https://u.expo.dev/2d8baa63-8bf9-4d0b-b463-d4f8d56a7a34",
+      "checkAutomatically": "ON_ERROR_RECOVERY"
     },
     "owner": "pranjal2564"
   }

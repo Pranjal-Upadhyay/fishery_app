@@ -23,6 +23,22 @@ const createHatcherySchema = z.object({
   block: z.string().max(160).optional(),
   panchayat: z.string().max(200).optional(),
   capacity_kg: z.number().positive().optional(),
+  hatchery_uid: z.string().min(3).max(64).optional(),
+  contact_number: z.string().regex(/^[6-9]\d{9}$/).optional(),
+  email: z.string().email().optional(),
+  upi_id: z.string().max(120).optional(),
+});
+
+const updateHatcheryProfileSchema = z.object({
+  name: z.string().min(2).max(200).trim().optional(),
+  district: z.string().max(120).optional().nullable(),
+  block: z.string().max(160).optional().nullable(),
+  panchayat: z.string().max(200).optional().nullable(),
+  capacity_kg: z.number().positive().optional().nullable(),
+  hatchery_uid: z.string().min(3).max(64).optional().nullable(),
+  contact_number: z.string().regex(/^[6-9]\d{9}$/).optional().nullable(),
+  email: z.string().email().optional().nullable(),
+  upi_id: z.string().max(120).optional().nullable(),
 });
 
 const createBatchSchema = z.object({
@@ -96,6 +112,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     const result = await query(`
       SELECT h.id, h.name, h.district, h.block, h.panchayat, h.capacity_kg,
+             h.hatchery_uid, h.contact_number, h.email, h.upi_id,
              h.created_at, h.updated_at,
              u.name AS operator_name,
              COUNT(b.id) FILTER (WHERE b.current_stage NOT IN ('sold')) AS active_batch_count
@@ -113,6 +130,107 @@ router.get('/', requireAuth, async (req, res, next) => {
   }
 });
 
+// ─── GET /api/v1/hatcheries/me-profile ────────────────────────────────────────
+// Returns the operator's hatchery profile (incl. marketplace-required fields).
+// MUST be defined before /:id to avoid route shadowing.
+
+router.get('/me-profile', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const result = await query(`
+      SELECT h.id, h.name, h.district, h.block, h.panchayat, h.capacity_kg,
+             h.hatchery_uid, h.contact_number, h.email, h.upi_id,
+             h.created_at, h.updated_at,
+             u.phone_number AS operator_phone,
+             u.email        AS operator_email
+      FROM hatcheries h
+      JOIN users u ON u.id = h.operator_id
+      WHERE h.operator_id = $1
+      LIMIT 1
+    `, [userId]);
+
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, error: 'No hatchery profile found for this account.' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── PATCH /api/v1/hatcheries/me-profile ──────────────────────────────────────
+// Updates the operator's hatchery profile (marketplace-required fields).
+// MUST be defined before /:id to avoid route shadowing.
+
+router.patch('/me-profile', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const data = updateHatcheryProfileSchema.parse(req.body);
+
+    const existing = await query(
+      'SELECT id FROM hatcheries WHERE operator_id = $1 LIMIT 1',
+      [userId],
+    );
+
+    // If no hatchery exists yet, allow upsert (name is required for new)
+    if (!existing.rows.length) {
+      if (!data.name) {
+        return res.status(400).json({
+          success: false,
+          error: 'A hatchery name is required to create your profile.',
+        });
+      }
+      const created = await query(`
+        INSERT INTO hatcheries (
+          name, operator_id, district, block, panchayat, capacity_kg,
+          hatchery_uid, contact_number, email, upi_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *
+      `, [
+        data.name, userId, data.district ?? null, data.block ?? null,
+        data.panchayat ?? null, data.capacity_kg ?? null,
+        data.hatchery_uid ?? null, data.contact_number ?? null,
+        data.email ?? null, data.upi_id ?? null,
+      ]);
+      return res.status(201).json({ success: true, data: created.rows[0] });
+    }
+
+    // Build dynamic update
+    const fields: string[] = [];
+    const params: unknown[] = [];
+    const push = (col: string, val: unknown) => {
+      params.push(val);
+      fields.push(`${col} = $${params.length}`);
+    };
+
+    if (data.name !== undefined) push('name', data.name);
+    if (data.district !== undefined) push('district', data.district);
+    if (data.block !== undefined) push('block', data.block);
+    if (data.panchayat !== undefined) push('panchayat', data.panchayat);
+    if (data.capacity_kg !== undefined) push('capacity_kg', data.capacity_kg);
+    if (data.hatchery_uid !== undefined) push('hatchery_uid', data.hatchery_uid);
+    if (data.contact_number !== undefined) push('contact_number', data.contact_number);
+    if (data.email !== undefined) push('email', data.email);
+    if (data.upi_id !== undefined) push('upi_id', data.upi_id);
+
+    if (!fields.length) {
+      return res.json({ success: true, data: existing.rows[0] });
+    }
+
+    fields.push('updated_at = NOW()');
+    params.push(userId);
+    const result = await query(`
+      UPDATE hatcheries SET ${fields.join(', ')}
+      WHERE operator_id = $${params.length}
+      RETURNING *
+    `, params);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ─── POST /api/v1/hatcheries ──────────────────────────────────────────────────
 // Create a new hatchery (operator must be authenticated)
 
@@ -122,10 +240,18 @@ router.post('/', requireAuth, async (req, res, next) => {
     const data = createHatcherySchema.parse(req.body);
 
     const result = await query(`
-      INSERT INTO hatcheries (name, operator_id, district, block, panchayat, capacity_kg)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO hatcheries (
+        name, operator_id, district, block, panchayat, capacity_kg,
+        hatchery_uid, contact_number, email, upi_id
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
-    `, [data.name, userId, data.district ?? null, data.block ?? null, data.panchayat ?? null, data.capacity_kg ?? null]);
+    `, [
+      data.name, userId, data.district ?? null, data.block ?? null,
+      data.panchayat ?? null, data.capacity_kg ?? null,
+      data.hatchery_uid ?? null, data.contact_number ?? null,
+      data.email ?? null, data.upi_id ?? null,
+    ]);
 
     logger.info('Hatchery created', { hatcheryId: result.rows[0].id, userId });
     res.status(201).json({ success: true, data: result.rows[0] });

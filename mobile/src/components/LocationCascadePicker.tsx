@@ -655,6 +655,7 @@ function PickerModal({
   loading,
   onSelect,
   onClose,
+  onManualEntry,
   theme,
 }: {
   visible: boolean;
@@ -663,6 +664,7 @@ function PickerModal({
   loading: boolean;
   onSelect: (item: LocItem) => void;
   onClose: () => void;
+  onManualEntry?: (name: string) => void;
   theme: any;
 }) {
   const [search, setSearch] = useState('');
@@ -673,6 +675,13 @@ function PickerModal({
   useEffect(() => {
     if (!visible) setSearch('');
   }, [visible]);
+
+  const handleManualUse = () => {
+    const text = search.trim();
+    if (!text || !onManualEntry) return;
+    onManualEntry(text);
+    setSearch('');
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -704,9 +713,26 @@ function PickerModal({
           {loading ? (
             <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />
           ) : filtered.length === 0 ? (
-            <Text style={[modalStyles.emptyText, { color: theme.colors.textMuted }]}>
-              No results — try typing below to enter manually
-            </Text>
+            <View style={{ padding: 16, alignItems: 'center', gap: 12 }}>
+              <Text style={[modalStyles.emptyText, { color: theme.colors.textMuted }]}>
+                {search.trim() ? `No matches for "${search.trim()}"` : 'No options available'}
+              </Text>
+              {onManualEntry && search.trim().length > 0 && (
+                <TouchableOpacity
+                  onPress={handleManualUse}
+                  style={{
+                    backgroundColor: theme.colors.primary,
+                    paddingHorizontal: 20,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text style={{ color: theme.colors.textInverse, fontWeight: '600', fontSize: 14 }}>
+                    Use "{search.trim()}"
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : (
             <FlatList
               data={filtered}
@@ -752,7 +778,6 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
   // Draft text — only committed to parent on blur/submit
   const [draftDistrict, setDraftDistrict] = useState('');
   const [draftBlock, setDraftBlock] = useState('');
-  const [draftPanchayat, setDraftPanchayat] = useState('');
 
   const supported = SUPPORTED_STATES.has(stateCode);
 
@@ -842,16 +867,6 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
     });
   }, [draftBlock, onChange, value]);
 
-  const confirmManualPanchayat = useCallback(() => {
-    const text = draftPanchayat.trim();
-    if (!text) return;
-    onChange({
-      ...value,
-      panchayatCode: text.toLowerCase().replace(/\s+/g, '-'),
-      panchayatName: text,
-    });
-  }, [draftPanchayat, onChange, value]);
-
   // ── Modal selection ──
   const selectDistrict = useCallback(
     (item: LocItem) => {
@@ -865,7 +880,6 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
       });
       setDraftDistrict('');
       setDraftBlock('');
-      setDraftPanchayat('');
       setOpenModal(null);
     },
     [onChange]
@@ -881,7 +895,6 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
         panchayatName: '',
       });
       setDraftBlock('');
-      setDraftPanchayat('');
       setOpenModal(null);
     },
     [onChange, value]
@@ -890,7 +903,6 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
   const selectPanchayat = useCallback(
     (item: LocItem) => {
       onChange({ ...value, panchayatCode: item.code, panchayatName: item.name });
-      setDraftPanchayat('');
       setOpenModal(null);
     },
     [onChange, value]
@@ -978,25 +990,13 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
 
       {/* ── PANCHAYAT — only after block confirmed ── */}
       {blockConfirmed && (
-        <>
-          <Row
-            label={`Panchayat — ${value.blockName}`}
-            selected={value.panchayatName}
-            loading={loadingPanchayats && panchayats.length === 0}
-            onPress={() => setOpenModal('panchayat')}
-            theme={theme}
-          />
-          {!value.panchayatCode && (
-            <ManualInput
-              placeholder="Or type panchayat / village name ↵"
-              value={draftPanchayat}
-              onChangeText={setDraftPanchayat}
-              onSubmitEditing={confirmManualPanchayat}
-              onBlur={confirmManualPanchayat}
-              theme={theme}
-            />
-          )}
-        </>
+        <Row
+          label={`Panchayat — ${value.blockName}`}
+          selected={value.panchayatName}
+          loading={loadingPanchayats && panchayats.length === 0}
+          onPress={() => setOpenModal('panchayat')}
+          theme={theme}
+        />
       )}
 
       {/* Modals */}
@@ -1025,6 +1025,10 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
         loading={loadingPanchayats && panchayats.length === 0}
         onSelect={selectPanchayat}
         onClose={() => setOpenModal(null)}
+        onManualEntry={(name) => {
+          onChange({ ...value, panchayatCode: name.toLowerCase().replace(/\s+/g, '-'), panchayatName: name });
+          setOpenModal(null);
+        }}
         theme={theme}
       />
     </View>

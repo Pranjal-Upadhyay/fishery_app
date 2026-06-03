@@ -25,6 +25,46 @@ const WATER_SOURCES = ['BOREWELL', 'OPEN_WELL', 'CANAL', 'RIVER', 'TANK'];
 const SYSTEMS = ['EARTHEN', 'BIOFLOC', 'RAS', 'CAGES', 'PENS'];
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// ── Bucket 2 — gov survey Section B/D/F enums ──
+const OWNERSHIP_TYPES = [
+    { value: 'OWNED',  label: 'Owned' },
+    { value: 'LEASED', label: 'Leased' },
+    { value: 'SHARED', label: 'Shared' },
+    { value: 'GOVT',   label: 'Government' },
+] as const;
+
+const WATER_AVAILABILITY = [
+    { value: 'SEASONAL',  label: 'Seasonal' },
+    { value: 'PERENNIAL', label: 'Perennial' },
+] as const;
+
+const CULTURE_CATEGORIES = [
+    { value: 'EXTENSIVE',       label: 'Extensive' },
+    { value: 'SEMI_INTENSIVE',  label: 'Semi-intensive' },
+    { value: 'INTENSIVE',       label: 'Intensive' },
+] as const;
+
+const POND_ACTIVITIES = [
+    { value: 'NURSERY',     label: 'Nursery' },
+    { value: 'REARING',     label: 'Rearing' },
+    { value: 'GROW_OUT',    label: 'Grow-out' },
+    { value: 'BROODSTOCK',  label: 'Broodstock' },
+    { value: 'MIXED',       label: 'Mixed' },
+] as const;
+
+const DISEASE_OCCURRENCES = [
+    { value: 'NONE',  label: 'None' },
+    { value: 'MINOR', label: 'Minor' },
+    { value: 'MAJOR', label: 'Major' },
+] as const;
+
+const SURVEY_PHOTOS: { key: 'wideAngle' | 'embankment' | 'closeView' | 'farmerWithPond'; label: string; hint: string }[] = [
+    { key: 'wideAngle',      label: 'Pond — Wide Angle',     hint: 'Full view of the pond' },
+    { key: 'embankment',     label: 'Pond — Embankment',     hint: 'Show the boundary' },
+    { key: 'closeView',      label: 'Pond — Close View',     hint: 'Water surface up close' },
+    { key: 'farmerWithPond', label: 'Farmer with Pond',      hint: 'You standing by the pond' },
+];
+
 // ─── Species recommended per farming system ───────────────────────────────────
 // Mirrors the EconomicsScreen species options to keep UX consistent.
 // Keys are scientific name substrings (lowercase) for fuzzy matching.
@@ -260,6 +300,19 @@ export default function AddEditPondScreen({ route }: any) {
     const [pondLocation, setPondLocation] = useState<Partial<LocationSelection>>({});
     const [photoUri, setPhotoUri] = useState<string>('');
 
+    // ── Bucket 2 — gov survey Section B/D/F fields ──
+    const [ownershipType, setOwnershipType] = useState<typeof OWNERSHIP_TYPES[number]['value'] | ''>('');
+    const [waterAvailability, setWaterAvailability] = useState<typeof WATER_AVAILABILITY[number]['value'] | ''>('');
+    const [cultureSystemCategory, setCultureSystemCategory] = useState<typeof CULTURE_CATEGORIES[number]['value'] | ''>('');
+    const [pondActivityType, setPondActivityType] = useState<typeof POND_ACTIVITIES[number]['value'] | ''>('');
+    const [wideAnglePhoto, setWideAnglePhoto] = useState('');
+    const [embankmentPhoto, setEmbankmentPhoto] = useState('');
+    const [closeViewPhoto, setCloseViewPhoto] = useState('');
+    const [farmerWithPondPhoto, setFarmerWithPondPhoto] = useState('');
+    const [isInsured, setIsInsured] = useState<boolean | null>(null);
+    const [floodImpact3Yrs, setFloodImpact3Yrs] = useState<boolean | null>(null);
+    const [diseaseOccurrence, setDiseaseOccurrence] = useState<typeof DISEASE_OCCURRENCES[number]['value'] | ''>('');
+
     const selectedSpecies = getSpeciesDisplay(
         speciesId,
         Object.fromEntries(
@@ -349,6 +402,19 @@ export default function AddEditPondScreen({ route }: any) {
                     panchayatName: pond.panchayatName,
                 });
             }
+
+            // ── Bucket 2 survey fields ──
+            if (pond.ownershipType) setOwnershipType(pond.ownershipType);
+            if (pond.waterAvailability) setWaterAvailability(pond.waterAvailability);
+            if (pond.cultureSystemCategory) setCultureSystemCategory(pond.cultureSystemCategory);
+            if (pond.pondActivityType) setPondActivityType(pond.pondActivityType);
+            if (pond.wideAnglePhotoUri) setWideAnglePhoto(pond.wideAnglePhotoUri);
+            if (pond.embankmentPhotoUri) setEmbankmentPhoto(pond.embankmentPhotoUri);
+            if (pond.closeViewPhotoUri) setCloseViewPhoto(pond.closeViewPhotoUri);
+            if (pond.farmerWithPondPhotoUri) setFarmerWithPondPhoto(pond.farmerWithPondPhotoUri);
+            if (pond.isInsured != null) setIsInsured(pond.isInsured);
+            if (pond.floodImpact3Yrs != null) setFloodImpact3Yrs(pond.floodImpact3Yrs);
+            if (pond.diseaseOccurrence) setDiseaseOccurrence(pond.diseaseOccurrence);
         } catch {
             Alert.alert(t('common.error'), t('addEditPond.saveErrorBody'));
             navigation.goBack();
@@ -392,6 +458,22 @@ export default function AddEditPondScreen({ route }: any) {
 
         setIsSaving(true);
         try {
+            // Helper: assign the new Bucket 2 fields onto a pond model instance.
+            // Shared between create and update branches so the two stay in sync.
+            const applySurveyFields = (p: Pond) => {
+                p.ownershipType         = ownershipType || undefined;
+                p.waterAvailability     = waterAvailability || undefined;
+                p.cultureSystemCategory = cultureSystemCategory || undefined;
+                p.pondActivityType      = pondActivityType || undefined;
+                p.wideAnglePhotoUri     = wideAnglePhoto || undefined;
+                p.embankmentPhotoUri    = embankmentPhoto || undefined;
+                p.closeViewPhotoUri     = closeViewPhoto || undefined;
+                p.farmerWithPondPhotoUri = farmerWithPondPhoto || undefined;
+                p.isInsured             = isInsured ?? undefined;
+                p.floodImpact3Yrs       = floodImpact3Yrs ?? undefined;
+                p.diseaseOccurrence     = diseaseOccurrence || undefined;
+            };
+
             await database.write(async () => {
                 if (existingPondId) {
                     const pond = await database.collections.get<Pond>('ponds').find(existingPondId);
@@ -413,6 +495,7 @@ export default function AddEditPondScreen({ route }: any) {
                         p.panchayatName = pondLocation.panchayatName || undefined;
                         p.localSyncStatus = 'PENDING';
                         if (photoUri) p.imageUri = photoUri;
+                        applySurveyFields(p);
                     });
                 } else {
                     await database.collections.get<Pond>('ponds').create(p => {
@@ -435,6 +518,7 @@ export default function AddEditPondScreen({ route }: any) {
                         p.panchayatName = pondLocation.panchayatName || undefined;
                         p.localSyncStatus = 'NEW';
                         if (photoUri) p.imageUri = photoUri;
+                        applySurveyFields(p);
                     });
                 }
             });
@@ -444,6 +528,38 @@ export default function AddEditPondScreen({ route }: any) {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    // Generic survey-photo picker. Each slot is independent — no Alert prompt
+    // for camera vs gallery (kept simple for field use); defaults to gallery.
+    const pickSurveyPhoto = async (
+        setter: (uri: string) => void,
+    ) => {
+        Alert.alert(
+            'Add Photo',
+            'Choose a source',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Camera',
+                    onPress: async () => {
+                        const perm = await ImagePicker.requestCameraPermissionsAsync();
+                        if (!perm.granted) { Alert.alert('Permission needed', 'Camera access is required.'); return; }
+                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+                        if (!result.canceled && result.assets?.length) setter(result.assets[0].uri);
+                    },
+                },
+                {
+                    text: 'Gallery',
+                    onPress: async () => {
+                        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (!perm.granted) { Alert.alert('Permission needed', 'Gallery access is required.'); return; }
+                        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
+                        if (!result.canceled && result.assets?.length) setter(result.assets[0].uri);
+                    },
+                },
+            ],
+        );
     };
 
     const handlePickPhoto = async () => {
@@ -694,6 +810,213 @@ export default function AddEditPondScreen({ route }: any) {
                             </>
                         )}
                     </TouchableOpacity>
+
+                    {/* ── Section: Survey-cycle nav cards (only for existing ponds) ── */}
+                    {existingPondId && (
+                        <View style={styles.cycleNavRow}>
+                            <TouchableOpacity
+                                style={styles.cycleNavCard}
+                                activeOpacity={0.85}
+                                onPress={() => navigation.navigate('CropCycle', { pondId: existingPondId, pondName: name })}
+                            >
+                                <View style={[styles.cycleNavIcon, { backgroundColor: '#0ea5e922' }]}>
+                                    <Ionicons name="analytics-outline" size={22} color="#0ea5e9" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.cycleNavTitle}>Crop Cycles</Text>
+                                    <Text style={styles.cycleNavSub}>Production · costs · revenue</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.cycleNavCard}
+                                activeOpacity={0.85}
+                                onPress={() => navigation.navigate('FarmAssets', { pondId: existingPondId, pondName: name })}
+                            >
+                                <View style={[styles.cycleNavIcon, { backgroundColor: '#22c55e22' }]}>
+                                    <Ionicons name="cube-outline" size={22} color="#22c55e" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.cycleNavTitle}>Pond Assets</Text>
+                                    <Text style={styles.cycleNavSub}>Aerators · pumps · nets</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* ── Section: Ownership & Water Availability ── */}
+                    <SectionHeader label="POND OWNERSHIP" styles={styles} />
+                    <View style={styles.chipRow}>
+                        {OWNERSHIP_TYPES.map(item => (
+                            <TouchableOpacity
+                                key={item.value}
+                                style={[styles.chip, ownershipType === item.value && styles.chipActive]}
+                                onPress={() => setOwnershipType(item.value)}
+                            >
+                                <Text style={[styles.chipText, ownershipType === item.value && styles.chipTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <SectionHeader label="WATER AVAILABILITY" styles={styles} />
+                    <View style={styles.chipRow}>
+                        {WATER_AVAILABILITY.map(item => (
+                            <TouchableOpacity
+                                key={item.value}
+                                style={[styles.chip, waterAvailability === item.value && styles.chipActive]}
+                                onPress={() => setWaterAvailability(item.value)}
+                            >
+                                <Text style={[styles.chipText, waterAvailability === item.value && styles.chipTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* ── Section: Culture System Category ── */}
+                    <SectionHeader label="CULTURE INTENSITY" styles={styles} />
+                    <View style={styles.chipRow}>
+                        {CULTURE_CATEGORIES.map(item => (
+                            <TouchableOpacity
+                                key={item.value}
+                                style={[styles.chip, cultureSystemCategory === item.value && styles.chipActive]}
+                                onPress={() => setCultureSystemCategory(item.value)}
+                            >
+                                <Text style={[styles.chipText, cultureSystemCategory === item.value && styles.chipTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* ── Section: Pond Activity ── */}
+                    <SectionHeader label="POND ACTIVITY TYPE" styles={styles} />
+                    <View style={styles.chipRow}>
+                        {POND_ACTIVITIES.map(item => (
+                            <TouchableOpacity
+                                key={item.value}
+                                style={[styles.chip, pondActivityType === item.value && styles.chipActive]}
+                                onPress={() => setPondActivityType(item.value)}
+                            >
+                                <Text style={[styles.chipText, pondActivityType === item.value && styles.chipTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* ── Section: Survey Photos (4 slots) ── */}
+                    <SectionHeader label="SURVEY PHOTOS (OPTIONAL)" styles={styles} />
+                    <Text style={styles.helperText}>
+                        Four photos requested by the government survey. You can fill them now or add later.
+                    </Text>
+                    <View style={styles.surveyPhotoGrid}>
+                        {SURVEY_PHOTOS.map(slot => {
+                            const uri =
+                                slot.key === 'wideAngle' ? wideAnglePhoto :
+                                slot.key === 'embankment' ? embankmentPhoto :
+                                slot.key === 'closeView' ? closeViewPhoto :
+                                farmerWithPondPhoto;
+                            const setter =
+                                slot.key === 'wideAngle' ? setWideAnglePhoto :
+                                slot.key === 'embankment' ? setEmbankmentPhoto :
+                                slot.key === 'closeView' ? setCloseViewPhoto :
+                                setFarmerWithPondPhoto;
+                            return (
+                                <TouchableOpacity
+                                    key={slot.key}
+                                    style={[styles.surveyPhotoSlot, uri && styles.surveyPhotoSlotFilled]}
+                                    onPress={() => pickSurveyPhoto(setter)}
+                                    activeOpacity={0.85}
+                                >
+                                    {uri ? (
+                                        <>
+                                            <Image source={{ uri }} style={styles.surveyPhotoImg} />
+                                            <View style={styles.surveyPhotoLabelBar}>
+                                                <Text style={styles.surveyPhotoLabelText} numberOfLines={1}>
+                                                    {slot.label}
+                                                </Text>
+                                                <TouchableOpacity onPress={() => setter('')}>
+                                                    <Ionicons name="close-circle" size={18} color="#fff" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Ionicons name="image-outline" size={24} color={theme.colors.textMuted} />
+                                            <Text style={styles.surveyPhotoSlotLabel} numberOfLines={1}>{slot.label}</Text>
+                                            <Text style={styles.surveyPhotoSlotHint} numberOfLines={1}>{slot.hint}</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    {/* ── Section: Risk & Insurance ── */}
+                    <SectionHeader label="RISK & INSURANCE" styles={styles} />
+                    <View style={styles.surveyCard}>
+                        <View style={styles.surveyRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.surveyLabel}>Pond Insured?</Text>
+                                <Text style={styles.surveyHint}>Crop / livestock insurance scheme</Text>
+                            </View>
+                            <View style={styles.ynRow}>
+                                <TouchableOpacity
+                                    style={[styles.ynBtn, isInsured === true && styles.ynBtnActive]}
+                                    onPress={() => setIsInsured(true)}
+                                >
+                                    <Text style={[styles.ynBtnText, isInsured === true && styles.ynBtnTextActive]}>Yes</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.ynBtn, isInsured === false && styles.ynBtnActive]}
+                                    onPress={() => setIsInsured(false)}
+                                >
+                                    <Text style={[styles.ynBtnText, isInsured === false && styles.ynBtnTextActive]}>No</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <View style={styles.surveyDivider} />
+                        <View style={styles.surveyRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.surveyLabel}>Flood Impact (last 3 years)?</Text>
+                                <Text style={styles.surveyHint}>Has the pond been affected by floods?</Text>
+                            </View>
+                            <View style={styles.ynRow}>
+                                <TouchableOpacity
+                                    style={[styles.ynBtn, floodImpact3Yrs === true && styles.ynBtnActive]}
+                                    onPress={() => setFloodImpact3Yrs(true)}
+                                >
+                                    <Text style={[styles.ynBtnText, floodImpact3Yrs === true && styles.ynBtnTextActive]}>Yes</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.ynBtn, floodImpact3Yrs === false && styles.ynBtnActive]}
+                                    onPress={() => setFloodImpact3Yrs(false)}
+                                >
+                                    <Text style={[styles.ynBtnText, floodImpact3Yrs === false && styles.ynBtnTextActive]}>No</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+
+                    <SectionHeader label="DISEASE OCCURRENCE" styles={styles} />
+                    <View style={styles.chipRow}>
+                        {DISEASE_OCCURRENCES.map(item => (
+                            <TouchableOpacity
+                                key={item.value}
+                                style={[styles.chip, diseaseOccurrence === item.value && styles.chipActive]}
+                                onPress={() => setDiseaseOccurrence(item.value)}
+                            >
+                                <Text style={[styles.chipText, diseaseOccurrence === item.value && styles.chipTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
 
                     {/* ── Section: GPS Coordinates ── */}
                     <View style={styles.locationHeader}>
@@ -1238,4 +1561,128 @@ const getStyles = (theme: any) => StyleSheet.create({
     calendarDayTextSelected: { color: theme.colors.textInverse },
     calendarDayTextDisabled: { color: theme.colors.textMuted },
     calendarFooter: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
+
+    // ── Bucket 2 survey extras ──
+    surveyPhotoGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+        marginBottom: 14,
+    },
+    surveyPhotoSlot: {
+        width: '48%',
+        aspectRatio: 1,
+        backgroundColor: theme.colors.surface,
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: theme.colors.border,
+        borderStyle: 'dashed',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 8,
+        gap: 4,
+        overflow: 'hidden',
+    },
+    surveyPhotoSlotFilled: {
+        borderStyle: 'solid',
+        borderColor: theme.colors.primary,
+    },
+    surveyPhotoSlotLabel: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: theme.colors.textPrimary,
+        textAlign: 'center',
+        marginTop: 4,
+    },
+    surveyPhotoSlotHint: {
+        fontSize: 10,
+        color: theme.colors.textMuted,
+        textAlign: 'center',
+    },
+    surveyPhotoImg: {
+        ...StyleSheet.absoluteFillObject,
+        width: '100%',
+        height: '100%',
+    },
+    surveyPhotoLabelBar: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 6,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+    },
+    surveyPhotoLabelText: {
+        flex: 1,
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    surveyCard: {
+        backgroundColor: theme.colors.surface,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        padding: 14,
+        marginBottom: 14,
+    },
+    surveyRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    surveyLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: theme.colors.textPrimary,
+    },
+    surveyHint: {
+        fontSize: 12,
+        color: theme.colors.textMuted,
+        marginTop: 2,
+    },
+    surveyDivider: {
+        height: 1,
+        backgroundColor: theme.colors.border,
+        marginVertical: 12,
+    },
+    ynRow: { flexDirection: 'row', gap: 8 },
+    ynBtn: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: theme.colors.surfaceAlt,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    ynBtnActive: {
+        backgroundColor: theme.colors.primary,
+        borderColor: theme.colors.primary,
+    },
+    ynBtnText: { fontSize: 13, fontWeight: '800', color: theme.colors.textSecondary },
+    ynBtnTextActive: { color: theme.colors.textInverse },
+
+    // Cycle/Asset nav cards
+    cycleNavRow: { gap: 10, marginBottom: 16 },
+    cycleNavCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: theme.colors.surface,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        padding: 14,
+    },
+    cycleNavIcon: {
+        width: 44, height: 44, borderRadius: 12,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    cycleNavTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.textPrimary },
+    cycleNavSub: { fontSize: 12, color: theme.colors.textMuted, marginTop: 2 },
 });
