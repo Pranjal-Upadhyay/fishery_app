@@ -18,7 +18,7 @@ export function Topbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-glass-border bg-canvas-900/40 px-5 backdrop-blur-glass">
+    <header className="relative z-50 flex h-14 shrink-0 items-center gap-4 border-b border-glass-border bg-canvas-900/40 px-5 backdrop-blur-glass">
       {/* Page heading slot — pages can portal into this later; for now we
           show the breadcrumb-style brand line. */}
       <div className="flex items-baseline gap-3">
@@ -59,7 +59,7 @@ export function Topbar() {
         </button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-glass border border-glass-border bg-canvas-800/95 p-1 shadow-glass backdrop-blur-glass">
+          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-glass border border-glass-border bg-canvas-800 p-1 shadow-glass">
             <div className="border-b border-glass-border px-3 py-2.5">
               <div className="truncate text-sm text-ink-primary">{admin?.email}</div>
               <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">
