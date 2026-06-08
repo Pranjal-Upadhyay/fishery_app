@@ -37,6 +37,7 @@ import MarketPricesScreen from './src/screens/MarketPricesScreen';
 import EquipmentCatalogScreen from './src/screens/EquipmentCatalogScreen';
 import FeedCatalogScreen from './src/screens/FeedCatalogScreen';
 import PersonalInfoScreen from './src/screens/PersonalInfoScreen';
+import YojanaApplicationsScreen from './src/screens/YojanaApplicationsScreen';
 import PondsListScreen from './src/screens/PondsListScreen';
 import AddEditPondScreen from './src/screens/AddEditPondScreen';
 import CropCycleScreen from './src/screens/CropCycleScreen';
@@ -82,6 +83,7 @@ export type RootStackParamList = {
   EquipmentCatalog: undefined;
   FeedCatalog: undefined;
   PersonalInfo: undefined;
+  YojanaApplications: undefined;
   PondsList: undefined;
   AddEditPond: { pondId?: string };
   Notifications: undefined;
@@ -319,6 +321,7 @@ function FarmerNavigator() {
         <Stack.Screen name="EquipmentCatalog" component={EquipmentCatalogScreen} options={{ headerShown: false }} />
         <Stack.Screen name="FeedCatalog" component={FeedCatalogScreen} options={{ headerShown: false }} />
         <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="YojanaApplications" component={YojanaApplicationsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="PondsList" component={PondsListScreen} options={{ headerShown: false }} />
         <Stack.Screen name="AddEditPond" component={AddEditPondScreen} options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="CropCycle" component={CropCycleScreen} options={{ headerShown: false }} />

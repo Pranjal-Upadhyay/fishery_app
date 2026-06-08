@@ -38,3 +38,13 @@ yarn-error.log*
 
 # Stitch design reference folder (local only)
 stitch_aquafarm_intelligence_platform/
+
+# Backup files
+*.bak
+*.swp
+
+# Heavy reference material — not deployable code
+project_documents/
+fish disease/
+Final_Hatchery_Report.docx
+"package-lock 2.json"

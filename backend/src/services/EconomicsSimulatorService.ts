@@ -42,8 +42,10 @@ const SALINITY_THRESHOLDS = {
   SALINE_MIN: 3000
 };
 
-// Biofloc fixed constants — Bihar market rate estimates (update via DB if needed)
-const BIOFLOC_CAPEX_PER_TANK = 22000; // Rs 22,000 — all 21 equipment items included
+// Biofloc fixed constants — Bihar govt scheme cost: ₹7.5L for 7-tank small unit
+// (PMMSY 5-year data: small biofloc = ₹7.50L/7 tanks = ₹1.07L/tank, incl. tanks,
+// aeration, plumbing, support structure, and electrical — not just the tarpaulin)
+const BIOFLOC_CAPEX_PER_TANK = 107143; // Rs 1,07,143 — full setup cost per 10,000L tank
 
 const BIOFLOC_WATER_PREP_PER_TANK = 500; // Salt + CaCO3 + Molasses + Probiotics per cycle
 
@@ -742,7 +744,7 @@ export class EconomicsSimulatorService {
     const recommendationId = uuidv4();
 
     // ── Fixed constants per unit ──────────────────────────────────────────────
-    const CAPEX_PER_UNIT          = 560000;    // Rs 5,60,000 (tank + equipment)
+    const CAPEX_PER_UNIT          = 750000;    // Rs 7,50,000 (Small RAS 100m³ — PMMSY scheme unit cost)
     const OPEX_PER_CYCLE          = 140000;    // Rs 1,40,000 per cycle
     const CYCLES_PER_YEAR         = 2;
     const FINGERLINGS_PER_UNIT    = 4500;
@@ -765,13 +767,16 @@ export class EconomicsSimulatorService {
     const landRequiredSqm         = units * LAND_SQM_PER_UNIT;
 
     // ── Apply PMMSY subsidy on CAPEX ──────────────────────────────────────────
-    const landHectares = landRequiredSqm / 10000;
+    // RAS cap is ₹8L per hectare. With 100 sqm/unit the real land is ~0.01 ha,
+    // capping subsidy to ₹8,000 — near zero. Use scheme units as ha equivalent
+    // so 1 unit = 1 ha in the cap formula (cap = ₹8L × units, which is generous).
+    const landHectaresForCap = units; // 1 RAS unit = 1 ha equivalent for cap
     const { effectiveCapex, subsidyAmount, knowledgeContext } =
       await PMMSYSubsidyService.calculateEffectiveCapex(
         totalCapex,
         input.farmerCategory,
         'RAS',
-        landHectares,
+        landHectaresForCap,
         input.stateCode,
         undefined
       );
@@ -882,7 +887,7 @@ export class EconomicsSimulatorService {
             category: 'Financial',
             probability: 0.20,
             impact: 0.70,
-            description: `High upfront CAPEX of Rs ${totalCapex.toLocaleString('en-IN')} — apply for PMMSY subsidy to reduce burden`,
+            description: `High upfront CAPEX of Rs ${totalCapex.toLocaleString('en-IN')} — apply for PMMSY/Bihar Yojana subsidy (50–80% for eligible categories)`,
           },
           {
             category: 'Operational',
@@ -893,7 +898,7 @@ export class EconomicsSimulatorService {
         ],
         mitigationStrategies: [
           'Install backup generator — power failure is the #1 risk in RAS',
-          'Apply for PMMSY subsidy: 40% for General, 60% for Women/SC/ST category',
+          'Apply for Bihar Yojana/PMMSY subsidy: 50% for General, 70% for SC/ST/EBC, 80% for solar pump',
           'Complete NFDB or KVK-certified RAS management training before stocking',
           'Maintain 2-week emergency feed stock at all times',
           'Daily water quality checks: DO > 4 ppm, pH 7–8, Ammonia < 0.05 ppm',
@@ -1001,13 +1006,18 @@ export class EconomicsSimulatorService {
     const firstCycleWorkingCap = opexPerCycleTotal;
 
     // ── PMMSY subsidy on CAPEX ────────────────────────────────────────────────
-    const landHectares = (tanks * 5) / 10000; // ~5 sqm per tank converted to ha
+    // The land-based subsidy cap formula (₹4L × ha) breaks for intensive systems
+    // where physical footprint is tiny. Instead, express tank count in terms of
+    // PMMSY scheme units (1 unit = 7 tanks = ~1 ha equivalent for cap purposes).
+    // Only apply subsidy when tank count meets the govt scheme minimum of 7 tanks.
+    const schemeUnits = tanks >= 7 ? Math.max(1, tanks / 7) : 0;
+    const landHectaresForCap = schemeUnits; // 1 scheme unit = 1 ha in cap formula
     const { effectiveCapex, subsidyAmount, knowledgeContext } =
       await PMMSYSubsidyService.calculateEffectiveCapex(
         totalCapex,
         input.farmerCategory,
         'FRESHWATER',
-        landHectares,
+        landHectaresForCap,
         input.stateCode,
         undefined
       );
@@ -1146,7 +1156,7 @@ export class EconomicsSimulatorService {
           'Install inverter and battery — non-negotiable for 24/7 aeration',
           'Check DO every morning — target above 6.0 ppm',
           'Add molasses when ammonia exceeds 0.5 ppm to feed heterotrophic bacteria',
-          'Apply for PMMSY subsidy: 40% for General, 60% for Women/SC/ST category',
+          'Apply for Bihar Yojana/PMMSY subsidy: 50% for General, 70% for SC/ST/EBC, 80% for solar pump',
           'Start with 3–5 tanks to learn system before scaling up',
         ],
         mortalityRiskPercent: 25,

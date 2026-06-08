@@ -65,7 +65,7 @@ export default function SpeciesDetailScreen() {
                 </View>
               ) : null}
               <Text style={styles.heroName}>{commonName}</Text>
-              <Text style={styles.heroScientific}>{d.scientific_name}</Text>
+              <Text style={styles.heroScientific}>({d.scientific_name})</Text>
             </View>
           </View>
         </View>

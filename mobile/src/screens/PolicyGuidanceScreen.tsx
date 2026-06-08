@@ -83,9 +83,15 @@ export default function PolicyGuidanceScreen() {
                   <Ionicons name="shield-checkmark-outline" size={18} color={theme.colors.primary} />
                 </View>
                 <View style={styles.schemeCardInfo}>
-                  <Text style={styles.schemeName}>PMMSY — PM Matsya Sampada Yojana</Text>
+                  <Text style={styles.schemeName}>
+                    {stateCode === 'BR'
+                      ? 'Bihar PMMSY + Mukhyamantri Talab Yojana'
+                      : 'PMMSY — PM Matsya Sampada Yojana'}
+                  </Text>
                   <Text style={styles.schemeEligibility}>
-                    {farmerCategory === 'GENERAL'
+                    {stateCode === 'BR' && farmerCategory === 'EBC'
+                      ? 'EBC applicants receive 70% subsidy under Bihar state yojanas'
+                      : farmerCategory === 'GENERAL'
                       ? t('policy.generalApplicant')
                       : t('policy.categoryApplicant', { category: farmerCategory })}
                   </Text>
@@ -111,6 +117,23 @@ export default function PolicyGuidanceScreen() {
                   <Text style={[styles.schemePercent, { color: theme.colors.secondary }]}>
                     {fundingPatternText}
                   </Text>
+                </View>
+              </View>
+            )}
+
+            {stateCode === 'BR' && (
+              <View style={[styles.schemeCard, { borderLeftColor: theme.colors.accent }]}>
+                <View style={styles.schemeCardTop}>
+                  <View style={[styles.schemeIconWrap, { backgroundColor: theme.colors.accentSoft || theme.colors.primaryLight }]}>
+                    <Ionicons name="sunny-outline" size={18} color={theme.colors.accent} />
+                  </View>
+                  <View style={styles.schemeCardInfo}>
+                    <Text style={styles.schemeName}>Jalkrishi Saurikaran — Solar Pump</Text>
+                    <Text style={styles.schemeEligibility}>
+                      80% subsidy for ALL categories. 5 HP (North Bihar) or 7.5 HP (South Bihar). 9-year lease required.
+                    </Text>
+                  </View>
+                  <Text style={[styles.schemePercent, { color: theme.colors.accent }]}>80%</Text>
                 </View>
               </View>
             )}

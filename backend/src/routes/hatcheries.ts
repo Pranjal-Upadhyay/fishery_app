@@ -11,7 +11,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query, transaction } from '../db';
 import { logger } from '../utils/logger';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireRole } from '../middleware/auth';
 
 const router = Router();
 
@@ -27,6 +27,8 @@ const createHatcherySchema = z.object({
   contact_number: z.string().regex(/^[6-9]\d{9}$/).optional(),
   email: z.string().email().optional(),
   upi_id: z.string().max(120).optional(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
 });
 
 const updateHatcheryProfileSchema = z.object({
@@ -39,6 +41,8 @@ const updateHatcheryProfileSchema = z.object({
   contact_number: z.string().regex(/^[6-9]\d{9}$/).optional().nullable(),
   email: z.string().email().optional().nullable(),
   upi_id: z.string().max(120).optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
 });
 
 const createBatchSchema = z.object({
@@ -113,6 +117,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     const result = await query(`
       SELECT h.id, h.name, h.district, h.block, h.panchayat, h.capacity_kg,
              h.hatchery_uid, h.contact_number, h.email, h.upi_id,
+             h.latitude, h.longitude,
              h.created_at, h.updated_at,
              u.name AS operator_name,
              COUNT(b.id) FILTER (WHERE b.current_stage NOT IN ('sold')) AS active_batch_count
@@ -140,9 +145,9 @@ router.get('/me-profile', requireAuth, async (req, res, next) => {
     const result = await query(`
       SELECT h.id, h.name, h.district, h.block, h.panchayat, h.capacity_kg,
              h.hatchery_uid, h.contact_number, h.email, h.upi_id,
+             h.latitude, h.longitude,
              h.created_at, h.updated_at,
-             u.phone_number AS operator_phone,
-             u.email        AS operator_email
+             u.phone_number AS operator_phone
       FROM hatcheries h
       JOIN users u ON u.id = h.operator_id
       WHERE h.operator_id = $1
@@ -183,14 +188,15 @@ router.patch('/me-profile', requireAuth, async (req, res, next) => {
       const created = await query(`
         INSERT INTO hatcheries (
           name, operator_id, district, block, panchayat, capacity_kg,
-          hatchery_uid, contact_number, email, upi_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          hatchery_uid, contact_number, email, upi_id, latitude, longitude
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
       `, [
         data.name, userId, data.district ?? null, data.block ?? null,
         data.panchayat ?? null, data.capacity_kg ?? null,
         data.hatchery_uid ?? null, data.contact_number ?? null,
         data.email ?? null, data.upi_id ?? null,
+        data.latitude ?? null, data.longitude ?? null
       ]);
       return res.status(201).json({ success: true, data: created.rows[0] });
     }
@@ -212,6 +218,8 @@ router.patch('/me-profile', requireAuth, async (req, res, next) => {
     if (data.contact_number !== undefined) push('contact_number', data.contact_number);
     if (data.email !== undefined) push('email', data.email);
     if (data.upi_id !== undefined) push('upi_id', data.upi_id);
+    if (data.latitude !== undefined) push('latitude', data.latitude);
+    if (data.longitude !== undefined) push('longitude', data.longitude);
 
     if (!fields.length) {
       return res.json({ success: true, data: existing.rows[0] });
@@ -242,15 +250,16 @@ router.post('/', requireAuth, async (req, res, next) => {
     const result = await query(`
       INSERT INTO hatcheries (
         name, operator_id, district, block, panchayat, capacity_kg,
-        hatchery_uid, contact_number, email, upi_id
+        hatchery_uid, contact_number, email, upi_id, latitude, longitude
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `, [
       data.name, userId, data.district ?? null, data.block ?? null,
       data.panchayat ?? null, data.capacity_kg ?? null,
       data.hatchery_uid ?? null, data.contact_number ?? null,
       data.email ?? null, data.upi_id ?? null,
+      data.latitude ?? null, data.longitude ?? null
     ]);
 
     logger.info('Hatchery created', { hatcheryId: result.rows[0].id, userId });
@@ -308,7 +317,7 @@ router.get('/marketplace', requireAuth, async (req, res, next) => {
 // ─── GET /api/v1/hatcheries/lookup-farmer ──────────────────────────────────────
 // Lookup a farmer by UID and district to autofill sales details
 
-router.get('/lookup-farmer', requireAuth, async (req, res, next) => {
+router.get('/lookup-farmer', requireAuth, requireRole('HATCHERY', 'ADMIN'), async (req, res, next) => {
   try {
     const { uid, district } = req.query;
     if (!uid) {
@@ -837,7 +846,8 @@ router.get('/sales/:ref', requireAuth, async (req, res, next) => {
              b.avg_fingerling_weight_g,
              h.name AS hatchery_name,
              h.district AS hatchery_district,
-             h.block AS hatchery_block
+             h.block AS hatchery_block,
+             h.operator_id AS operator_id
       FROM fingerling_sales fs
       JOIN hatchery_batches b ON b.id = fs.batch_id
       JOIN hatcheries h ON h.id = b.hatchery_id
@@ -848,7 +858,27 @@ router.get('/sales/:ref', requireAuth, async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Transaction reference not found' });
     }
 
-    res.json({ success: true, data: result.rows[0] });
+    const sale = result.rows[0];
+
+    // Fetch requester's profile details to check authorization
+    const userResult = await query('SELECT uid, phone_number, role FROM users WHERE id = $1', [req.auth!.userId]);
+    const requester = userResult.rows[0];
+
+    if (!requester) {
+      return res.status(401).json({ success: false, error: 'User not found' });
+    }
+
+    const isAuthorized =
+      requester.role === 'ADMIN' ||
+      sale.operator_id === req.auth!.userId ||
+      (sale.buyer_uid && sale.buyer_uid === requester.uid) ||
+      (sale.buyer_phone && sale.buyer_phone === requester.phone_number);
+
+    if (!isAuthorized) {
+      return res.status(403).json({ success: false, error: 'Access denied: you are not authorized to view this sale' });
+    }
+
+    res.json({ success: true, data: sale });
   } catch (error) {
     next(error);
   }

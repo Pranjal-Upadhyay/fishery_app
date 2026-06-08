@@ -32,6 +32,8 @@ import { hatcheriesRouter } from './routes/hatcheries';
 import { marketplaceRouter } from './routes/marketplace';
 import { notificationsRouter } from './routes/notifications';
 import { cropCyclesAndAssetsRouter } from './routes/cropCyclesAndAssets';
+import { adminRouter } from './routes/admin';
+import { yojanaRouter } from './routes/yojana';
 import { startHatcheryCron } from './cron/hatcheryNotifications';
 
 // Load environment variables
@@ -96,6 +98,7 @@ app.use(additionalSecurityHeaders);
 // Browser clients (Expo web, admin dashboards) must be whitelisted.
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:3001',  // admin dashboard (Next.js dev)
   'http://localhost:8081',
   'http://localhost:19006',
   'http://10.0.2.2:3000',
@@ -148,6 +151,7 @@ const authLimiter = rateLimit({
 
 // Apply per-route-type limiters instead of a single global cap
 app.use('/api/v1/auth', authLimiter as any); // strict brute-force guard
+app.use('/api/v1/admin/login', authLimiter as any); // admin login uses the same strict cap
 app.use('/api/v1/sync', writeLimiter as any);
 app.use('/api/v1/water-quality', writeLimiter as any);
 app.use(readLimiter as any); // everything else (species, market, geo, economics, equipment)
@@ -192,6 +196,8 @@ app.use('/api/v1', cropCyclesAndAssetsRouter);  // /api/v1/crop-cycles, /api/v1/
 app.use('/api/v1/treatments', treatmentsRouter);
 app.use('/api/v1/lab-reports', labReportsRouter);
 app.use('/api/v1/locations', locationsRouter);
+app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/yojana', yojanaRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {

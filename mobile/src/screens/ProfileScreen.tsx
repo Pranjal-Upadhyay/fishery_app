@@ -195,6 +195,28 @@ export default function ProfileScreen({ navigation }: any) {
                 isLast
               />
             </View>
+
+            <Text style={styles.sectionLabel}>GOVERNMENT SCHEMES & DBT</Text>
+            <View style={styles.sectionPanel}>
+              <MenuRow
+                icon="document-text-outline"
+                title="My Scheme Applications"
+                onPress={() => navigation.navigate('YojanaApplications')}
+                theme={theme}
+                isFirst
+              />
+              <SectionDivider theme={theme} />
+              <MenuRow
+                icon="bulb-outline"
+                title="Subsidy & Policy Guidance"
+                onPress={() => navigation.navigate('PolicyGuidance', {
+                  stateCode: profile.stateCode,
+                  farmerCategory: profile.farmerCategory,
+                })}
+                theme={theme}
+                isLast
+              />
+            </View>
           </>
         )}
 

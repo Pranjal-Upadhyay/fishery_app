@@ -29,7 +29,7 @@ export default function EconomicsScreen() {
   const [salinity, setSalinity] = useState('500');
   const [capital, setCapital] = useState('');
   const [riskTolerance, setRiskTolerance] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
-  const [farmerCategory, setFarmerCategory] = useState<'GENERAL' | 'WOMEN' | 'SC' | 'ST'>('GENERAL');
+  const [farmerCategory, setFarmerCategory] = useState<'GENERAL' | 'WOMEN' | 'SC' | 'ST' | 'EBC'>('GENERAL');
   const [stateCode, setStateCode] = useState('');
   const [districtCode, setDistrictCode] = useState('');
   const [preferredSpecies, setPreferredSpecies] = useState<string>('');
@@ -505,7 +505,7 @@ export default function EconomicsScreen() {
                   <Text style={styles.rasStatLabel}>Land/unit</Text>
                 </View>
                 <View style={styles.rasStatItem}>
-                  <Text style={styles.rasStatValue}>Rs 5.6L</Text>
+                  <Text style={styles.rasStatValue}>Rs 7.5L</Text>
                   <Text style={styles.rasStatLabel}>Setup/unit</Text>
                 </View>
                 <View style={styles.rasStatItem}>
@@ -541,7 +541,7 @@ export default function EconomicsScreen() {
                   <Text style={styles.rasStatLabel}>Per tank</Text>
                 </View>
                 <View style={styles.rasStatItem}>
-                  <Text style={styles.rasStatValue}>Rs 22K</Text>
+                  <Text style={styles.rasStatValue}>Rs 1.07L</Text>
                   <Text style={styles.rasStatLabel}>Setup/tank</Text>
                 </View>
                 <View style={styles.rasStatItem}>
@@ -683,6 +683,15 @@ export default function EconomicsScreen() {
                   </Text>
                 </View>
               ) : null}
+              {parseInt(numberOfBioflocTanks || '0') > 0 && parseInt(numberOfBioflocTanks || '0') < 7 ? (
+                <View style={[styles.rasLandHint, { marginTop: 8, backgroundColor: theme.colors.accentSoft || theme.colors.primaryLight, borderRadius: 8, padding: 8 }]}>
+                  <Ionicons name="warning-outline" size={13} color={theme.colors.accent} />
+                  <Text style={[styles.rasLandHintText, { color: theme.colors.accent }]}>
+                    <Text style={{ fontWeight: '800' }}>Bihar PMMSY scheme minimum is 7 tanks.</Text>
+                    {' '}Below 7, no govt subsidy applies — you pay full CAPEX. Still useful for planning your own setup.
+                  </Text>
+                </View>
+              ) : null}
             </>
           ) : pondSystem === 'CAGES' ? (
             <>
@@ -820,7 +829,7 @@ export default function EconomicsScreen() {
 
           <Text style={styles.chipGroupLabel}>{t('economics.farmerCategoryLabel')}</Text>
           <View style={styles.chipRow}>
-            {(['GENERAL', 'WOMEN', 'SC', 'ST'] as const).map((item) => (
+            {(['GENERAL', 'WOMEN', 'SC', 'ST', 'EBC'] as const).map((item) => (
               <TouchableOpacity
                 key={item}
                 style={[styles.chip, farmerCategory === item && styles.chipActive]}
@@ -1095,36 +1104,43 @@ function getPolicyPreviewDescription(knowledgeInsights: any, farmerCategory: str
 }
 
 function getCategorySubsidyPreview(
-  farmerCategory: 'GENERAL' | 'WOMEN' | 'SC' | 'ST' | string,
+  farmerCategory: 'GENERAL' | 'WOMEN' | 'SC' | 'ST' | 'EBC' | string,
   subsidyPercent?: number | null
 ) {
-  const fallbackPercent = farmerCategory === 'GENERAL' ? 40 : 60;
+  // Bihar PMMSY/state yojana rates: General 50%, SC/ST/EBC 70%, Women 70%
+  const fallbackPercent = farmerCategory === 'GENERAL' ? 50 : 70;
 
   switch (farmerCategory) {
     case 'WOMEN':
       return {
         label: 'women beneficiary',
         percentLabel: `${subsidyPercent ?? fallbackPercent}%`,
-        note: 'Women applicants are shown under the priority-beneficiary PMMSY track used by the calculator.',
+        note: 'Women applicants receive priority-beneficiary subsidy (70%) under Bihar PMMSY/state yojanas.',
       };
     case 'SC':
       return {
         label: 'SC beneficiary',
         percentLabel: `${subsidyPercent ?? fallbackPercent}%`,
-        note: 'SC applicants are shown under the priority-beneficiary PMMSY track used by the calculator.',
+        note: 'SC applicants receive 70% subsidy under Bihar PMMSY. Solar pump scheme offers 80% to all categories.',
       };
     case 'ST':
       return {
         label: 'ST beneficiary',
         percentLabel: `${subsidyPercent ?? fallbackPercent}%`,
-        note: 'ST applicants are shown under the priority-beneficiary PMMSY track used by the calculator.',
+        note: 'ST applicants receive 70% subsidy under Bihar PMMSY. DAJGUA tribal scheme offers 100% for Banka/Bhagalpur.',
+      };
+    case 'EBC':
+      return {
+        label: 'EBC beneficiary',
+        percentLabel: `${subsidyPercent ?? fallbackPercent}%`,
+        note: 'Extremely Backward Class applicants receive 70% subsidy — same as SC/ST under Bihar state yojanas.',
       };
     case 'GENERAL':
     default:
       return {
         label: 'general category beneficiary',
         percentLabel: `${subsidyPercent ?? fallbackPercent}%`,
-        note: 'General applicants are shown with the baseline PMMSY beneficiary subsidy assumption.',
+        note: 'General applicants receive 50% subsidy under Bihar PMMSY. Special pond packages and solar pumps available.',
       };
   }
 }

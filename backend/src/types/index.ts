@@ -45,7 +45,8 @@ export enum FarmerCategory {
   GENERAL = 'GENERAL',
   WOMEN = 'WOMEN',
   SC = 'SC',
-  ST = 'ST'
+  ST = 'ST',
+  EBC = 'EBC'
 }
 
 export enum RiskTolerance {

@@ -16,7 +16,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev_only_fallback_not_for_producti
 
 export interface AuthPayload {
   userId: string;
-  role: 'FARMER' | 'DOCTOR' | 'ADMIN';
+  role: 'FARMER' | 'DOCTOR' | 'ADMIN' | 'HATCHERY';
 }
 
 // Extend Express Request to include the authenticated user.
@@ -86,13 +86,13 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction): v
  * Factory: require that the authenticated user has one of the specified roles.
  * Must be used AFTER requireAuth.
  */
-export function requireRole(...roles: Array<'FARMER' | 'DOCTOR' | 'ADMIN'>) {
+export function requireRole(...roles: Array<'FARMER' | 'DOCTOR' | 'ADMIN' | 'HATCHERY'>) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.auth) {
       res.status(401).json({ success: false, error: 'Authentication required' });
       return;
     }
-    if (!roles.includes(req.auth.role)) {
+    if (!roles.includes(req.auth.role as any)) {
       res.status(403).json({ success: false, error: 'Insufficient permissions' });
       return;
     }

@@ -430,221 +430,147 @@ function getBlocksForDistrict(districtCode: string): LocItem[] {
 // ── Bihar panchayat data per block code ──────────────────────────────────────
 const BIHAR_PANCHAYATS: Record<string, LocItem[]> = {
   'patna-sadar': [
-    { code: 'naubatpur-p', name: 'Naubatpur' }, { code: 'rampur-p', name: 'Rampur' },
+    { code: 'rampur-p', name: 'Rampur' },
     { code: 'sikariya', name: 'Sikariya' }, { code: 'hari-chak', name: 'Hari Chak' },
     { code: 'mitha-pur', name: 'Mitha Pur' }, { code: 'deedarganj-p', name: 'Deedarganj' },
     { code: 'fatehpur-p', name: 'Fatehpur' }, { code: 'nagpur-p', name: 'Nagpur' },
     { code: 'khajekalan', name: 'Khajekalan' }, { code: 'lodipur-p', name: 'Lodipur' },
-    { code: 'mauaipur', name: 'Mauaipur' }, { code: 'phulwari-p', name: 'Phulwari' },
-    { code: 'sampatchak-p', name: 'Sampatchak' }, { code: 'dulhin-bazar-p', name: 'Dulhin Bazar' },
+    { code: 'mauaipur', name: 'Mauaipur' },
   ],
   danapur: [
-    { code: 'danapur-p', name: 'Danapur' }, { code: 'saguna', name: 'Saguna' },
-    { code: 'khagaul', name: 'Khagaul' }, { code: 'bihta-p', name: 'Bihta Road' },
-    { code: 'manpur-p', name: 'Manpur' }, { code: 'neora', name: 'Neora' },
-    { code: 'punpun-p', name: 'Punpun' }, { code: 'dinapur-nizamat', name: 'Dinapur Nizamat' },
+    { code: 'danapur-p', name: 'Danapur City' }, { code: 'saguna', name: 'Saguna' },
+    { code: 'neora', name: 'Neora' },
     { code: 'ramchandrapur', name: 'Ramchandrapur' }, { code: 'jassopur', name: 'Jassopur' },
   ],
   phulwari: [
     { code: 'phulwari-sadar', name: 'Phulwari Sharif' }, { code: 'sipara', name: 'Sipara' },
-    { code: 'maner-p', name: 'Maner Road' }, { code: 'paliganj-p', name: 'Paliganj Road' },
     { code: 'bishanpur-p', name: 'Bishanpur' }, { code: 'lakhna', name: 'Lakhna' },
     { code: 'saidpur-p', name: 'Saidpur' }, { code: 'digha', name: 'Digha' },
-    { code: 'barh-p2', name: 'Barh Panchayat' },
   ],
   fatuha: [
-    { code: 'fatuha-p', name: 'Fatuha' }, { code: 'athmalgola-p', name: 'Athmalgola' },
+    { code: 'fatuha-p', name: 'Fatuha' },
     { code: 'belchi', name: 'Belchi' }, { code: 'budh-chak', name: 'Budh Chak' },
-    { code: 'ekangarsarai-p', name: 'Ekangarsarai' }, { code: 'khusrupur-p', name: 'Khusrupur' },
     { code: 'pathua', name: 'Pathua' }, { code: 'sarisab-pahi', name: 'Sarisab Pahi' },
   ],
   barh: [
-    { code: 'barh-p', name: 'Barh' }, { code: 'bakhtiyarpur-p', name: 'Bakhtiyarpur' },
-    { code: 'mankatha', name: 'Mankatha' }, { code: 'teghra-p', name: 'Teghra' },
-    { code: 'mokama-p', name: 'Mokama' }, { code: 'atauri', name: 'Atauri' },
-    { code: 'beur', name: 'Beur' }, { code: 'chandi-p', name: 'Chandi' },
+    { code: 'barh-p', name: 'Barh' },
+    { code: 'mankatha', name: 'Mankatha' },
+    { code: 'atauri', name: 'Atauri' },
+    { code: 'beur', name: 'Beur' },
   ],
   bihta: [
-    { code: 'bihta-main', name: 'Bihta' }, { code: 'agiaon', name: 'Agiaon' },
-    { code: 'ara-p', name: 'Ara' }, { code: 'balua', name: 'Balua' },
-    { code: 'barhta', name: 'Barhta' }, { code: 'dumraon-p', name: 'Dumraon' },
-    { code: 'jagdishpur-p', name: 'Jagdishpur' }, { code: 'sahar', name: 'Sahar' },
-    { code: 'sandesh', name: 'Sandesh' }, { code: 'tarari', name: 'Tarari' },
+    { code: 'bihta-main', name: 'Bihta' },
+    { code: 'balua', name: 'Balua' },
+    { code: 'barhta', name: 'Barhta' },
   ],
   bikram: [
-    { code: 'bikram-p', name: 'Bikram' }, { code: 'arwal-p', name: 'Arwal' },
-    { code: 'jehanabad-p', name: 'Jehanabad' }, { code: 'kurtha', name: 'Kurtha' },
-    { code: 'makhdumpur', name: 'Makhdumpur' }, { code: 'mahanar', name: 'Mahanar' },
-    { code: 'sonbhadra', name: 'Sonbhadra' },
+    { code: 'bikram-p', name: 'Bikram' },
   ],
   masaurhi: [
-    { code: 'masaurhi-p', name: 'Masaurhi' }, { code: 'dhanarua', name: 'Dhanarua' },
-    { code: 'dulhin-bazar', name: 'Dulhin Bazar' }, { code: 'paliganj-p2', name: 'Paliganj' },
-    { code: 'maner-p2', name: 'Maner' }, { code: 'naubatpur-p2', name: 'Naubatpur' },
-    { code: 'sandip', name: 'Sandip' }, { code: 'vikram-p', name: 'Vikram' },
+    { code: 'masaurhi-p', name: 'Masaurhi' },
+    { code: 'sandip', name: 'Sandip' },
   ],
   maner: [
-    { code: 'maner-main', name: 'Maner' }, { code: 'barhara', name: 'Barhara' },
-    { code: 'chapra-p', name: 'Chapra' }, { code: 'ekma-p', name: 'Ekma' },
-    { code: 'garkha-p', name: 'Garkha' }, { code: 'marhoura-p', name: 'Marhoura' },
-    { code: 'revelganj-p', name: 'Revelganj' }, { code: 'sonepur-p', name: 'Sonepur' },
+    { code: 'maner-main', name: 'Maner' },
   ],
   mokama: [
-    { code: 'mokama-main', name: 'Mokama' }, { code: 'athmalgola', name: 'Athmalgola' },
-    { code: 'barh-m', name: 'Barh' }, { code: 'ghoshwar', name: 'Ghoshwar' },
-    { code: 'hathidah', name: 'Hathidah' }, { code: 'lakhisarai-p', name: 'Lakhisarai' },
-    { code: 'punarakh', name: 'Punarakh' }, { code: 'unchakar', name: 'Unchakar' },
+    { code: 'mokama-main', name: 'Mokama' },
+    { code: 'ghoshwar', name: 'Ghoshwar' },
+    { code: 'hathidah', name: 'Hathidah' }, { code: 'punarakh', name: 'Punarakh' },
+    { code: 'unchakar', name: 'Unchakar' },
   ],
   naubatpur: [
-    { code: 'naubatpur-main', name: 'Naubatpur' }, { code: 'dulhin-b', name: 'Dulhin Bazar' },
-    { code: 'khagaul-n', name: 'Khagaul' }, { code: 'mahua-n', name: 'Mahua' },
-    { code: 'sarmera', name: 'Sarmera' }, { code: 'silao-n', name: 'Silao' },
+    { code: 'naubatpur-main', name: 'Naubatpur' },
   ],
   paliganj: [
-    { code: 'paliganj-main', name: 'Paliganj' }, { code: 'bikram-pl', name: 'Bikram' },
-    { code: 'goh-p', name: 'Goh' }, { code: 'jehanabad-pl', name: 'Jehanabad' },
-    { code: 'kurtha-pl', name: 'Kurtha' }, { code: 'pali', name: 'Pali' },
+    { code: 'paliganj-main', name: 'Paliganj' }, { code: 'pali', name: 'Pali' },
   ],
   punpun: [
-    { code: 'punpun-main', name: 'Punpun' }, { code: 'dhanarua-pp', name: 'Dhanarua' },
-    { code: 'masaurhi-pp', name: 'Masaurhi' }, { code: 'sampatchak', name: 'Sampatchak' },
-    { code: 'sheikhpura-pp', name: 'Sheikhpura' }, { code: 'vikram-pp', name: 'Vikram' },
+    { code: 'punpun-main', name: 'Punpun' },
   ],
   bakhtiyarpur: [
-    { code: 'bakhtiyarpur-main', name: 'Bakhtiyarpur' }, { code: 'athmalgola-b', name: 'Athmalgola' },
-    { code: 'barh-b', name: 'Barh' }, { code: 'belchi-b', name: 'Belchi' },
-    { code: 'fatuha-b', name: 'Fatuha' }, { code: 'mokama-b', name: 'Mokama' },
+    { code: 'bakhtiyarpur-main', name: 'Bakhtiyarpur' },
   ],
   khusrupur: [
-    { code: 'khusrupur-main', name: 'Khusrupur' }, { code: 'barh-k', name: 'Barh' },
-    { code: 'belchi-k', name: 'Belchi' }, { code: 'fatuha-k', name: 'Fatuha' },
-    { code: 'pandarak', name: 'Pandarak' }, { code: 'sarisab', name: 'Sarisab' },
+    { code: 'khusrupur-main', name: 'Khusrupur' }, { code: 'sarisab', name: 'Sarisab' },
   ],
   // Muzaffarpur blocks
   'muzaffarpur-sadar': [
     { code: 'muzaffarpur-city', name: 'Muzaffarpur City' }, { code: 'bela', name: 'Bela' },
-    { code: 'dholi', name: 'Dholi' }, { code: 'gaighat-p', name: 'Gaighat' },
-    { code: 'kanti-p', name: 'Kanti' }, { code: 'kurhani', name: 'Kurhani' },
-    { code: 'motipur-p', name: 'Motipur' }, { code: 'mushahari-p', name: 'Mushahari' },
-    { code: 'paro', name: 'Paro' }, { code: 'saraiya-p', name: 'Saraiya' },
-    { code: 'turki-p', name: 'Turki' },
+    { code: 'dholi', name: 'Dholi' },
   ],
   aurai: [
     { code: 'aurai-main', name: 'Aurai' }, { code: 'chainpur', name: 'Chainpur' },
-    { code: 'goraul-a', name: 'Goraul' }, { code: 'minapur-a', name: 'Minapur' },
-    { code: 'paroo', name: 'Paroo' }, { code: 'sahebganj-a', name: 'Sahebganj' },
   ],
   sakra: [
-    { code: 'sakra-main', name: 'Sakra' }, { code: 'bochahan-s', name: 'Bochahan' },
-    { code: 'gaighat-s', name: 'Gaighat' }, { code: 'kanti-s', name: 'Kanti' },
-    { code: 'marwan-s', name: 'Marwan' }, { code: 'sahebganj-s', name: 'Sahebganj' },
+    { code: 'sakra-main', name: 'Sakra' },
   ],
   saraiya: [
     { code: 'saraiya-main', name: 'Saraiya' }, { code: 'bela-s', name: 'Bela' },
-    { code: 'kurhani-s', name: 'Kurhani' }, { code: 'mushahari-s', name: 'Mushahari' },
-    { code: 'paru-s', name: 'Paru' }, { code: 'sahebganj-sr', name: 'Sahebganj' },
   ],
   // Nalanda blocks
   biharsharif: [
-    { code: 'biharsharif-main', name: 'Bihar Sharif' }, { code: 'asthawan-p', name: 'Asthawan' },
-    { code: 'bind-p', name: 'Bind' }, { code: 'chandi-n', name: 'Chandi' },
-    { code: 'giriak-p', name: 'Giriak' }, { code: 'hilsa-p', name: 'Hilsa' },
-    { code: 'islampur-p', name: 'Islampur' }, { code: 'noorsarai-p', name: 'Noorsarai' },
-    { code: 'rahui-p', name: 'Rahui' }, { code: 'silao-p', name: 'Silao' },
-    { code: 'tharthari-p', name: 'Tharthari' },
+    { code: 'biharsharif-main', name: 'Bihar Sharif' },
   ],
   hilsa: [
-    { code: 'hilsa-main', name: 'Hilsa' }, { code: 'asthawan-h', name: 'Asthawan' },
-    { code: 'ekangarsarai-h', name: 'Ekangarsarai' }, { code: 'harnaut-h', name: 'Harnaut' },
-    { code: 'nagarnausa', name: 'Nagarnausa' }, { code: 'sirmera', name: 'Sirmera' },
+    { code: 'hilsa-main', name: 'Hilsa' }, { code: 'nagarnausa', name: 'Nagarnausa' },
   ],
   // Gaya blocks
   'gaya-town': [
-    { code: 'gaya-city', name: 'Gaya City' }, { code: 'bodh-gaya-p', name: 'Bodh Gaya' },
-    { code: 'amas-p', name: 'Amas' }, { code: 'atri-p', name: 'Atri' },
-    { code: 'belaganj-p', name: 'Belaganj' }, { code: 'dobhi-p', name: 'Dobhi' },
-    { code: 'gurua-p', name: 'Gurua' }, { code: 'imamganj-p', name: 'Imamganj' },
-    { code: 'mohanpur-p', name: 'Mohanpur' }, { code: 'sherghati-p', name: 'Sherghati' },
-    { code: 'wazirganj-p', name: 'Wazirganj' },
+    { code: 'gaya-city', name: 'Gaya City' },
   ],
   // Vaishali blocks
   hajipur: [
-    { code: 'hajipur-main', name: 'Hajipur' }, { code: 'bidupur-p', name: 'Bidupur' },
-    { code: 'bhagwanpur-h', name: 'Bhagwanpur' }, { code: 'goraul-h', name: 'Goraul' },
-    { code: 'jandaha-h', name: 'Jandaha' }, { code: 'lalganj-h', name: 'Lalganj' },
-    { code: 'mahnar-h', name: 'Mahnar' }, { code: 'mahua-h', name: 'Mahua' },
-    { code: 'patepur-h', name: 'Patepur' }, { code: 'raghopur-h', name: 'Raghopur' },
-    { code: 'vaishali-p', name: 'Vaishali' },
+    { code: 'hajipur-main', name: 'Hajipur' },
   ],
   // Darbhanga
   'darbhanga-sadar': [
-    { code: 'darbhanga-city', name: 'Darbhanga City' }, { code: 'baheri-p', name: 'Baheri' },
-    { code: 'benipur-p', name: 'Benipur' }, { code: 'biraul-p', name: 'Biraul' },
-    { code: 'ghanshyampur-p', name: 'Ghanshyampur' }, { code: 'hayaghat-p', name: 'Hayaghat' },
-    { code: 'jale-p', name: 'Jale' }, { code: 'kusheshwar', name: 'Kusheshwar Asthan' },
-    { code: 'manigachhi-p', name: 'Manigachhi' }, { code: 'singhwara-p', name: 'Singhwara' },
+    { code: 'darbhanga-city', name: 'Darbhanga City' },
   ],
   // Bhagalpur
   'bhagalpur-sadar': [
-    { code: 'bhagalpur-city', name: 'Bhagalpur City' }, { code: 'colgong-p', name: 'Colgong' },
-    { code: 'gopalpur-p', name: 'Gopalpur' }, { code: 'jagdishpur-b', name: 'Jagdishpur' },
-    { code: 'kahalgaon-p', name: 'Kahalgaon' }, { code: 'naugachhia-p', name: 'Naugachhia' },
-    { code: 'pirpainti-p', name: 'Pirpainti' }, { code: 'sabour-p', name: 'Sabour' },
-    { code: 'sultanganj-p', name: 'Sultanganj' },
+    { code: 'bhagalpur-city', name: 'Bhagalpur City' },
   ],
   // Saran
   'chhapra-sadar': [
-    { code: 'chhapra-city', name: 'Chhapra City' }, { code: 'amnour-p', name: 'Amnour' },
-    { code: 'dariapur-p', name: 'Dariapur' }, { code: 'dighwara-p', name: 'Dighwara' },
-    { code: 'ekma-p', name: 'Ekma' }, { code: 'garkha-s', name: 'Garkha' },
-    { code: 'jalalpur-p', name: 'Jalalpur' }, { code: 'manjhi-p', name: 'Manjhi' },
-    { code: 'marhoura-s', name: 'Marhoura' }, { code: 'revelganj-s', name: 'Revelganj' },
-    { code: 'sonepur-s', name: 'Sonepur' }, { code: 'taraiya-p', name: 'Taraiya' },
+    { code: 'chhapra-city', name: 'Chhapra City' },
   ],
   // East Champaran
   motihari: [
-    { code: 'motihari-city', name: 'Motihari City' }, { code: 'adapur-p', name: 'Adapur' },
-    { code: 'areraj-p', name: 'Areraj' }, { code: 'chakia-p', name: 'Chakia' },
-    { code: 'dhaka-p', name: 'Dhaka' }, { code: 'ghorasahan-p', name: 'Ghorasahan' },
-    { code: 'kesaria-p', name: 'Kesaria' }, { code: 'mehsi-p', name: 'Mehsi' },
-    { code: 'pakridayal-p', name: 'Pakridayal' }, { code: 'raxaul-p', name: 'Raxaul' },
-    { code: 'sugauli-p', name: 'Sugauli' },
+    { code: 'motihari-city', name: 'Motihari City' },
   ],
   // West Champaran
   bettiah: [
-    { code: 'bettiah-city', name: 'Bettiah City' }, { code: 'bagaha-p', name: 'Bagaha' },
-    { code: 'chanpatia-p', name: 'Chanpatia' }, { code: 'gaunaha-p', name: 'Gaunaha' },
-    { code: 'lauriya-p', name: 'Lauriya' }, { code: 'mainatand-p', name: 'Mainatand' },
-    { code: 'nautan-p', name: 'Nautan' }, { code: 'piprasi-p', name: 'Piprasi' },
-    { code: 'ramnagar-w', name: 'Ramnagar' }, { code: 'sikta-p', name: 'Sikta' },
+    { code: 'bettiah-city', name: 'Bettiah City' },
   ],
   // Samastipur
   'samastipur-sadar': [
-    { code: 'samastipur-city', name: 'Samastipur City' }, { code: 'bibhutipur-p', name: 'Bibhutipur' },
-    { code: 'dalsinghsarai-p', name: 'Dalsinghsarai' }, { code: 'hasanpur-s', name: 'Hasanpur' },
-    { code: 'morwa-p', name: 'Morwa' }, { code: 'pusa-p', name: 'Pusa' },
-    { code: 'rosera-p', name: 'Rosera' }, { code: 'warisnagar-p', name: 'Warisnagar' },
+    { code: 'samastipur-city', name: 'Samastipur City' },
   ],
   // Siwan
   'siwan-sadar': [
-    { code: 'siwan-city', name: 'Siwan City' }, { code: 'barharia-p', name: 'Barharia' },
-    { code: 'daraundha-p', name: 'Daraundha' }, { code: 'goriakothi-p', name: 'Goriakothi' },
-    { code: 'hussainganj-p', name: 'Hussainganj' }, { code: 'maharajganj-p', name: 'Maharajganj' },
-    { code: 'mairwa-p', name: 'Mairwa' }, { code: 'raghunathpur-s', name: 'Raghunathpur' },
+    { code: 'siwan-city', name: 'Siwan City' },
   ],
   // Gopalganj
   'gopalganj-sadar': [
-    { code: 'gopalganj-city', name: 'Gopalganj City' }, { code: 'barauli-p', name: 'Barauli' },
-    { code: 'bhorey-p', name: 'Bhorey' }, { code: 'hathua-p', name: 'Hathua' },
-    { code: 'kataiya-p', name: 'Kataiya' }, { code: 'manjha-g', name: 'Manjha' },
-    { code: 'sidhwalia-p', name: 'Sidhwalia' }, { code: 'thawe-p', name: 'Thawe' },
-    { code: 'vijayapur-p', name: 'Vijayapur' },
+    { code: 'gopalganj-city', name: 'Gopalganj City' },
   ],
 };
 
 function getPanchayatsForBlock(blockCode: string): LocItem[] {
   const key = normalizeLocalCode(blockCode);
-  return BIHAR_PANCHAYATS[key] || [];
+  if (BIHAR_PANCHAYATS[key]) {
+    return BIHAR_PANCHAYATS[key];
+  }
+  // Try stripping the district prefix if present (e.g., 'patna-danapur' -> 'danapur')
+  const parts = key.split('-');
+  if (parts.length > 1) {
+    const suffix = parts.slice(1).join('-');
+    if (BIHAR_PANCHAYATS[suffix]) {
+      return BIHAR_PANCHAYATS[suffix];
+    }
+  }
+  return [];
 }
 
 // ── Search modal ──────────────────────────────────────────────────────────────
@@ -778,6 +704,7 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
   // Draft text — only committed to parent on blur/submit
   const [draftDistrict, setDraftDistrict] = useState('');
   const [draftBlock, setDraftBlock] = useState('');
+  const [draftPanchayat, setDraftPanchayat] = useState('');
 
   const supported = SUPPORTED_STATES.has(stateCode);
 
@@ -805,12 +732,19 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
     const localBlocks = getBlocksForDistrict(value.districtCode);
     setBlocks(localBlocks);
 
-    // Try API for better data
+    // Try API as an upgrade. Same rule as panchayats: only override the
+    // local list when API returns MORE rows. This avoids the cascade bug
+    // where an API-formatted block code ("BR-NAUBATPUR") gets selected, then
+    // the panchayat lookup fails because it expects district-prefixed keys.
     setLoadingBlocks(true);
     locationService
       .getBlocks(value.districtCode)
       .then((res) => {
-        if (res.success && res.data && res.data.length > 0) {
+        if (
+          res.success &&
+          res.data &&
+          res.data.length > localBlocks.length
+        ) {
           setBlocks(res.data);
         }
       })
@@ -828,12 +762,21 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
     const localPanchayats = getPanchayatsForBlock(value.blockCode);
     setPanchayats(localPanchayats);
 
-    // Try API as upgrade
+    // Try API as upgrade — but ONLY replace the local list when the API
+    // genuinely returns more options. Previously a 200/empty response (which
+    // happens when blockCode format doesn't match the API's district-prefixed
+    // expectation, e.g. picking an API-sourced "BR-NAUBATPUR" block) blew the
+    // panchayat list away. We now treat any shorter API response as a
+    // mismatch and keep the local data.
     setLoadingPanchayats(true);
     locationService
       .getPanchayats(value.blockCode)
       .then((res) => {
-        if (res.success && res.data && res.data.length > 0) {
+        if (
+          res.success &&
+          res.data &&
+          res.data.length > localPanchayats.length
+        ) {
           setPanchayats(res.data);
         }
       })
@@ -867,6 +810,16 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
     });
   }, [draftBlock, onChange, value]);
 
+  const confirmManualPanchayat = useCallback(() => {
+    const text = draftPanchayat.trim();
+    if (!text) return;
+    onChange({
+      ...value,
+      panchayatCode: text.toLowerCase().replace(/\s+/g, '-'),
+      panchayatName: text,
+    });
+  }, [draftPanchayat, onChange, value]);
+
   // ── Modal selection ──
   const selectDistrict = useCallback(
     (item: LocItem) => {
@@ -880,6 +833,7 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
       });
       setDraftDistrict('');
       setDraftBlock('');
+      setDraftPanchayat('');
       setOpenModal(null);
     },
     [onChange]
@@ -895,6 +849,7 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
         panchayatName: '',
       });
       setDraftBlock('');
+      setDraftPanchayat('');
       setOpenModal(null);
     },
     [onChange, value]
@@ -990,13 +945,25 @@ export default function LocationCascadePicker({ stateCode, value, onChange }: Pr
 
       {/* ── PANCHAYAT — only after block confirmed ── */}
       {blockConfirmed && (
-        <Row
-          label={`Panchayat — ${value.blockName}`}
-          selected={value.panchayatName}
-          loading={loadingPanchayats && panchayats.length === 0}
-          onPress={() => setOpenModal('panchayat')}
-          theme={theme}
-        />
+        <>
+          <Row
+            label={`Panchayat — ${value.blockName}`}
+            selected={value.panchayatName}
+            loading={loadingPanchayats && panchayats.length === 0}
+            onPress={() => setOpenModal('panchayat')}
+            theme={theme}
+          />
+          {!value.panchayatName && (
+            <ManualInput
+              placeholder="Or type panchayat name and press Done ↵"
+              value={draftPanchayat}
+              onChangeText={setDraftPanchayat}
+              onSubmitEditing={confirmManualPanchayat}
+              onBlur={confirmManualPanchayat}
+              theme={theme}
+            />
+          )}
+        </>
       )}
 
       {/* Modals */}

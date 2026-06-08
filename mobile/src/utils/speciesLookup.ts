@@ -16,8 +16,16 @@ export function buildSpeciesLookup(records: any[] = []): SpeciesLookup {
       return acc;
     }
 
-    const label = data.common_names?.en || data.scientific_name || 'Unknown Species';
+    let label = data.common_names?.en || data.scientific_name || 'Unknown Species';
     const scientificName = data.scientific_name || label;
+
+    if (scientificName === 'Labeo rohita') {
+      label = 'Jayanti Rohu';
+    } else if (scientificName === 'Catla catla') {
+      label = 'Amrita Katla';
+    } else if (scientificName === 'Pangasianodon hypophthalmus' || scientificName === 'Pangasionodon hypophthalmus') {
+      label = 'Pangasius';
+    }
 
     acc[id] = { label, scientificName };
     return acc;

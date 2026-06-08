@@ -94,14 +94,14 @@ export default function HatcheryMarketplaceScreen() {
       </View>
 
       <View style={styles.cardMeta}>
-        {item.estimated_fingerling_count && (
+        {(item.estimated_fingerling_count ?? 0) > 0 && (
           <MetaChip
             icon="layers-outline"
-            text={`~${item.estimated_fingerling_count.toLocaleString('en-IN')} pcs`}
+            text={`~${item.estimated_fingerling_count!.toLocaleString('en-IN')} pcs`}
             theme={theme}
           />
         )}
-        {item.avg_fingerling_weight_g && (
+        {(item.avg_fingerling_weight_g ?? 0) > 0 && (
           <MetaChip
             icon="scale-outline"
             text={`${parseFloat(String(item.avg_fingerling_weight_g)).toFixed(1)}g avg`}

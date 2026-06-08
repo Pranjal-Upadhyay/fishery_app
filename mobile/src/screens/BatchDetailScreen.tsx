@@ -140,7 +140,7 @@ export default function BatchDetailScreen() {
 
         {/* Key metrics */}
         <View style={styles.metricsRow}>
-          {batch.estimated_fingerling_count && (
+          {(batch.estimated_fingerling_count ?? 0) > 0 && (
             <MetricCard
               label="Fingerlings"
               value={parseInt(batch.estimated_fingerling_count).toLocaleString('en-IN')}
@@ -148,7 +148,7 @@ export default function BatchDetailScreen() {
               theme={theme}
             />
           )}
-          {batch.avg_fingerling_weight_g && (
+          {(batch.avg_fingerling_weight_g ?? 0) > 0 && (
             <MetricCard
               label="Avg Weight"
               value={`${parseFloat(batch.avg_fingerling_weight_g).toFixed(1)}g`}
@@ -156,7 +156,7 @@ export default function BatchDetailScreen() {
               theme={theme}
             />
           )}
-          {batch.broodstock_total_kg && (
+          {(batch.broodstock_total_kg ?? 0) > 0 && (
             <MetricCard
               label="Broodstock"
               value={`${parseFloat(batch.broodstock_total_kg)}kg`}
@@ -256,10 +256,10 @@ export default function BatchDetailScreen() {
           {batch.current_stage === 'fingerling_ready' && (
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnSell]}
-              onPress={() => navigation.navigate('FingerlingSales', { batchId })}
+              onPress={() => navigation.navigate('CreateListing', { batchId })}
             >
-              <Ionicons name="cash-outline" size={20} color={theme.colors.textInverse} />
-              <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>Record Sale</Text>
+              <Ionicons name="storefront-outline" size={20} color={theme.colors.textInverse} />
+              <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>List to Market</Text>
             </TouchableOpacity>
           )}
         </View>

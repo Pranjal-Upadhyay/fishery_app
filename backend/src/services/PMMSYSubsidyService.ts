@@ -76,6 +76,7 @@ export class PMMSYSubsidyService {
       case FarmerCategory.WOMEN:
       case FarmerCategory.SC:
       case FarmerCategory.ST:
+      case FarmerCategory.EBC:
         return PMMSY_CONFIG.SPECIAL_CATEGORY_SUBSIDY_PERCENT;
       case FarmerCategory.GENERAL:
       default:

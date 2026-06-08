@@ -1,13 +1,28 @@
 import { type ImageSourcePropType } from 'react-native';
 
 const DISEASE_IMAGE_BY_SLUG: Record<string, ImageSourcePropType> = {
-  columnaris: require('../../assets/images/diseases/columnaris.jpg'),
-  'aeromonas-septicemia': require('../../assets/images/diseases/aeromonas-septicemia.jpg'),
-  'white-spot-syndrome': require('../../assets/images/diseases/white-spot-syndrome.jpg'),
-  'ich-white-spot': require('../../assets/images/diseases/ich-white-spot.jpg'),
-  saprolegniasis: require('../../assets/images/diseases/saprolegniasis.jpg'),
-  'oxygen-depletion': require('../../assets/images/diseases/oxygen-depletion.jpg'),
+  columnaris: require('../../assets/images/diseases/columnaris.png'),
+  'aeromonas-septicemia': require('../../assets/images/diseases/aeromonas-septicemia.png'),
+  'white-spot-syndrome': require('../../assets/images/diseases/white-spot-syndrome.png'),
+  'ich-white-spot': require('../../assets/images/diseases/ich-white-spot.png'),
+  saprolegniasis: require('../../assets/images/diseases/saprolegniasis.png'),
+  'oxygen-depletion': require('../../assets/images/diseases/oxygen-depletion.png'),
   'ammonia-toxicity': require('../../assets/images/diseases/ammonia-toxicity.png'),
+  'algal-toxicosis': require('../../assets/images/diseases/algal-toxicosis.png'),
+  argulosis: require('../../assets/images/diseases/argulosis.png'),
+  'pangasius-bacillary-necrosis': require('../../assets/images/diseases/pangasius-bacillary-necrosis.png'),
+  'brown-blood-disease': require('../../assets/images/diseases/brown-blood-disease.png'),
+  dropsy: require('../../assets/images/diseases/dropsy.png'),
+  'eus-red-spot': require('../../assets/images/diseases/eus-red-spot.png'),
+  'pangasius-fungal-infection': require('../../assets/images/diseases/pangasius-fungal-infection.png'),
+  'gas-bubble-disease': require('../../assets/images/diseases/gas-bubble-disease.png'),
+  'gill-rot': require('../../assets/images/diseases/gill-rot.png'),
+  'hydrogen-sulfide-toxicity': require('../../assets/images/diseases/hydrogen-sulfide-toxicity.png'),
+  'leech-infection': require('../../assets/images/diseases/leech-infection.png'),
+  lernaeosis: require('../../assets/images/diseases/lernaeosis.png'),
+  'pangasius-red-spot': require('../../assets/images/diseases/pangasius-red-spot.png'),
+  'tail-fin-rot': require('../../assets/images/diseases/tail-fin-rot.png'),
+  'pangasius-white-spot-ich': require('../../assets/images/diseases/pangasius-white-spot-ich.png'),
 };
 
 const CATEGORY_FALLBACK_IMAGE: Record<string, ImageSourcePropType> = {

@@ -101,9 +101,11 @@ const SYSTEM_SPECIES_RECOMMENDED: Record<string, string[]> = {
  *  For EARTHEN and PENS we return all species (no restriction).
  *  For other systems, we do a case-insensitive substring match on scientificName. */
 function filterSpeciesBySystem(all: SpeciesOption[], system: string): SpeciesOption[] {
+    const priorityLabels = ['Jayanti Rohu', 'Amrita Katla', 'Pangasius'];
     const recommended = SYSTEM_SPECIES_RECOMMENDED[system] || [];
     if (recommended.length === 0) return all; // no restriction
     return all.filter(opt =>
+        priorityLabels.includes(opt.label) ||
         recommended.some(r => opt.scientificName.toLowerCase().includes(r))
     );
 }
@@ -357,11 +359,30 @@ export default function AddEditPondScreen({ route }: any) {
                 const options = response.data
                     .map((item: any) => {
                         const data = item.data || {};
-                        const commonName = data.common_names?.en || data.scientific_name || 'Unknown Species';
+                        let commonName = data.common_names?.en || data.scientific_name || 'Unknown Species';
                         const scientificName = data.scientific_name || commonName;
+
+                        if (scientificName === 'Labeo rohita') {
+                            commonName = 'Jayanti Rohu';
+                        } else if (scientificName === 'Catla catla') {
+                            commonName = 'Amrita Katla';
+                        } else if (scientificName === 'Pangasianodon hypophthalmus' || scientificName === 'Pangasionodon hypophthalmus') {
+                            commonName = 'Pangasius';
+                        }
+
                         return { label: commonName, value: item.id, scientificName };
-                    })
-                    .sort((a: SpeciesOption, b: SpeciesOption) => a.label.localeCompare(b.label));
+                    });
+
+                const priority = ['Jayanti Rohu', 'Amrita Katla', 'Pangasius'];
+                options.sort((a: SpeciesOption, b: SpeciesOption) => {
+                    const idxA = priority.indexOf(a.label);
+                    const idxB = priority.indexOf(b.label);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    return a.label.localeCompare(b.label);
+                });
+
                 setSpeciesOptions(options);
             }
         } catch (error) {
@@ -1061,7 +1082,7 @@ export default function AddEditPondScreen({ route }: any) {
                                     onPress={() => { setSpeciesId(item.value); setSpeciesModalVisible(false); }}
                                 >
                                     <Text style={styles.modalItemTitle}>{item.label}</Text>
-                                    <Text style={styles.modalItemMeta}>{item.scientificName}</Text>
+                                    <Text style={styles.modalItemMeta}>({item.scientificName})</Text>
                                 </TouchableOpacity>
                             )}
                             ListEmptyComponent={

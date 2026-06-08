@@ -1,0 +1,23 @@
+# Don't ship host build artifacts or dev junk into the docker build context.
+# Without this file the build was transferring 159MB of host node_modules
+# every time, which froze the build context phase for 6+ minutes.
+
+node_modules
+dist
+.next
+coverage
+*.log
+.env
+.env.local
+.env.*.local
+.DS_Store
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+*.swo
+test-results
+playwright-report
+.cache
+.npm
