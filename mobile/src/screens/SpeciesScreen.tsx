@@ -71,7 +71,7 @@ const SpeciesCard = ({ species, onPress, theme, styles }: { species: any; onPres
         {/* Species name overlaid on image */}
         <View style={styles.imageOverlay}>
           <Text style={styles.speciesNameOverlay} numberOfLines={1}>{commonName}</Text>
-          <Text style={styles.scientificNameOverlay} numberOfLines={1}>{d.scientific_name}</Text>
+          <Text style={styles.scientificNameOverlay} numberOfLines={1}>({d.scientific_name})</Text>
         </View>
         {/* Category chip on image */}
         <View style={styles.categoryChip}>

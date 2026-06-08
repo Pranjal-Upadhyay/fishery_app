@@ -23,9 +23,10 @@ import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import api from '../services/apiService';
 
-const COMMON_SPECIES = [
-  'Rohu', 'Catla', 'Mrigal', 'Pangasius', 'Tilapia',
-  'Common Carp', 'Grass Carp', 'Silver Carp', 'Bighead Carp', 'Hilsa',
+const ALLOWED_BATCH_SPECIES = [
+  { label: 'Jayanti Rohu', name: 'Rohu', variant: 'Jayanti Rohu' },
+  { label: 'Amrita Catla', name: 'Catla', variant: 'Amrita Catla' },
+  { label: 'Pangasius', name: 'Pangasius', variant: '' }
 ];
 
 export default function AddEditBatchScreen() {
@@ -37,6 +38,7 @@ export default function AddEditBatchScreen() {
 
   const [speciesName, setSpeciesName] = useState('');
   const [speciesVariant, setSpeciesVariant] = useState('');
+  const [selectedSpeciesLabel, setSelectedSpeciesLabel] = useState('');
   const [maleCount, setMaleCount] = useState('');
   const [femaleCount, setFemaleCount] = useState('');
   const [totalKg, setTotalKg] = useState('');
@@ -44,6 +46,15 @@ export default function AddEditBatchScreen() {
   const [notes, setNotes] = useState('');
   const [showSpeciesPicker, setShowSpeciesPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const handleSelectSpecies = (label: string) => {
+    setSelectedSpeciesLabel(label);
+    const matched = ALLOWED_BATCH_SPECIES.find(s => s.label === label);
+    if (matched) {
+      setSpeciesName(matched.name);
+      setSpeciesVariant(matched.variant);
+    }
+  };
 
   const handleSave = async () => {
     if (!speciesName.trim()) {
@@ -87,40 +98,33 @@ export default function AddEditBatchScreen() {
 
           {/* Species */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Species</Text>
-
-            <FormField
-              label="Species Name *"
-              value={speciesName}
-              onChangeText={setSpeciesName}
-              placeholder="e.g. Rohu, Catla, Pangasius"
-              icon="fish-outline"
-              theme={theme}
-            />
-
-            {/* Quick species chips */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-              {COMMON_SPECIES.map(s => (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.speciesChip, speciesName === s && styles.speciesChipActive]}
-                  onPress={() => setSpeciesName(s)}
-                >
-                  <Text style={[styles.speciesChipText, speciesName === s && styles.speciesChipTextActive]}>
-                    {s}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <FormField
-              label="Variant / Strain"
-              value={speciesVariant}
-              onChangeText={setSpeciesVariant}
-              placeholder="e.g. Jayanti Rohu, Amrita Katla"
-              icon="git-branch-outline"
-              theme={theme}
-            />
+            <Text style={styles.sectionTitle}>Species *</Text>
+            
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 6 }}>
+              {ALLOWED_BATCH_SPECIES.map(s => {
+                const selected = selectedSpeciesLabel === s.label;
+                return (
+                  <TouchableOpacity
+                    key={s.label}
+                    style={[
+                      styles.speciesChip,
+                      selected && styles.speciesChipActive,
+                      { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20 }
+                    ]}
+                    onPress={() => handleSelectSpecies(s.label)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[
+                      styles.speciesChipText,
+                      selected && styles.speciesChipTextActive,
+                      { fontSize: 14 }
+                    ]}>
+                      {s.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Broodstock */}

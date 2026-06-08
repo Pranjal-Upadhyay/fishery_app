@@ -4,7 +4,7 @@ services:
     container_name: fishing-god-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-fishinggod}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-aquaculture2024}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-fishing_god}
     ports:
       - "5432:5432"
@@ -25,13 +25,13 @@ services:
       dockerfile: Dockerfile
     container_name: fishing-god-backend
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER:-fishinggod}
-      DB_PASSWORD: ${DB_PASSWORD:-aquaculture2024}
+      DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-fishing_god}
-      JWT_SECRET: ${JWT_SECRET:-fishing-god-secret-key}
+      JWT_SECRET: ${JWT_SECRET}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     ports:
       - "3000:3000"
@@ -62,11 +62,11 @@ services:
       dockerfile: Dockerfile.worker
     container_name: fishing-god-worker
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER:-fishinggod}
-      DB_PASSWORD: ${DB_PASSWORD:-aquaculture2024}
+      DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-fishing_god}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:

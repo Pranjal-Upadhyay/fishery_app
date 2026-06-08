@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Theme tokens — every theme-aware color is a CSS variable. Components read
+   the variable (or the Tailwind token that aliases it), so flipping the
+   `.dark` class on <html> retints the entire surface without re-renders.
+
+   DEFAULT is DARK. The .light class pivots to an off-white paper aesthetic
+   while keeping the teal brand and severity palette intact.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root, .dark {
+  /* Canvas — pure-ish black with a hint of warmth so OLED doesn't tear */
+  --canvas-950: #020203;
+  --canvas-900: #050507;
+  --canvas-800: #0a0a0c;
+  --canvas-700: #131316;
+
+  /* Aurora gradient stops — the radial washes you see behind everything */
+  --grad-start: #050507;
+  --grad-mid:   #0a0d12;
+  --grad-end:   #050507;
+  --aurora-teal:   rgba(14, 155, 124, 0.18);
+  --aurora-teal-2: rgba(57, 212, 173, 0.10);
+  --aurora-floor:  rgba(7, 21, 28, 0.85);
+
+  /* Glass — frosted white on dark */
+  --glass:           rgba(255, 255, 255, 0.06);
+  --glass-strong:    rgba(255, 255, 255, 0.10);
+  --glass-subtle:    rgba(255, 255, 255, 0.03);
+  --glass-border:    rgba(255, 255, 255, 0.10);
+  --glass-border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Ink — text */
+  --ink-primary:   rgba(248, 250, 252, 0.95);
+  --ink-secondary: rgba(226, 232, 240, 0.70);
+  --ink-muted:     rgba(148, 163, 184, 0.55);
+  --ink-faint:     rgba(148, 163, 184, 0.30);
+
+  /* Noise grain opacity */
+  --grain-opacity: 0.6;
+
+  color-scheme: dark;
+}
+
+.light {
+  /* Canvas — warm off-white paper. Slightly desaturated so brand teal pops. */
+  --canvas-950: #faf9f6;
+  --canvas-900: #f5f2eb;
+  --canvas-800: #efece4;
+  --canvas-700: #e8e4da;
+
+  /* Aurora — keep some color life but dial way down on a light bg */
+  --grad-start: #f5f2eb;
+  --grad-mid:   #f0ede6;
+  --grad-end:   #ebe7df;
+  --aurora-teal:   rgba(14, 155, 124, 0.08);
+  --aurora-teal-2: rgba(57, 212, 173, 0.05);
+  --aurora-floor:  rgba(235, 231, 223, 0.85);
+
+  /* Glass — frosted white panel on cream. Now properly opaque so cards
+     have presence; borders carry the structure. WCAG-AA contrast preserved. */
+  --glass:               rgba(255, 255, 255, 0.78);
+  --glass-strong:        rgba(255, 255, 255, 0.92);
+  --glass-subtle:        rgba(255, 255, 255, 0.55);
+  --glass-border:        rgba(15, 23, 32, 0.16);
+  --glass-border-strong: rgba(15, 23, 32, 0.28);
+
+  /* Ink — near-black on cream. Bumped contrast to meet WCAG-AA at all
+     levels: primary ≥ 7:1, secondary ≥ 4.5:1, muted ≥ 3:1. */
+  --ink-primary:   rgba(8, 14, 22, 0.98);
+  --ink-secondary: rgba(20, 30, 42, 0.88);
+  --ink-muted:     rgba(40, 52, 68, 0.78);
+  --ink-faint:     rgba(40, 52, 68, 0.55);
+
+  /* Grain — very faint on paper so it reads as texture, not noise */
+  --grain-opacity: 0.18;
+
+  color-scheme: light;
+}
+
+/* In light mode the glass shadow needs to be darker and stronger
+   (we no longer have a dark backdrop to do that work for us). */
+.light .shadow-glass {
+  box-shadow:
+    0 6px 28px -10px rgba(15, 23, 32, 0.16),
+    0 1px 0 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+/* ── Base typography & background ──────────────────────────────────────────── */
+
+html, body {
+  height: 100%;
+  background-color: var(--canvas-900);
+  color: var(--ink-primary);
+  font-family: var(--font-geist, 'Geist'), Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Aurora wash — sits beneath all content; cheap to render, no JS */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(60% 50% at 15% 10%, var(--aurora-teal), transparent 60%),
+    radial-gradient(50% 40% at 85% 20%, var(--aurora-teal-2), transparent 60%),
+    radial-gradient(80% 60% at 50% 100%, var(--aurora-floor), transparent 70%),
+    linear-gradient(180deg, var(--grad-start) 0%, var(--grad-mid) 40%, var(--grad-end) 100%);
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 200ms ease;
+}
+
+/* Film grain — tiny noise to break up gradient banding on OLED */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.035 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#__next, main {
+  position: relative;
+  z-index: 1;
+}
+
+/* Number-heavy typography — used by metrics, the ticker, coordinates */
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' on, 'lnum' on;
+}
+
+/* Custom scrollbar that doesn't fight the theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-muted) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--ink-muted);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  opacity: 0.5;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-secondary); background-clip: padding-box; }
+
+/* MapLibre overrides — keep attribution readable in both themes */
+.maplibregl-ctrl-attrib {
+  background: var(--glass-strong) !important;
+  color: var(--ink-secondary) !important;
+  font-size: 10px !important;
+  backdrop-filter: blur(8px);
+}
+.maplibregl-ctrl-attrib a { color: rgba(14, 155, 124, 0.95) !important; }

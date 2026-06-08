@@ -25,6 +25,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import LocationCascadePicker, { LocationSelection } from '../components/LocationCascadePicker';
+import * as Location from 'expo-location';
 import { loadProfile } from '../services/profileService';
 import { hatcheryProfileService } from '../services/apiService';
 
@@ -42,6 +43,9 @@ export default function AddHatcheryScreen() {
   const [hatcheryStateCode, setHatcheryStateCode] = useState('BR');
   const [hatcheryLocation, setHatcheryLocation] = useState<Partial<LocationSelection>>({});
   const [capacityKg, setCapacityKg] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   // Marketplace-required
   const [hatcheryUid, setHatcheryUid] = useState('');
@@ -58,10 +62,11 @@ export default function AddHatcheryScreen() {
           setIsEditing(true);
           setName(existing.name ?? '');
           if (existing.district) {
-            setHatcheryLocation({
+          setHatcheryLocation({
               districtName: existing.district,
               districtCode: existing.district.toLowerCase().replace(/\s+/g, '-'),
               blockName: existing.block ?? undefined,
+              // Use just the block name slug — matches BIHAR_PANCHAYATS keys and backend suffix-LIKE
               blockCode: existing.block?.toLowerCase().replace(/\s+/g, '-'),
               panchayatName: existing.panchayat ?? undefined,
               panchayatCode: existing.panchayat?.toLowerCase().replace(/\s+/g, '-'),
@@ -72,6 +77,8 @@ export default function AddHatcheryScreen() {
           if (existing.contact_number) setContactNumber(existing.contact_number);
           if (existing.email) setEmail(existing.email);
           if (existing.upi_id) setUpiId(existing.upi_id);
+          if (existing.latitude != null) setLat(String(existing.latitude));
+          if (existing.longitude != null) setLng(String(existing.longitude));
         } else {
           // First-time create — prefill from user profile
           const profile = await loadProfile();
@@ -95,12 +102,32 @@ export default function AddHatcheryScreen() {
     })();
   }, []);
 
+  const handleGetLocation = async () => {
+    setIsGettingLocation(true);
+    try {
+      const permResult = await Location.requestForegroundPermissionsAsync();
+      if (permResult.status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please grant location permissions to automatically fetch your coordinates.');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setLat(loc.coords.latitude.toFixed(6));
+      setLng(loc.coords.longitude.toFixed(6));
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not fetch location coordinates.');
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
   const validate = (): string | null => {
     if (!name.trim()) return 'Please enter the hatchery name.';
     if (!hatcheryUid.trim()) return 'Government registration UID is required for the marketplace.';
     if (!contactNumber.trim()) return 'A contact phone number is required.';
     if (!/^[6-9]\d{9}$/.test(contactNumber.trim())) return 'Contact number must be a valid 10-digit Indian mobile (starting with 6/7/8/9).';
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address, or leave it blank.';
+    if (lat && isNaN(Number(lat))) return 'Latitude must be a valid number.';
+    if (lng && isNaN(Number(lng))) return 'Longitude must be a valid number.';
     return null;
   };
 
@@ -120,12 +147,18 @@ export default function AddHatcheryScreen() {
         contact_number: contactNumber.trim(),
         email: email.trim() || null,
         upi_id: upiId.trim() || null,
+        latitude: lat ? parseFloat(lat) : null,
+        longitude: lng ? parseFloat(lng) : null,
       });
 
       Alert.alert(
         isEditing ? 'Profile Updated' : 'Hatchery Created',
         isEditing ? 'Your hatchery profile is up to date.' : 'You can now create listings on the marketplace.',
-        [{ text: 'OK', onPress: () => isEditing ? navigation.goBack() : navigation.replace('HatcheryDashboard') }],
+        // HatcheryDashboard lives inside the HatcheryMain tab navigator, so we
+        // can't replace directly to it from this stack screen. Replace to the
+        // parent tab navigator and let it land on its default first tab
+        // (HatcheryDashboard).
+        [{ text: 'OK', onPress: () => isEditing ? navigation.goBack() : navigation.replace('HatcheryMain') }],
       );
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.error ?? 'Failed to save hatchery profile.');
@@ -164,6 +197,35 @@ export default function AddHatcheryScreen() {
             />
 
             <FormField label="Capacity (kg/year)" value={capacityKg} onChangeText={setCapacityKg} placeholder="e.g. 5000" icon="scale-outline" keyboardType="decimal-pad" theme={theme} />
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 8 }}>
+              <Text style={styles.subhead}>Geocoordinates</Text>
+              <TouchableOpacity
+                onPress={handleGetLocation}
+                disabled={isGettingLocation}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              >
+                {isGettingLocation ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons name="location-outline" size={14} color={theme.colors.primary} />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: theme.colors.primary }}>
+                      Use My Location
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <FormField label="Latitude" value={lat} onChangeText={setLat} placeholder="e.g. 25.61" icon="navigate-outline" keyboardType="decimal-pad" theme={theme} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <FormField label="Longitude" value={lng} onChangeText={setLng} placeholder="e.g. 85.14" icon="navigate-outline" keyboardType="decimal-pad" theme={theme} />
+              </View>
+            </View>
           </View>
 
           <View style={styles.section}>

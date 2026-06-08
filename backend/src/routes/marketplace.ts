@@ -813,7 +813,7 @@ router.post('/listings/:id/close', requireAuth, async (req, res, next) => {
         const { id } = req.params;
 
         const result = await query(`
-            SELECT fl.status, h.operator_id
+            SELECT fl.status, fl.batch_id, h.operator_id
             FROM fingerling_listings fl
             JOIN hatcheries h ON h.id = fl.hatchery_id
             WHERE fl.id = $1
@@ -822,18 +822,40 @@ router.post('/listings/:id/close', requireAuth, async (req, res, next) => {
         if (!result.rows.length) {
             return res.status(404).json({ success: false, error: 'Listing not found.' });
         }
-        if (result.rows[0].operator_id !== userId) {
+        const listing = result.rows[0];
+        if (listing.operator_id !== userId) {
             return res.status(403).json({ success: false, error: 'Access denied.' });
         }
-        if (['EXPIRED', 'CLOSED'].includes(result.rows[0].status)) {
+        if (['EXPIRED', 'CLOSED'].includes(listing.status)) {
             return res.status(400).json({ success: false, error: 'Listing is already terminal.' });
         }
 
-        const updated = await query(`
-            UPDATE fingerling_listings SET status = 'CLOSED', updated_at = NOW()
-            WHERE id = $1 RETURNING *
-        `, [id]);
-        res.json({ success: true, data: updated.rows[0] });
+        const updatedListing = await transaction(async (client) => {
+            const up = await client.query(`
+                UPDATE fingerling_listings SET status = 'CLOSED', updated_at = NOW()
+                WHERE id = $1 RETURNING *
+            `, [id]);
+
+            if (listing.batch_id) {
+                // Automate batch closing to 'sold' stage
+                await client.query(`
+                    UPDATE hatchery_batches
+                    SET current_stage = 'sold', updated_at = NOW()
+                    WHERE id = $1
+                `, [listing.batch_id]);
+
+                // Log the stage transition
+                await client.query(`
+                    INSERT INTO hatchery_stage_logs (
+                        batch_id, stage, count_at_entry, logged_by, observations
+                    ) VALUES ($1, 'sold', 0, $2, 'Batch closed automatically via marketplace listing.')
+                `, [listing.batch_id, userId]);
+            }
+
+            return up.rows[0];
+        });
+
+        res.json({ success: true, data: updatedListing });
     } catch (error) {
         next(error);
     }
@@ -1379,7 +1401,7 @@ router.patch('/orders/:id/confirm', requireAuth, async (req, res, next) => {
 
         const updated = await transaction(async (client) => {
             const orderRes = await client.query(`
-                SELECT fo.*, h.operator_id
+                SELECT fo.*, fl.batch_id, fl.species_name, fl.species_variant, h.operator_id
                 FROM fingerling_orders fo
                 JOIN fingerling_listings fl ON fl.id = fo.listing_id
                 JOIN hatcheries h           ON h.id  = fl.hatchery_id
@@ -1410,6 +1432,55 @@ router.patch('/orders/:id/confirm', requireAuth, async (req, res, next) => {
                 SET status = 'HATCHERY_CONFIRMED', hatchery_confirmed_at = NOW(), updated_at = NOW()
                 WHERE id = $1 RETURNING *
             `, [id]);
+
+            // If the listing is linked to a hatchery batch, automatically log this sale
+            if (order.batch_id) {
+                // Fetch farmer details (buyer)
+                const farmerRes = await client.query(`
+                    SELECT u.name, u.phone_number, ld.name AS district_name, u.uid
+                    FROM users u
+                    LEFT JOIN loc_districts ld ON ld.code = u.district_code
+                    WHERE u.id = $1
+                `, [order.farmer_id]);
+                const farmer = farmerRes.rows[0];
+                const buyerName = farmer?.name ?? 'Farmer';
+                const buyerPhone = farmer?.phone_number ?? null;
+                const buyerDistrict = farmer?.district_name ?? null;
+                const buyerUid = farmer?.uid ?? order.farmer_uid ?? null;
+
+                // Fetch batch details to get avg_weight
+                const batchRes = await client.query(`
+                    SELECT avg_fingerling_weight_g FROM hatchery_batches WHERE id = $1
+                `, [order.batch_id]);
+                const avgWeightG = batchRes.rows[0]?.avg_fingerling_weight_g 
+                    ? parseFloat(batchRes.rows[0].avg_fingerling_weight_g) 
+                    : null;
+
+                await client.query(`
+                    INSERT INTO fingerling_sales (
+                        batch_id, buyer_name, buyer_phone, buyer_district,
+                        pricing_model, quantity_pieces, quantity_kg, avg_weight_g,
+                        price_per_piece, price_per_kg, total_amount, delivery_date,
+                        species_name, species_variant, buyer_uid
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                `, [
+                    order.batch_id,
+                    buyerName,
+                    buyerPhone,
+                    buyerDistrict,
+                    'per_piece',
+                    order.quantity_ordered,
+                    null, // quantity_kg
+                    avgWeightG,
+                    order.price_per_piece_at_order,
+                    null, // price_per_kg
+                    order.total_amount,
+                    order.preferred_date ? new Date(order.preferred_date) : new Date(),
+                    order.species_name,
+                    order.species_variant,
+                    buyerUid
+                ]);
+            }
 
             return { order: r.rows[0], farmerId: order.farmer_id, listingId: order.listing_id };
         });

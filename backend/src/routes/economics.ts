@@ -19,7 +19,7 @@ const simulationSchema = z.object({
   waterSourceSalinityUsCm: z.number().min(0).max(50000).optional(),
   availableCapitalInr: z.number().positive(),
   riskTolerance: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-  farmerCategory: z.enum(['GENERAL', 'WOMEN', 'SC', 'ST']),
+  farmerCategory: z.enum(['GENERAL', 'WOMEN', 'SC', 'ST', 'EBC']),
   stateCode: z.string().length(2),
   districtCode: z.string().min(2).max(50),
   preferredSpecies: z.array(z.string()).optional(),
@@ -48,7 +48,7 @@ const subsidySchema = z.object({
 
 const advisorySchema = z.object({
   stateCode: z.string().length(2),
-  farmerCategory: z.enum(['GENERAL', 'WOMEN', 'SC', 'ST']),
+  farmerCategory: z.enum(['GENERAL', 'WOMEN', 'SC', 'ST', 'EBC']),
   projectType: z.enum(['FRESHWATER', 'BRACKISH', 'INTEGRATED', 'RAS']).optional(),
 });
 

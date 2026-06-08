@@ -239,7 +239,9 @@ router.post('/signup', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Phone number already registered' });
         }
 
-        const hashed = await bcrypt.hash(data.password, 10);
+        // Cost 12 — matches admin auth, harder to brute-force from a leaked DB.
+        // Existing cost-10 hashes still validate (bcrypt encodes cost in the hash).
+        const hashed = await bcrypt.hash(data.password, 12);
 
         const createdPhone = await transaction(async (client) => {
             if (data.role === 'DOCTOR') {

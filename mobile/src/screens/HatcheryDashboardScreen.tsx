@@ -250,7 +250,7 @@ export default function HatcheryDashboardScreen() {
                       {stage === 'fingerling_ready' && (
                         <TouchableOpacity
                           style={styles.sellBtn}
-                          onPress={() => navigation.navigate('FingerlingSales', { batchId: batch.id })}
+                          onPress={() => navigation.navigate('CreateListing', { batchId: batch.id })}
                         >
                           <Text style={styles.sellBtnText}>Sell</Text>
                         </TouchableOpacity>

@@ -35,6 +35,23 @@ router.get('/districts', async (req, res, next) => {
   }
 });
 
+function normalizeLocationCode(code: string): string {
+  let val = code.trim().toUpperCase();
+  if (val && !val.startsWith('BR-')) {
+    val = 'BR-' + val;
+  }
+  return val;
+}
+
+/** Extract just the block slug (last segment) from any code format.
+ *  e.g. 'BR-PATNA-NAUBATPUR' | 'BR-NAUBATPUR' | 'naubatpur' → 'NAUBATPUR'
+ */
+function blockSuffix(code: string): string {
+  const upper = code.trim().toUpperCase();
+  const parts = upper.split('-');
+  return parts[parts.length - 1];
+}
+
 router.get('/blocks', async (req, res, next) => {
   try {
     const { districtCode } = req.query;
@@ -43,7 +60,7 @@ router.get('/blocks', async (req, res, next) => {
     }
     const result = await query(
       `SELECT code, name FROM loc_blocks WHERE district_code = $1 ORDER BY name`,
-      [districtCode]
+      [normalizeLocationCode(districtCode)]
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -57,10 +74,23 @@ router.get('/panchayats', async (req, res, next) => {
     if (!blockCode || typeof blockCode !== 'string') {
       return res.status(400).json({ success: false, error: 'blockCode is required' });
     }
-    const result = await query(
+
+    // First try exact match with fully-qualified code
+    const fullCode = normalizeLocationCode(blockCode);
+    let result = await query(
       `SELECT code, name FROM loc_panchayats WHERE block_code = $1 ORDER BY name`,
-      [blockCode]
+      [fullCode]
     );
+
+    // Fallback: suffix match — handles 'BR-NAUBATPUR' matching 'BR-PATNA-NAUBATPUR'
+    if (result.rows.length === 0) {
+      const suffix = blockSuffix(blockCode);
+      result = await query(
+        `SELECT code, name FROM loc_panchayats WHERE block_code LIKE '%-' || $1 ORDER BY name`,
+        [suffix]
+      );
+    }
+
     res.json({ success: true, data: result.rows });
   } catch (err) {
     next(err);

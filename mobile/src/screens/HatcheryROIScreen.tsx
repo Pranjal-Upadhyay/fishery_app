@@ -31,9 +31,10 @@ export default function HatcheryROIScreen() {
     const annualOpex = annualFingerlingProd * costPerPiece;
     const annualNetProfit = annualRevenue - annualOpex;
 
-    // Estimate CAPEX (Setup cost) based on spawn capacity
-    // Base cost: ₹4,00,000, plus ₹40,000 per Million spawn capacity
-    const capex = 400_000 + capacityMillion * 40_000;
+    // Estimate CAPEX based on Bihar yojana unit costs:
+    // New carp hatchery: ₹8L (Mukhyamantri Talab Matsyiki Vikas Yojana)
+    // Renovation: ₹5L/unit. Scale linearly above 5M spawn capacity.
+    const capex = 800_000 + Math.max(0, capacityMillion - 5) * 60_000;
     const netMargin = annualRevenue > 0 ? (annualNetProfit / annualRevenue) * 100 : 0;
     const paybackPeriodYears = annualNetProfit > 0 ? capex / annualNetProfit : null;
 
@@ -74,7 +75,7 @@ export default function HatcheryROIScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Calculate Hatchery Economics</Text>
           <Text style={styles.cardSubtitle}>
-            Adjust your hatchery capacity and costs below to simulate annual revenue, operational costs, net profit margin, and payback period.
+            Adjust your hatchery capacity and costs to simulate annual revenue, costs, and payback period. Setup cost based on Bihar Govt yojana: ₹8L for new carp hatchery, ₹5L for renovation (50-70% subsidy available).
           </Text>
         </View>
 

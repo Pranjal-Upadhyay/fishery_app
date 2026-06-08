@@ -424,7 +424,7 @@ export const economicsService = {
     },
     getAdvisory: async (params: {
         stateCode: string;
-        farmerCategory: 'GENERAL' | 'WOMEN' | 'SC' | 'ST';
+        farmerCategory: 'GENERAL' | 'WOMEN' | 'SC' | 'ST' | 'EBC';
         projectType?: 'FRESHWATER' | 'BRACKISH' | 'INTEGRATED' | 'RAS';
     }) => {
         const response = await api.get('/api/v1/economics/advisory', { params });
@@ -838,6 +838,8 @@ export interface HatcheryProfile {
     contact_number?: string | null;
     email?: string | null;
     upi_id?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
     operator_phone?: string;
     operator_email?: string;
 }
@@ -877,6 +879,7 @@ export interface CreateListingInput {
     contact_number_override?: string | null;
     email_override?: string | null;
     upi_id_override?: string | null;
+    batch_id?: string | null;
 }
 
 export const marketplaceService = {
@@ -1190,6 +1193,21 @@ export const farmAssetService = {
     },
     remove: async (id: string) => {
         await api.delete(`/api/v1/farm-assets/${id}`);
+    },
+};
+
+export const yojanaService = {
+    listApplications: async () => {
+        const response = await api.get('/api/v1/yojana/applications');
+        return response.data;
+    },
+    apply: async (data: { pondId: string; yojanaCode: string }) => {
+        const response = await api.post('/api/v1/yojana/apply', data);
+        return response.data;
+    },
+    confirmReceipt: async (transactionId: string) => {
+        const response = await api.post(`/api/v1/yojana/transactions/${transactionId}/confirm`);
+        return response.data;
     },
 };
 

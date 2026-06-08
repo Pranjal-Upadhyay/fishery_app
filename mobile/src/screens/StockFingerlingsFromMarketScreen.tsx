@@ -66,9 +66,9 @@ function StockFromMarket({ ponds }: { ponds: Pond[] }) {
               </Text>
             </View>
           </View>
-          {listing.estimated_fingerling_count && (
+          {(listing.estimated_fingerling_count ?? 0) > 0 && (
             <Text style={styles.listingCount}>
-              ~{listing.estimated_fingerling_count.toLocaleString('en-IN')} pcs
+              ~{listing.estimated_fingerling_count!.toLocaleString('en-IN')} pcs
             </Text>
           )}
         </View>

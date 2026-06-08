@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    Alert, Image,
+    Alert, Image, Modal, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -341,11 +341,203 @@ const roiStyles = StyleSheet.create({
     },
 });
 
+// ─── PondDetailModal ─────────────────────────────────────────────────────────
+
+function PondDetailModal({
+    pond, theme, speciesLookup, t, onClose, onEdit,
+}: {
+    pond: Pond | null;
+    theme: any;
+    speciesLookup: SpeciesLookup;
+    t: (k: string, opts?: any) => string;
+    onClose: () => void;
+    onEdit: () => void;
+}) {
+    if (!pond) return null;
+    const c = theme.colors;
+    const species = getSpeciesDisplay(pond.speciesId, speciesLookup);
+    const stockingDate = formatStockingDate(pond.stockingDate);
+    const isActive = (pond.status || '').toUpperCase() === 'ACTIVE';
+
+    const DetailRow = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
+        <View style={detailStyles.detailRow}>
+            <View style={[detailStyles.iconWrap, { backgroundColor: c.primaryLight }]}>
+                <Ionicons name={icon as any} size={16} color={c.primary} />
+            </View>
+            <View style={detailStyles.detailText}>
+                <Text style={[detailStyles.detailLabel, { color: c.textMuted }]}>{label}</Text>
+                <Text style={[detailStyles.detailValue, { color: c.textPrimary }]}>{value}</Text>
+            </View>
+        </View>
+    );
+
+    return (
+        <Modal
+            visible={!!pond}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={onClose}
+        >
+            <View style={[detailStyles.container, { backgroundColor: c.background }]}>
+                {/* Hero */}
+                <View style={detailStyles.hero}>
+                    {pond.imageUri ? (
+                        <Image source={{ uri: pond.imageUri }} style={detailStyles.heroImage} />
+                    ) : (
+                        <View style={[detailStyles.heroPlaceholder, { backgroundColor: c.surfaceAlt }]}>
+                            <Ionicons name="water-outline" size={56} color={c.primary} />
+                        </View>
+                    )}
+                    {/* Gradient overlay */}
+                    <View style={detailStyles.heroOverlay} />
+                    {/* Close button */}
+                    <TouchableOpacity style={[detailStyles.closeBtn, { backgroundColor: 'rgba(0,0,0,0.45)' }]} onPress={onClose}>
+                        <Ionicons name="close" size={22} color="#fff" />
+                    </TouchableOpacity>
+                    {/* Title overlay */}
+                    <View style={detailStyles.heroContent}>
+                        <Text style={detailStyles.heroTitle} numberOfLines={2}>{pond.name}</Text>
+                        <View style={[detailStyles.heroBadge, { backgroundColor: isActive ? c.secondary : c.accentSoft }]}>
+                            <Text style={[detailStyles.heroBadgeText, { color: isActive ? c.textOnSecondary : c.accent }]}>
+                                {t(`ponds.status.${(pond.status || 'UNKNOWN').toUpperCase()}`)}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Details scroll */}
+                <ScrollView contentContainerStyle={detailStyles.scroll} showsVerticalScrollIndicator={false}>
+                    <View style={[detailStyles.card, { backgroundColor: c.surface, borderColor: c.borderGlass }]}>
+                        {species && (
+                            <DetailRow
+                                icon="fish-outline"
+                                label={t('ponds.species') || 'Species'}
+                                value={species.scientificName ? `${species.label} (${species.scientificName})` : species.label}
+                            />
+                        )}
+                        {pond.areaHectares != null && (
+                            <DetailRow
+                                icon="resize-outline"
+                                label={t('ponds.area') || 'Area'}
+                                value={`${pond.areaHectares} ${t('common.ha') || 'ha'}`}
+                            />
+                        )}
+                        {pond.systemType ? (
+                            <DetailRow icon="grid-outline" label={t('ponds.system') || 'System'} value={pond.systemType} />
+                        ) : null}
+                        {pond.waterSourceType ? (
+                            <DetailRow icon="water-outline" label={t('ponds.source') || 'Water Source'} value={pond.waterSourceType} />
+                        ) : null}
+                        {stockingDate ? (
+                            <DetailRow icon="calendar-outline" label={t('ponds.stockedOn', { date: '' }).split(':')[0] || 'Stocked On'} value={stockingDate} />
+                        ) : null}
+                        {pond.districtName ? (
+                            <DetailRow icon="location-outline" label="District" value={pond.districtName} />
+                        ) : null}
+                        {pond.blockName ? (
+                            <DetailRow icon="map-outline" label="Block" value={pond.blockName} />
+                        ) : null}
+                    </View>
+
+                    {/* Action buttons */}
+                    <TouchableOpacity
+                        style={[detailStyles.editBtn, { backgroundColor: c.primary }]}
+                        onPress={onEdit}
+                        activeOpacity={0.85}
+                    >
+                        <Ionicons name="create-outline" size={18} color={c.textInverse} />
+                        <Text style={[detailStyles.editBtnText, { color: c.textInverse }]}>
+                            {t('ponds.editPondBtn') || 'Edit Pond'}
+                        </Text>
+                    </TouchableOpacity>
+                </ScrollView>
+            </View>
+        </Modal>
+    );
+}
+
+const detailStyles = StyleSheet.create({
+    container: { flex: 1 },
+    hero: { height: 280, position: 'relative' },
+    heroImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+    heroPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    heroOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(11,19,38,0.6)',
+    },
+    closeBtn: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    heroContent: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        bottom: 20,
+        gap: 8,
+    },
+    heroTitle: {
+        fontSize: 28,
+        fontWeight: '800',
+        color: '#fff',
+        letterSpacing: -0.5,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+    heroBadge: {
+        alignSelf: 'flex-start',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 999,
+    },
+    heroBadgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+    scroll: { padding: 16, gap: 14, paddingBottom: 48 },
+    card: {
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
+    },
+    detailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 14,
+        gap: 14,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#00000015',
+    },
+    iconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    detailText: { flex: 1, gap: 2 },
+    detailLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+    detailValue: { fontSize: 15, fontWeight: '700' },
+    editBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 15,
+        borderRadius: 16,
+    },
+    editBtnText: { fontSize: 15, fontWeight: '800' },
+});
+
 // ─── PondCard ────────────────────────────────────────────────────────────────
 
 function PondCard({
     item, theme, styles, speciesLookup,
-    onEdit, onDelete, onPickImage, t,
+    onEdit, onDelete, onPickImage, onViewDetail, t,
 }: {
     item: Pond;
     theme: any;
@@ -354,6 +546,7 @@ function PondCard({
     onEdit: () => void;
     onDelete: () => void;
     onPickImage: () => void;
+    onViewDetail: () => void;
     t: (k: string, opts?: any) => string;
 }) {
     const species = getSpeciesDisplay(item.speciesId, speciesLookup);
@@ -370,21 +563,21 @@ function PondCard({
 
     return (
         <View style={styles.card}>
-            {/* ── Hero image section ── */}
+            {/* ── Hero image section — tap to view details ── */}
             <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={onPickImage}
+                onPress={onViewDetail}
                 style={styles.heroWrapper}
             >
                 {item.imageUri ? (
                     <Image source={{ uri: item.imageUri }} style={styles.heroImage} />
                 ) : (
                     <View style={styles.heroPlaceholder}>
-                        <Ionicons name="camera-outline" size={32} color={theme.colors.textMuted} />
-                        <Text style={styles.heroPlaceholderText}>{t('ponds.tapAddPhoto')}</Text>
+                        <Ionicons name="water-outline" size={32} color={theme.colors.primary} />
+                        <Text style={styles.heroPlaceholderText}>{t('ponds.tapToView') || 'Tap to view details'}</Text>
                     </View>
                 )}
-                {/* gradient overlay — simulated with layered semi-transparent Views */}
+                {/* gradient overlay */}
                 <View style={styles.heroGradient} pointerEvents="none">
                     <View style={styles.heroGradientInner} />
                 </View>
@@ -397,13 +590,15 @@ function PondCard({
                     </View>
                 </View>
 
-                {/* camera update chip – only when image exists */}
-                {item.imageUri ? (
-                    <View style={styles.cameraChip}>
-                        <Ionicons name="camera" size={13} color="#fff" />
-                        <Text style={styles.cameraChipText}>{t('ponds.update')}</Text>
-                    </View>
-                ) : null}
+                {/* Camera pick chip – always shown top-right */}
+                <TouchableOpacity
+                    style={styles.cameraChip}
+                    onPress={e => { e.stopPropagation?.(); onPickImage(); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                    <Ionicons name="camera" size={13} color="#fff" />
+                    <Text style={styles.cameraChipText}>{item.imageUri ? t('ponds.update') : t('ponds.tapAddPhoto')}</Text>
+                </TouchableOpacity>
             </TouchableOpacity>
 
             {/* ── Card body ── */}
@@ -461,7 +656,8 @@ function PondCard({
                 )}
 
                 {/* ── Action row ── */}
-                <View style={styles.actionRow}>                    <TouchableOpacity style={styles.editButton} onPress={onEdit}>
+                <View style={styles.actionRow}>
+                    <TouchableOpacity style={styles.editButton} onPress={onEdit}>
                         <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
                         <Text style={styles.editButtonText}>{t('ponds.editPondBtn')}</Text>
                     </TouchableOpacity>
@@ -483,6 +679,7 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
     const { t } = useTranslation();
     const styles = getStyles(theme);
     const [speciesLookup, setSpeciesLookup] = useState<SpeciesLookup>({});
+    const [selectedPond, setSelectedPond] = useState<Pond | null>(null);
 
     useEffect(() => {
         fetchSpeciesLookup().then(setSpeciesLookup);
@@ -585,6 +782,19 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
                 </TouchableOpacity>
             </View>
 
+            {/* ── Pond Detail Modal ── */}
+            <PondDetailModal
+                pond={selectedPond}
+                theme={theme}
+                speciesLookup={speciesLookup}
+                t={t}
+                onClose={() => setSelectedPond(null)}
+                onEdit={() => {
+                    setSelectedPond(null);
+                    navigation.navigate('AddEditPond', { pondId: selectedPond?.id });
+                }}
+            />
+
             {ponds.length === 0 ? (
                 /* ── Empty state ── */
                 <View style={styles.emptyState}>
@@ -615,6 +825,7 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
                             styles={styles}
                             speciesLookup={speciesLookup}
                             t={t}
+                            onViewDetail={() => setSelectedPond(item)}
                             onEdit={() => navigation.navigate('AddEditPond', { pondId: item.id })}
                             onDelete={() => handleDelete(item)}
                             onPickImage={() => handlePickImage(item)}

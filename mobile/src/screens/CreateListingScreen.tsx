@@ -25,15 +25,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
-import { hatcheryProfileService, marketplaceService, HatcheryProfile, Stage } from '../services/apiService';
+import api, { hatcheryProfileService, marketplaceService, HatcheryProfile, Stage } from '../services/apiService';
 
-const SPECIES_LIST = [
-    'Rohu', 'Catla', 'Mrigal', 'Pangasius',
-    'Grass Carp', 'Common Carp', 'Silver Carp', 'Other',
+const ALLOWED_MARKET_SPECIES = [
+    { label: 'Jayanti Rohu', name: 'Rohu', variant: 'Jayanti Rohu' },
+    { label: 'Amrita Catla', name: 'Catla', variant: 'Amrita Catla' },
+    { label: 'Pangasius', name: 'Pangasius', variant: '' },
 ];
+
+const SPECIES_LIST = ALLOWED_MARKET_SPECIES.map(s => s.label);
 
 function todayISO(offsetDays = 0): string {
     const d = new Date();
@@ -51,6 +54,8 @@ export default function CreateListingScreen() {
     const { theme } = useTheme();
     const styles = getStyles(theme);
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const { batchId } = route.params ?? {};
 
     // Profile (gating)
     const [profile, setProfile] = useState<HatcheryProfile | null>(null);
@@ -58,10 +63,10 @@ export default function CreateListingScreen() {
 
     // Core
     const [stage, setStage] = useState<Stage>('fingerling');
-    const [speciesPick, setSpeciesPick] = useState('Rohu');
+    const [speciesPick, setSpeciesPick] = useState('Jayanti Rohu');
     const [speciesCustom, setSpeciesCustom] = useState('');
     const [speciesPickerOpen, setSpeciesPickerOpen] = useState(false);
-    const [speciesVariant, setSpeciesVariant] = useState('');
+    const [speciesVariant, setSpeciesVariant] = useState('Jayanti Rohu');
     const [sizeDescription, setSizeDescription] = useState('');
     const [description, setDescription] = useState('');
 
@@ -94,15 +99,60 @@ export default function CreateListingScreen() {
             try {
                 const p = await hatcheryProfileService.getMe();
                 setProfile(p);
-            } catch {
-                // ignore
+
+                if (batchId) {
+                    const res = await api.get(`/api/v1/hatcheries/batches/${batchId}`);
+                    const b = res.data?.data?.batch;
+                    if (b) {
+                        setStage(b.current_stage === 'fingerling_ready' ? 'fingerling' : 'fry');
+                        
+                        // Match with ALLOWED_MARKET_SPECIES
+                        const matched = ALLOWED_MARKET_SPECIES.find(
+                            s => s.name.toLowerCase() === b.species_name.toLowerCase() &&
+                                 (s.variant || '').toLowerCase() === (b.species_variant || '').toLowerCase()
+                        );
+                        if (matched) {
+                            setSpeciesPick(matched.label);
+                            setSpeciesVariant(matched.variant);
+                        } else {
+                            const fallback = ALLOWED_MARKET_SPECIES.find(
+                                s => s.name.toLowerCase() === b.species_name.toLowerCase()
+                            );
+                            if (fallback) {
+                                setSpeciesPick(fallback.label);
+                                setSpeciesVariant(fallback.variant);
+                            } else {
+                                setSpeciesPick(b.species_name);
+                                setSpeciesVariant(b.species_variant ?? '');
+                            }
+                        }
+
+                        if (b.estimated_fingerling_count) {
+                            setTotalQuantity(String(b.estimated_fingerling_count));
+                        } else if (b.estimated_fry_count) {
+                            setTotalQuantity(String(b.estimated_fry_count));
+                        }
+
+                        if (b.avg_fingerling_weight_g) {
+                            setSizeDescription(`Avg Weight: ${b.avg_fingerling_weight_g}g`);
+                        }
+
+                        if (b.notes) {
+                            setDescription(b.notes);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Error pre-populating listing from batch:', e);
             } finally {
                 setLoadingProfile(false);
             }
         })();
-    }, []);
+    }, [batchId]);
 
-    const resolvedSpeciesName = speciesPick === 'Other' ? speciesCustom.trim() : speciesPick;
+    const matchedSpec = ALLOWED_MARKET_SPECIES.find(s => s.label === speciesPick);
+    const resolvedSpeciesName = matchedSpec ? matchedSpec.name : speciesPick;
+    const resolvedSpeciesVariant = matchedSpec ? matchedSpec.variant : speciesVariant;
 
     const validate = (): string | null => {
         if (!profile) return 'Please complete your hatchery profile first.';
@@ -153,7 +203,7 @@ export default function CreateListingScreen() {
             const created = await marketplaceService.createListing({
                 stage,
                 species_name: resolvedSpeciesName,
-                species_variant: speciesVariant.trim() || null,
+                species_variant: resolvedSpeciesVariant ? resolvedSpeciesVariant.trim() : null,
                 description: description.trim() || null,
                 size_description: sizeDescription.trim() || null,
                 total_quantity: parseInt(totalQuantity, 10),
@@ -169,6 +219,7 @@ export default function CreateListingScreen() {
                 contact_number_override: overrideContact && contactOverride ? contactOverride.trim() : null,
                 email_override: overrideContact && emailOverride ? emailOverride.trim() : null,
                 upi_id_override: overrideContact && upiOverride ? upiOverride.trim() : null,
+                batch_id: batchId ?? null,
             });
 
             // Auto-publish: backend will pick UPCOMING or AVAILABLE based on ready date
@@ -261,31 +312,40 @@ export default function CreateListingScreen() {
                     {/* ── Species ── */}
                     <Section title="Species">
                         <Label>Species *</Label>
-                        <TouchableOpacity style={styles.pickerRow} onPress={() => setSpeciesPickerOpen(true)} activeOpacity={0.8}>
-                            <Text style={styles.pickerRowText}>{speciesPick}</Text>
-                            <Ionicons name="chevron-down" size={18} color={theme.colors.textMuted} />
-                        </TouchableOpacity>
-                        {speciesPick === 'Other' && (
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter species name"
-                                placeholderTextColor={theme.colors.textMuted}
-                                value={speciesCustom}
-                                onChangeText={setSpeciesCustom}
-                                autoCapitalize="words"
-                            />
-                        )}
-                        <View style={{ height: 10 }} />
-                        <Label>Variant / Strain (optional)</Label>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="e.g. IMC, GIFT, Local"
-                            placeholderTextColor={theme.colors.textMuted}
-                            value={speciesVariant}
-                            onChangeText={setSpeciesVariant}
-                            autoCapitalize="words"
-                        />
-                        <View style={{ height: 10 }} />
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 6 }}>
+                            {ALLOWED_MARKET_SPECIES.map(s => {
+                                const selected = speciesPick === s.label;
+                                return (
+                                    <TouchableOpacity
+                                        key={s.label}
+                                        style={{
+                                            paddingHorizontal: 14,
+                                            paddingVertical: 10,
+                                            borderRadius: 24,
+                                            borderWidth: 1.5,
+                                            borderColor: selected ? theme.colors.primary : theme.colors.border,
+                                            backgroundColor: selected ? `${theme.colors.primary}12` : theme.colors.surfaceLow ?? theme.colors.surface,
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                        }}
+                                        onPress={() => {
+                                            setSpeciesPick(s.label);
+                                            setSpeciesVariant(s.variant);
+                                        }}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name="fish-outline" size={16} color={selected ? theme.colors.primary : theme.colors.textSecondary} />
+                                        <Text style={{
+                                            fontSize: 13,
+                                            fontWeight: '700',
+                                            color: selected ? theme.colors.primary : theme.colors.textSecondary
+                                        }}>{s.label}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                        <View style={{ height: 12 }} />
                         <Label>Size / Age (optional)</Label>
                         <TextInput
                             style={styles.input}
@@ -521,29 +581,7 @@ export default function CreateListingScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* Species picker modal */}
-            <Modal visible={speciesPickerOpen} animationType="slide" transparent>
-                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSpeciesPickerOpen(false)}>
-                    <View style={styles.modalSheet}>
-                        <Text style={styles.modalTitle}>Select Species</Text>
-                        <FlatList
-                            data={SPECIES_LIST}
-                            keyExtractor={(s) => s}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    style={styles.modalItem}
-                                    onPress={() => { setSpeciesPick(item); setSpeciesPickerOpen(false); }}
-                                >
-                                    <Text style={styles.modalItemText}>{item}</Text>
-                                    {speciesPick === item && (
-                                        <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
-                                    )}
-                                </TouchableOpacity>
-                            )}
-                        />
-                    </View>
-                </TouchableOpacity>
-            </Modal>
+
         </SafeAreaView>
     );
 }
