@@ -24,11 +24,29 @@ if [ -f .env ]; then
 fi
 
 # ───────────────────────────────────────────────────────────────────
-# CRITICAL: Auto-detect local network IP (en0/en1) to prevent breaking
-# connections when switching networks (Wi-Fi ↔ Mobile Hotspot).
+# CRITICAL: Auto-detect local network IP (en0/en1) or use remote backend.
 # ───────────────────────────────────────────────────────────────────
-LOCAL_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || echo "127.0.0.1")
-export EXPO_PUBLIC_DEV_BACKEND_URL="http://${LOCAL_IP}:3000"
+USE_REMOTE=false
+for arg in "$@"; do
+  if [ "$arg" = "--remote" ]; then
+    USE_REMOTE=true
+  fi
+done
+
+if [ "$USE_REMOTE" = true ]; then
+  # Remove --remote from arguments passed to expo
+  NEW_ARGS=()
+  for arg in "$@"; do
+    if [ "$arg" != "--remote" ]; then
+      NEW_ARGS+=("$arg")
+    fi
+  done
+  set -- "${NEW_ARGS[@]}"
+  export EXPO_PUBLIC_DEV_BACKEND_URL="https://fishery-app.onrender.com"
+else
+  LOCAL_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || echo "127.0.0.1")
+  export EXPO_PUBLIC_DEV_BACKEND_URL="http://${LOCAL_IP}:3000"
+fi
 
 export EXPO_NO_TELEMETRY=1
 
