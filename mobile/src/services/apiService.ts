@@ -738,6 +738,7 @@ export type DisputeReason =
 
 export interface MarketplaceListing {
     id: string;
+    batch_id?: string | null;
     stage: Stage;
     species_name: string;
     species_variant: string | null;

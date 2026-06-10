@@ -354,6 +354,7 @@ router.get('/listings/mine', requireAuth, async (req, res, next) => {
         const result = await query(`
             SELECT
                 fl.id,
+                fl.batch_id,
                 fl.stage,
                 fl.species_name,
                 fl.species_variant,

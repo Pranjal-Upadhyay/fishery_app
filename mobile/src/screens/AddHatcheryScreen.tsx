@@ -29,6 +29,29 @@ import * as Location from 'expo-location';
 import { loadProfile } from '../services/profileService';
 import { hatcheryProfileService } from '../services/apiService';
 
+/**
+ * Auto-format the Government Registration UID as the user types.
+ *
+ * Target format: `XX-XXX-YYYY-NNNNN` (e.g. `BR-HAT-2026-10000`)
+ *   - 2 letters (state code)
+ *   - 3 letters (entity code: HAT / DOC / FRM)
+ *   - 4 digits  (year)
+ *   - 5 digits  (sequence)
+ *
+ * Strategy: strip every non-alphanumeric, uppercase, then re-insert dashes
+ * at positions 2 / 5 / 9. Cap at 14 raw chars total so the final string is
+ * always at most 17 chars (`XX-XXX-YYYY-NNNNN`).
+ */
+function formatHatcheryUid(raw: string): string {
+    const clean = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 14);
+    let out = '';
+    for (let i = 0; i < clean.length; i++) {
+        if (i === 2 || i === 5 || i === 9) out += '-';
+        out += clean[i];
+    }
+    return out;
+}
+
 export default function AddHatcheryScreen() {
   const { theme } = useTheme();
   const styles = getStyles(theme);
@@ -73,7 +96,7 @@ export default function AddHatcheryScreen() {
             });
           }
           if (existing.capacity_kg != null) setCapacityKg(String(existing.capacity_kg));
-          if (existing.hatchery_uid) setHatcheryUid(existing.hatchery_uid);
+          if (existing.hatchery_uid) setHatcheryUid(formatHatcheryUid(existing.hatchery_uid));
           if (existing.contact_number) setContactNumber(existing.contact_number);
           if (existing.email) setEmail(existing.email);
           if (existing.upi_id) setUpiId(existing.upi_id);
@@ -237,12 +260,13 @@ export default function AddHatcheryScreen() {
             <FormField
               label="Government Registration UID *"
               value={hatcheryUid}
-              onChangeText={setHatcheryUid}
-              placeholder="e.g. BR-HAT-2024-00123"
+              onChangeText={(raw: string) => setHatcheryUid(formatHatcheryUid(raw))}
+              placeholder="BR-HAT-2026-10000"
               icon="shield-checkmark-outline"
               theme={theme}
               autoCapitalize="characters"
               autoCorrect={false}
+              maxLength={17}
             />
             <FormField
               label="Contact Phone *"

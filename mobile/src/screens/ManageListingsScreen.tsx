@@ -199,7 +199,12 @@ export default function ManageListingsScreen() {
                 }
             />
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filterScroll}
+                contentContainerStyle={styles.filterRow}
+            >
                 {TABS.map(t => {
                     const count = listings.filter(l => {
                         if (t.key === 'active')   return l.status === 'AVAILABLE';
@@ -241,7 +246,16 @@ export default function ManageListingsScreen() {
                     renderItem={({ item }) => {
                         const statusColor = STATUS_COLOR[item.status] ?? theme.colors.primary;
                         return (
-                            <View style={styles.card}>
+                            <TouchableOpacity
+                                style={styles.card}
+                                activeOpacity={0.85}
+                                onPress={() =>
+                                    navigation.navigate('ListingDetail', {
+                                        listingId: item.id,
+                                        viewOnly: true,
+                                    })
+                                }
+                            >
                                 <View style={styles.cardHead}>
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.cardTitle}>{item.species_name}{item.species_variant ? ` · ${item.species_variant}` : ''}</Text>
@@ -308,7 +322,7 @@ export default function ManageListingsScreen() {
                                         </TouchableOpacity>
                                     )}
                                 </View>
-                            </View>
+                            </TouchableOpacity>
                         );
                     }}
                 />
@@ -348,6 +362,10 @@ const getStyles = (theme: any) => {
             borderRadius: 14,
         },
         createBtnText: { color: c.textInverse, fontSize: 14, fontWeight: '800' },
+        // Horizontal ScrollView needs flexGrow:0 so it doesn't expand to fill
+        // the parent flex container's full vertical space — otherwise the list
+        // below appears pushed to the middle of the screen.
+        filterScroll: { flexGrow: 0, flexShrink: 0 },
         filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
         filterChip: {
             alignSelf: 'flex-start',

@@ -56,7 +56,9 @@ export default function ListingDetailScreen() {
     const styles = getStyles(theme);
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { listingId } = route.params;
+    // viewOnly is set when the hatchery owner opens their own listing — we hide
+    // the order placement form because the operator can't buy from themselves.
+    const { listingId, viewOnly } = route.params as { listingId: string; viewOnly?: boolean };
 
     const [listing, setListing] = useState<MarketplaceListing | null>(null);
     const [loading, setLoading] = useState(true);
@@ -200,8 +202,14 @@ export default function ListingDetailScreen() {
     }
 
     const stageColor = STAGE_COLOR[listing.stage] ?? theme.colors.primary;
-    const isPurchasable = listing.status === 'AVAILABLE' && listing.quantity_available > 0;
-    const isInterestable = listing.status === 'UPCOMING';
+    // Visual flags reflect the listing's true status — the status badge stays
+    // colour-coded even in view-only mode.
+    const isAvailable = listing.status === 'AVAILABLE' && listing.quantity_available > 0;
+    const isUpcoming = listing.status === 'UPCOMING';
+    // Action flags drive the order/interest form. viewOnly suppresses both
+    // because the hatchery owner can't buy from themselves.
+    const isPurchasable = !viewOnly && isAvailable;
+    const isInterestable = !viewOnly && isUpcoming;
     const canOrder = isPurchasable || isInterestable;
 
     const locText = [
@@ -234,15 +242,15 @@ export default function ListingDetailScreen() {
                         </View>
                         <View style={[
                             styles.statusBadge,
-                            isPurchasable ? styles.statusBadgeAvailable :
-                                isInterestable ? styles.statusBadgeUpcoming : styles.statusBadgeClosed,
+                            isAvailable ? styles.statusBadgeAvailable :
+                                isUpcoming ? styles.statusBadgeUpcoming : styles.statusBadgeClosed,
                         ]}>
                             <Text style={styles.statusBadgeText}>{STATUS_LABEL[listing.status] ?? listing.status}</Text>
                         </View>
                     </View>
 
                     {/* Ready date for upcoming */}
-                    {isInterestable && (
+                    {isUpcoming && (
                         <View style={styles.calendarRow}>
                             <Ionicons name="calendar-outline" size={16} color={theme.colors.primary} />
                             <Text style={styles.calendarText}>
