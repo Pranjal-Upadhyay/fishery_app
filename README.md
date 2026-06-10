@@ -9,20 +9,39 @@ Designed for Bihar and expanding to all Indian states, MatsyaMitra bridges the g
 ## Table of Contents
 
 - [Why MatsyaMitra](#why-matsyamitra)
+- [Three Surfaces, One Platform](#three-surfaces-one-platform)
 - [Features](#features)
 - [Hatchery Marketplace](#hatchery-marketplace)
 - [Government Survey Compliance](#government-survey-compliance)
+- [Government Oversight Dashboard](#government-oversight-dashboard)
 - [Screens](#screens)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
 - [Backend & Database](#backend--database)
+- [Backend Worker Service](#backend-worker-service)
 - [Location System](#location-system)
 - [Design System](#design-system)
 - [Local Development Setup](#local-development-setup)
+- [Containerised Dev Stack (Docker)](#containerised-dev-stack-docker)
 - [Building the APK](#building-the-apk)
 - [Environment Variables](#environment-variables)
 - [Database Migrations](#database-migrations)
+- [Project Documentation](#project-documentation)
 - [Changelog](#changelog)
+
+---
+
+## Three Surfaces, One Platform
+
+MatsyaMitra is not just a mobile app. It is a coordinated three-surface platform serving every actor in the Indian aquaculture chain:
+
+| Surface | Audience | Purpose |
+| :--- | :--- | :--- |
+| **📱 Mobile App** (`mobile/`) | Farmers, Hatchery operators, Doctors | Daily operations — pond management, marketplace transactions, water quality logging, consultations, government survey data entry |
+| **🛰️ Admin Dashboard** (`dashboard/`) | Government officers (Block / District / DLC / Superadmin) | Oversight — live pond atlas, alert response, scheme administration, subsidy disbursement, doctor & hatchery directories, onboarding funnel analysis |
+| **⚙️ Backend API + Worker** (`backend/`) | Both surfaces | Source of truth — PostgreSQL data, JWT auth (separate realms for farmers vs. admins), market price ingestion worker, cron jobs, REST endpoints |
+
+The mobile app and the dashboard are intentionally built as **separate codebases with separate node_modules**. They share only the backend API. This keeps Metro fast for the mobile build and keeps Next.js builds independent of React Native's native module quirks.
 
 ---
 
@@ -261,6 +280,193 @@ This separation matches how the form is actually filled in the field — profile
 
 ---
 
+## Government Oversight Dashboard
+
+A standalone **Next.js 15 web dashboard** lives alongside the mobile app under `dashboard/`. It is designed for the State Fisheries Department — block officers, district officers, DLC committee members, and superadmins — to monitor, intervene, and govern the entire MatsyaMitra ecosystem from a desk.
+
+Unlike the mobile app, the dashboard is **online-first, glass-aesthetic, deck.gl-powered, and dark-mode native**. It speaks to the same Express backend as the mobile app but uses a **separate JWT realm** (`ADMIN_JWT_SECRET` ≠ `JWT_SECRET`) so a leaked farmer token can never forge an officer claim, and vice versa.
+
+### Dashboard at a glance
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Sidebar (icon rail)                  Map of Bihar — every pond     │
+│  • Map (Atlas)                       ┌──────────────────────────┐  │
+│  • Alerts                            │  Live Telemetry           │  │
+│  • Schemes (Yojana CMS)              │  Ponds mapped: 7          │  │
+│  • Subsidies (DBT)                   │  Critical alerts: 2 🔴    │  │
+│  • Water Quality                     │  Hatcheries online: 2     │  │
+│  • Production Analytics              │  [Outbreak heatmap ●○]    │  │
+│  • Doctors                           ├──────────────────────────┤  │
+│  • Hatcheries                        │  Atlas Filters            │  │
+│  • Farmers (funnel)                  │  District ▾ Species ▾    │  │
+│  • Settings                          │  System ▾ Health ▾       │  │
+│                                       └──────────────────────────┘  │
+│                       (clicking a pond → left-side inspection drawer)│
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Pages
+
+#### 🗺️ Map (Atlas) — `/dashboard`
+The dashboard **opens directly onto a full-viewport map of Bihar**, no welcome card, no warm-up. Every pond, hatchery, and cage array in the system is plotted with a coloured marker (teal = normal, red pulse = critical).
+
+- **Right drawer — Live Telemetry card:** counts of mapped ponds, critical alerts (number turns rose-pink and pulses when > 0), hatcheries online — all numbers respond live to the active filters
+- **Outbreak Heatmap toggle:** glass switch overlays a density gradient over the map. When active and there are critical alerts in the current filter set, surrounding markers dim so the hotspot is readable
+- **Atlas Filters:** District, Species Stocked, Culture System (Earthen / Biofloc / RAS / Cages), Health Status (Normal / Critical) — all four combine via AND
+- **Pond inspection drawer (slides in from left when a marker is clicked):**
+  - Status pill (NURSERY / GROW_OUT / HATCHERY)
+  - Owner name, GPS coordinates, ownership type
+  - **Survey Specifications grid:** land area, water source, culture system, stock species
+  - **Live Water Chemistry strip:** pH, DO, Temp, NH₃ — values flip to rose-pink when out of threshold
+  - **Mobile Survey Photos grid:** the 4 photos the farmer captured (Wide / Embankment / Close / Farmer with Pond) — proves the pond is real
+  - **"View Farmer Profile" CTA** → deep-links to `/dashboard/farmers?search=…`
+- **Critical alert banner** appears inside the drawer when the selected pond has an active ecological alert, with the specific reason (e.g. "Dissolved Oxygen dropped to 2.8 mg/L, threshold 3.5")
+
+#### 🔔 Alerts — `/dashboard/alerts`
+Real-time inbox of every critical and warning condition flagged by farmer water-logging or disease-symptom reports. Two categories: **Water Parameter** (DO crash, pH spike, ammonia jump) and **Disease Outbreak** (EUS lesions, Aeromoniasis, fish lice).
+
+Each alert card shows the farmer's name, phone, location (district + block), age of the alert, and a one-line ecological cause.
+
+**Officer actions on each alert:**
+1. **Send SMS** — fires an outbound advisory text to the affected farmer (placeholder integration; production wires to MSG91 / Gupshup)
+2. **Dispatch Doctor** — opens a dropdown of available doctors filtered by specialty (Fish Pathology, Water Biology, Parasitology), the officer picks one, the alert is marked `dispatched`
+3. **Mark Resolved** — once the farmer confirms recovery
+
+Resolved alerts collapse into a separate history strip but stay queryable.
+
+#### 📜 Schemes (Yojana CMS) — `/dashboard/schemes`
+The administrative side of the PMMSY / NABARD / state-scheme catalog. Two tabs:
+
+**Tab 1 — Yojana catalog management** — every scheme has:
+- Code, Hindi name, English name
+- Subsidy percentage by farmer category (General / EBC / SC / ST)
+- Unit cost cap in lakhs ₹
+- Eligibility text (land area, ownership type, farmer category)
+- Classification (Capital infra / Working capital / Insurance / Training)
+- Geofence — which districts the scheme is active in
+
+**Tab 2 — Application processing queue** — every farmer's scheme application flows through this board:
+- `Awaiting Review` → officer verifies documents (Aadhaar, land deed, bank passbook, photo)
+- `DLC Queue` → escalated to the District Level Committee
+- `Approved` → moves to subsidy pipeline (next page)
+- `Milestone 1 Met` → first tranche disbursed, photo proof captured
+- `Milestone 2 Met` → final tranche disbursed
+
+For each application, the officer sees: app number, farmer's caste category, scheme name, district, land area, document checklist with per-doc status (verified / pending / missing), GPS coordinates with a "GPS Match" indicator (green tick if the submitted GPS falls inside the registered district polygon), and the subsidy amount.
+
+#### 💵 Subsidies (DBT) — `/dashboard/subsidies`
+The financial pipeline for **Direct Benefit Transfer** of subsidies to farmer bank accounts.
+
+- **Caste allocation budgets:** progress bars for General (₹12 Cr), EBC (₹15 Cr), SC (₹10.5 Cr), ST (₹5 Cr) — shows current disbursed vs. target with utilisation %
+- **DBT transaction ledger:** every disbursement row carries UTR (Unique Transaction Reference), farmer name, yojana, bank seeding status (Seeded & Verified / Processing), amount, status (Success / Processing / Failed), date
+- **Stats strip at the top:** total budget, total disbursed, pending DLC count, overall utilisation rate — all pulled live from the backend
+- **Failed transactions** flagged in red — the officer can re-trigger or escalate
+
+This page is the bridge between scheme approval and money actually reaching the farmer.
+
+#### 💧 Water Quality — `/dashboard/water`
+Searchable, filterable log of every water-quality entry farmers have submitted via the mobile app.
+
+Each row: pond name, farmer name, district, pH, DO (mg/L), ammonia (ppm), temperature (°C), logged timestamp, and a coloured status pill (safe / alert / critical) computed against the thresholds set in `Settings`.
+
+**Search** finds by pond, farmer, or district. **Status filter** narrows to just critical or alert rows when the officer is firefighting outbreaks.
+
+#### 🌾 Production Analytics — `/dashboard/production`
+The yield, feed, and energy accounting view — built from `crop_cycles` and `farm_assets` data the farmer logs through the mobile survey screens.
+
+- **Harvest logs:** per-pond record showing species, cycle duration (months), total yield (kg), survival percentage, and **Feed Conversion Ratio (FCR)** — the single most important efficiency metric in aquaculture
+- **Feed accounting:** brand, bags purchased, bags consumed, bag weight, unit cost, remaining inventory — helps the officer spot underfeeding or feed-diversion patterns
+- **Energy ledger:** aerator quantity, horsepower, average daily run hours, power source, kWh consumed, electricity cost — feeds into the Section E asset depreciation reports
+- Drill-down on any harvest reveals farmer contact details for follow-up site visits
+
+#### 🩺 Doctors — `/dashboard/doctors`
+The directory of every empanelled aquaculture doctor in the network, plus their active diagnosis log.
+
+- **Doctor cards:** name, specialty (Fish Pathology / Aquaculture Biology / Water Chemistry / Parasitology), assigned district & block, phone, live availability status (Available / On Field Visit / Inactive)
+- **Diagnosis log:** every case a doctor has handled — farmer name, pond, disease (EUS, Aeromoniasis, Argulosis, etc.), the exact treatment prescribed (e.g. "CIFAX 1 L/acre + KMnO₄ disinfection"), prescribing doctor, date, and recovery status (In Treatment / Recovered)
+- Search-and-filter across both panels
+
+This page lets a district officer see at a glance which blocks have under-coverage and which doctors are overloaded.
+
+#### 🐠 Hatcheries — `/dashboard/hatcheries`
+The hatchery operator oversight view.
+
+- **Batches in production:** every active spawn → fingerling pipeline with batch number, hatchery name, species & variant (Jayanti Rohu / Amrita Katla / Standard), current stage (Spawning → Hatching → Yolk Absorption → Nursery → Rearing → Fingerling Ready), days in stage, brood-stock counts (male/female), expected ready date, estimated fingerling yield
+- **Sales ledger:** every fingerling sale — TXN reference, buyer name & phone, species, quantity, total amount, delivery status, date
+- **QR code action** on each batch — exports a traceability QR that the officer can paste onto physical batch tags during field inspection
+- Search across hatcheries, batch numbers, and buyer records
+
+#### 👥 Farmers (Onboarding Funnel) — `/dashboard/farmers`
+The growth & retention analytics page — answers "where are farmers dropping off in the funnel and why?"
+
+- **5-stage funnel** with counts and conversion percentages:
+  - Registered (1,240 — 100%)
+  - Profile Complete (980 — 79%)
+  - First Pond Added (640 — 51%)
+  - Active Cycle (420 — 33%)
+  - Water Logging (180 — 14%)
+- **District-wise breakdown table:** for each Bihar district — registered count, active count, drop-off percentage — sortable so officers can identify the worst-performing blocks for targeted outreach
+- **Stuck farmers list:** every farmer who has been frozen at the same funnel stage for more than 30 days — with their name, phone, district, block, stuck-days counter, and a deep-link to call them
+- **Bulk export** of the funnel as CSV for monthly reporting
+
+#### ⚙️ Settings — `/dashboard/settings`
+The control panel for the officer's own thresholds and identity.
+
+- **Water-quality thresholds** — DO minimum, pH min/max, ammonia maximum — saved to `localStorage` and **read live by the Map page**, so changing the DO threshold here immediately re-classifies which ponds appear as critical on the atlas
+- **Yojana targets & budget** — total scheme target count and total budget in crores, used to size the progress bars on the Subsidies page
+- **Officer identity** — name, district, block — pre-fills audit log entries and shows in the top-bar greeting
+- All settings persist in `localStorage` so they survive refresh without a backend round-trip
+
+### Authentication & Security
+
+The dashboard treats security as a first-class concern — see `dashboard/SECURITY.md` for the full posture document. Highlights:
+
+- **Roles:** `block_officer`, `district_officer`, `dlc_member`, `superadmin`. Each admin has `assigned_state_codes / district_codes / block_codes` and backend routes filter all data by that jurisdiction (no district officer can see another district's farmers)
+- **No public signup** — admins are created only by a superadmin via the dashboard. Bootstrap superadmin uses `seed_admin.ts` with a `must_change_password` flag forcing rotation on first login
+- **bcrypt cost 12** for password hashing; **8-hour JWT** signed with `iss=matsyamitra-admin`
+- **30-minute idle auto-logout** — any mouse / keyboard / scroll / touch resets a throttled timer; on expiry the token is wiped and the officer is bounced to login
+- **Per-account lockout:** 5 consecutive failed password attempts → 30-minute lock. Successful login clears the counter
+- **Per-IP rate limit:** 20 admin login attempts per 15 minutes (successful logins don't count toward the cap)
+- **Generic error messages** — UI shows `Invalid email or password` regardless of which field failed; specific reasons live only in the `admin_audit_log` (which is append-only by policy — no `DELETE` or `UPDATE` queries exist anywhere in the codebase)
+- **CSP, helmet, HSTS, X-Frame-Options: DENY** on all admin responses; password fields disable autocorrect/autocapitalize/spellcheck
+
+### Glass Design System
+
+The dashboard runs its own dark-glass aesthetic, distinct from the mobile app's Fishing God v2 system:
+
+- **Canvas:** deep navy (`canvas-900` / `canvas-950`) with backdrop-blur glass cards (`GlassCard` component)
+- **Accent:** teal (`teal-400` / `teal-500`) for primary, rose (`rose-400`) for critical / alert, amber for warnings
+- **Typography:** Inter for body, monospace numerics for tabular figures (water chem strip, budgets) so columns stay aligned
+- **Icons:** `lucide-react` exclusively — no emoji, no Ionicons (the mobile app uses Ionicons)
+- **Animations:** subtle — critical counters use `animate-pulse`, active sidebar items get a glowing 3px teal rail
+
+### First Login (Dev Seed)
+
+```
+email:    superadmin@matsyamitra.in
+password: ChangeMe!2026
+```
+
+To set a real password against the dockerised backend:
+
+```bash
+ADMIN_PASSWORD='YourStrongPassword' \
+  docker exec -i fishing-god-backend node /app/dist/scripts/seed_admin.js
+```
+
+### Build Phases
+
+The dashboard is built in layered passes:
+
+- **L0** — auth, layout shell, alert ticker, placeholder map *(complete)*
+- **L1** — typed API client + shared types *(complete)*
+- **L2** — full Map canvas, Alerts page, Schemes CMS *(complete)*
+- **L3** — Subsidy pipeline, Production analytics, Doctor/Hatchery overlays, Farmer onboarding funnel *(complete)*
+- **L4** — Audit log viewer, error monitoring, mobile event instrumentation *(in progress)*
+
+---
+
 ## Screens
 
 | Screen | Route Name | Role |
@@ -304,43 +510,97 @@ This separation matches how the form is actually filled in the field — profile
 
 ```
 fishery_app/
-├── mobile/                   # React Native (Expo) app
+├── docker-compose.yml        # 4-service stack: postgres + redis + backend + worker
+├── .env                      # Root env consumed by docker-compose
+│
+├── mobile/                   # React Native (Expo) — farmer / hatchery / doctor app
 │   ├── app.json              # Expo config — name: MatsyaMitra, slug: matsyamitra
 │   ├── eas.json              # EAS Build profiles (development, preview, apk, production)
-│   ├── .env                  # EXPO_PUBLIC_BACKEND_URL=https://fishery-app.onrender.com
+│   ├── metro.config.js       # Standalone Metro config (no monorepo hoisting)
+│   ├── start.sh              # Fast launcher — forces Node 22 LTS, auto-detects LAN IP
+│   ├── .env                  # EXPO_PUBLIC_BACKEND_URL
 │   └── src/
-│       ├── screens/          # 30+ screens (Farmer + Hatchery + Doctor)
-│       ├── components/       # Shared components (LocationCascadePicker, WeatherCard, …)
-│       ├── services/         # apiService.ts (axios), authService.ts, locationService
-│       ├── database/         # WatermelonDB schema, adapter (SQLite native / LokiJS web)
-│       ├── utils/            # speciesLookup, notificationCenter, feedImages
+│       ├── screens/          # 40+ screens (Farmer + Hatchery + Doctor)
+│       ├── components/       # Shared (LocationCascadePicker, CalendarPickerModal, …)
+│       ├── services/         # apiService.ts, authService.ts, syncService.ts, profileService.ts
+│       ├── database/         # WatermelonDB schema, adapter (SQLite native / LokiJS Expo Go)
+│       ├── utils/            # speciesLookup, notificationCenter, diseaseContent, uidFormatter
 │       ├── i18n/             # i18next — en.json, hi.json
-│       ├── ThemeContext.tsx   # Dark/light mode context
+│       ├── ThemeContext.tsx  # Dark / light mode context
 │       └── AuthContext.tsx   # JWT auth state (DEV_SKIP_AUTH = false for production)
 │
-└── backend/                  # Node.js / Express / TypeScript API
-    ├── Dockerfile            # Multi-stage build → runs migrate then server
-    ├── start.sh              # Entrypoint: runs migrations then starts API
-    ├── src/
-    │   ├── routes/           # REST routes: species, ponds, market, locations, doctors, …
-    │   ├── scripts/
-    │   │   ├── migrate.ts    # Migration runner (reads migrations/ alphabetically)
-    │   │   └── seed.ts       # Seed helpers
-    │   └── index.ts          # Express app entry
-    └── migrations/           # 41+ SQL migration files (001–041)
+├── backend/                  # Node.js / Express / TypeScript REST API + Worker
+│   ├── Dockerfile            # Multi-stage build → runs migrate then server
+│   ├── Dockerfile.worker     # Separate image for the market-data scraper
+│   ├── start.sh              # Entrypoint: runs migrations then starts API
+│   ├── src/
+│   │   ├── routes/           # 18 route modules (auth, marketplace, hatcheries, doctors, …)
+│   │   ├── services/         # Domain services (DoctorRouting, EconomicsSimulator, PMMSY, …)
+│   │   ├── middleware/       # auth, adminAuth, audit, security, validate
+│   │   ├── workers/          # fmpisScraper, marketDataIngestion
+│   │   ├── cron/             # hatcheryNotifications (node-cron schedules)
+│   │   ├── scripts/          # migrate.ts + 13 versioned migrate scripts + seed scripts
+│   │   └── index.ts          # Express app entry
+│   └── migrations/           # 41 SQL migration files (001–041)
+│
+├── dashboard/                # Next.js 15 admin dashboard (separate node_modules)
+│   ├── next.config.ts
+│   ├── tailwind.config.ts    # Glass design system tokens
+│   ├── .env.local            # NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+│   └── src/
+│       ├── app/
+│       │   ├── (auth)/login/ # Officer login + idle-watcher boundary
+│       │   └── dashboard/    # 9 oversight pages (map, alerts, schemes, subsidies, …)
+│       ├── components/
+│       │   ├── map/          # deck.gl + react-map-gl canvas + map-type toggle
+│       │   ├── shell/        # sidebar, topbar, layout-shell, alert-ticker
+│       │   └── ui/           # glass-card, button, input, password-input, theme-toggle
+│       └── lib/
+│           ├── api.ts        # Typed fetch client with JWT injection
+│           ├── auth-context.tsx
+│           ├── idle-watcher.tsx  # 30-min idle auto-logout
+│           └── theme-context.tsx
+│
+└── documentation/            # Living spec docs
+    ├── ARCHITECTURE_AUDIT.md          # Monorepo → standalone migration audit
+    ├── DEVELOPER_README.md            # Dev status, known gaps, roadmap
+    ├── ECONOMICS_MATH.md              # BCR / ROI formulas and calibration
+    ├── YOJANA_INTEGRATION_PLAN.md     # Scheme catalog integration spec
+    ├── MatsyaMitra_Hatchery_Feature_Implementation.md
+    ├── AGENTS.md                      # AI agent prompts used during development
+    └── SECURITY.md                    # Platform-wide security posture
 ```
 
-### Offline-First Data Flow
+### Offline-First Data Flow (Mobile)
 
 ```
-User Action
+User Action (on phone, possibly offline)
     │
     ▼
 WatermelonDB (SQLite on device)   ←──── reads/writes always work offline
     │
     │  (when network available)
     ▼
-Render.com API (PostgreSQL)       ←──── sync, location lookup, market data
+Express API (Postgres)            ←──── sync, location lookup, market data, marketplace
+    │
+    ▼
+Render.com (production) or Docker (local dev)
+```
+
+### Online-First Data Flow (Dashboard)
+
+```
+Officer browser
+    │
+    ▼
+Next.js 15 (port 3001)            ←──── server components + client islands
+    │
+    │  (JWT in Authorization header — never in cookies, CSRF-immune)
+    ▼
+Express API (port 3000)           ←──── jurisdiction-scoped queries (state/district/block)
+    │
+    ▼
+PostgreSQL + admin_audit_log      ←──── every auth event recorded, append-only
 ```
 
 ---
@@ -365,15 +625,33 @@ Render.com API (PostgreSQL)       ←──── sync, location lookup, market 
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Node.js + TypeScript |
+| Runtime | Node.js 20 + TypeScript 5 |
 | Framework | Express 4 |
-| Database | PostgreSQL 15 (Render managed) |
-| Auth | JWT (jsonwebtoken) + bcrypt |
+| Database | PostgreSQL 15 (Render managed in prod, postgis/postgis:15-3.4 in dev) |
+| Cache / Queue | Redis 7-alpine |
+| Auth | JWT (jsonwebtoken) + bcrypt cost-12 — separate realms for farmer vs. admin |
+| Validation | Zod (request body schemas, no string interpolation in SQL) |
 | Rate Limiting | express-rate-limit |
-| Security | helmet (HTTP headers) |
-| Cron | node-cron (market price refresh) |
+| Security | helmet (CSP, HSTS, X-Frame-Options) |
+| Cron | node-cron (market price refresh, hatchery notifications) |
+| Scraping | puppeteer + chromium (AGMARKNET, FMPIS market data) |
 | Logging | Winston |
-| Hosting | Render.com (Docker container) |
+| Hosting | Render.com (Docker container) for prod; docker-compose for local |
+
+### Dashboard
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 15 (App Router) + React 19 |
+| Language | TypeScript 5 (strict) |
+| Styling | Tailwind 3 + custom glass design tokens |
+| Maps | MapLibre GL 4 + react-map-gl 7 + deck.gl 9 (heatmap, scatter layers) |
+| Google Maps integration | `@vis.gl/react-google-maps` (alternate map backend) |
+| Icons | lucide-react |
+| Class merging | clsx + tailwind-merge |
+| Validation | Zod 3 |
+| Auth | Same Express backend, separate `ADMIN_JWT_SECRET`, 8h tokens, 30-min idle expiry |
+| Hosting | Vercel (production), `npm run dev -p 3001` (local) |
 
 ---
 
@@ -471,6 +749,27 @@ Panchayat:  BR-PATNA-SADAR-NAUBATPUR
 
 ---
 
+## Backend Worker Service
+
+Alongside the main Express API, a **separate worker container** runs in the background. It exists because long-running scrape jobs and cron schedules shouldn't share a process with user-facing request handlers.
+
+### What the worker does
+
+| Job | Source | Cadence | Purpose |
+| :--- | :--- | :--- | :--- |
+| **AGMARKNET scrape** | `workers/marketDataIngestion.ts` | Daily 02:00 IST | Pulls wholesale fish & shrimp prices from the Government of India AGMARKNET portal — feeds the Market Prices screen and the Economics simulator's break-even calculation |
+| **FMPIS scrape** | `workers/fmpisScraper.ts` | Twice weekly | Fish Market Price Information System — supplementary state-level price data for districts AGMARKNET doesn't cover |
+| **Hatchery notifications** | `cron/hatcheryNotifications.ts` | Hourly | Sends in-app notifications: listing due-today reminders, advance-interest conversion prompts, stale-order nudges |
+| **Marketplace auto-expiry** | inline in `routes/marketplace.ts` | Lazy (on every browse) | Listings past their `last_available_date` flip from `AVAILABLE` → `EXPIRED` on the next read — no scheduler needed for this one |
+
+### Why a separate Docker image
+
+The worker bundles **Chromium + Puppeteer** for headless scraping. That payload is ~700 MB. Keeping it out of the API image means the API container stays small, boots fast on Render, and a scrape OOM doesn't take down user requests.
+
+Both images share the same `backend/` source — the only difference is which entry script they run (`dist/index.js` for API, worker entrypoints for the worker).
+
+---
+
 ## Location System
 
 ### Three-Tier Cascade Picker
@@ -519,56 +818,129 @@ MatsyaMitra uses the **"Fishing God v2"** design system — a dark-mode-first gl
 ## Local Development Setup
 
 ### Prerequisites
-- Node.js 20+
-- Docker + Docker Compose
-- Expo CLI (`npm install -g expo-cli`)
-- EAS CLI (`npm install -g eas-cli`) — for APK builds only
+- **Node.js 22 LTS** (`brew install node@22`) — Node 25/26 has broken module resolution that hangs Metro
+- **Docker Desktop** — runs the full backend stack with one command
+- **Expo CLI / EAS CLI** — `npm install -g expo-cli eas-cli` (EAS only needed for APK builds)
+- macOS: ensure `/Applications/Docker.app/Contents/Resources/bin` is in `PATH` (add to `~/.zshrc`)
 
-### 1. Start Infrastructure
+### 1. Start the Backend Stack (recommended path)
 
-```bash
-docker compose up -d postgres redis
-```
-
-### 2. Backend
+From the repo root:
 
 ```bash
-cd backend
-cp .env.example .env           # set DATABASE_URL, JWT_SECRET
-npm install
-npm run build
-npm run migrate                # runs all 24 migrations
-npm run dev                    # starts on :3000
+docker compose up -d --build
 ```
 
-### 3. Mobile
+This brings up **4 containers** in one shot:
+
+| Container | Role | Port |
+| :--- | :--- | :--- |
+| `fishing-god-postgres` | PostgreSQL 15 with PostGIS — auto-runs all 41 migrations on first boot via `docker-entrypoint-initdb.d` mount | 5432 |
+| `fishing-god-redis` | Cache + job queue | 6379 |
+| `fishing-god-backend` | Express API (multi-stage built from `backend/Dockerfile`) | 3000 |
+| `fishing-god-worker` | Puppeteer scraper + cron schedules (`backend/Dockerfile.worker`) | — |
+
+Credentials come from the **root `.env`** — already pre-filled for dev (`DB_USER=fishinggod`, `DB_PASSWORD=aquaculture2024`, dev JWT secrets). No manual setup needed.
+
+**Verify everything is up:**
+
+```bash
+docker ps                                       # should list all 4 healthy containers
+curl http://localhost:3000/api/v1/species       # should return JSON with 63 species
+```
+
+### 2. Mobile (Expo)
 
 ```bash
 cd mobile
-cp .env.example .env           # set EXPO_PUBLIC_BACKEND_URL
+npm install --legacy-peer-deps
+./start.sh                                       # auto-detects LAN IP, points app at Docker backend
+```
+
+The `start.sh` launcher does three smart things:
+- Forces **Node 22 LTS** path (`/opt/homebrew/opt/node@22/bin/node`) to avoid Node 25/26 hangs
+- Auto-detects your Mac's en0/en1 IP and exports `EXPO_PUBLIC_DEV_BACKEND_URL=http://<ip>:3000` so the phone hits your local Docker backend
+- Supports `--remote` to instead point at the Render production backend
+- Supports `--tunnel` (passed straight to Expo) for cross-network testing via ngrok
+
+> **Expo Go works** — the WatermelonDB adapter auto-falls back to LokiJS (in-memory) when the native SQLite bridge is absent. Native build (`expo run:android` / `run:ios`) is only needed for SQLite persistence between launches.
+
+### 3. Dashboard (Next.js — optional)
+
+```bash
+cd dashboard
+cp .env.local.example .env.local                 # set NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
 npm install
-npx expo run:android           # native build (required for WatermelonDB)
-# or
-npx expo run:ios
+npm run dev                                      # → http://localhost:3001
 ```
 
-> **Important:** `npx expo start` (Expo Go) does **not** work — WatermelonDB requires a native build. Always use `expo run:android` or `expo run:ios`.
+Then log in with the dev superadmin seed (see [Government Oversight Dashboard → First Login](#first-login-dev-seed)).
 
-### 4. Backend .env variables
+### 4. Manual Backend (without Docker — for IDE debugging)
 
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fishery_db
-JWT_SECRET=your-secret-key
-PORT=3000
-REDIS_URL=redis://localhost:6379
+If you want the backend running directly on the host (e.g. to attach a debugger) while still using the dockerised postgres + redis:
+
+```bash
+docker compose up -d postgres redis              # just the data layer
+cd backend
+cp .env.example .env                             # points at localhost:5432 / :6379
+npm install
+npm run build
+npm run db:migrate
+npm run dev                                      # nodemon + ts-node on :3000
 ```
 
-### 5. Mobile .env variables
+### Stopping the stack
 
-```env
-EXPO_PUBLIC_BACKEND_URL=https://fishery-app.onrender.com
-EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-key
+```bash
+docker compose down                              # stop containers (preserves data)
+docker compose down -v                           # also wipes the postgres volume (full reset)
 ```
+
+---
+
+## Containerised Dev Stack (Docker)
+
+The full local platform is reproducible via `docker-compose.yml`. This is the **recommended way to run the backend** in development because it mirrors the Render production environment byte-for-byte.
+
+### Service topology
+
+```
+                ┌─────────────────────────────┐
+                │   fishing-god-network        │  bridge driver
+                │                              │
+                │  ┌──────────┐   ┌─────────┐ │
+                │  │ postgres │←──│ backend │ │←─── :3000 → host
+                │  │  :5432   │   │  :3000  │ │
+                │  └──────────┘   └─────────┘ │
+                │       ↑              ↑       │
+                │       │              │       │
+                │  ┌─────────┐   ┌──────────┐ │
+                │  │ worker  │   │  redis   │ │←─── :6379 → host
+                │  └─────────┘   │  :6379   │ │
+                │                └──────────┘ │
+                └─────────────────────────────┘
+```
+
+### What each layer adds
+
+- **`postgres`** mounts `./backend/migrations` to `/docker-entrypoint-initdb.d` so every SQL file runs alphabetically on a fresh database. Postgres image includes PostGIS for geospatial queries
+- **`backend`** depends on postgres `service_healthy` — it won't even attempt to boot until postgres reports ready
+- **`worker`** independently bundles Chromium for headless scraping; it's deliberately ~10x larger than `backend` but isolated
+- **`redis`** is used by rate limiters and the scrape worker's job queue
+
+### Rebuilding after code changes
+
+```bash
+docker compose up -d --build backend             # rebuild only the API image
+docker compose up -d --build                     # rebuild API + worker
+docker compose build --no-cache backend          # full clean rebuild ignoring layer cache
+docker compose logs -f backend                   # tail backend logs while attached
+```
+
+### Why this matters
+
+Without Docker, you'd be juggling: a local Postgres install, a Redis install, schema migrations, env files in two places, port collisions with anything else listening on 5432, and Node version skew between dev and Render. With `docker compose up -d` it's one command, every time, reproducible to byte.
 
 ---
 
@@ -599,21 +971,45 @@ When the build completes, EAS provides a download URL for the `.apk` file. The A
 
 ## Environment Variables
 
+### Root (`.env` — consumed by `docker-compose.yml`)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NODE_ENV` | Yes | `development` | Sets Express to dev-mode logging and CORS |
+| `DB_USER` | No | `fishinggod` | Postgres superuser |
+| `DB_PASSWORD` | Yes | — | Postgres password (dev: `aquaculture2024`) |
+| `DB_NAME` | No | `fishing_god` | Database name |
+| `JWT_SECRET` | Yes | — | Signing secret for **farmer** JWTs |
+| `ADMIN_JWT_SECRET` | Yes | — | Signing secret for **admin / officer** JWTs — must differ from `JWT_SECRET` |
+| `REDIS_URL` | No | `redis://redis:6379` | Redis connection inside the docker network |
+| `ALLOWED_ORIGINS` | Yes | — | Comma-separated CORS allowlist (e.g. `http://localhost:3001` for the dashboard) |
+
 ### Mobile (`mobile/.env`)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `EXPO_PUBLIC_BACKEND_URL` | Yes | Backend API base URL (Render in production) |
-| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Yes | Google Maps SDK key for Android |
+| `EXPO_PUBLIC_BACKEND_URL` | Yes | Backend API base URL (Render in production, `http://<lan-ip>:3000` for local Docker) |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Yes | Google Maps SDK key for Android — Apple Maps used on iOS, no key needed |
+| `EXPO_PUBLIC_DEV_BACKEND_URL` | Auto | Auto-set by `start.sh` to your Mac's LAN IP at launch |
 
-### Backend (`backend/.env`)
+### Backend (`backend/.env` — only needed for non-Docker host runs)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `JWT_SECRET` | Yes | Secret for signing JWT tokens |
+| `NODE_ENV` | Yes | `development` or `production` |
 | `PORT` | No | HTTP port (default: 3000) |
-| `REDIS_URL` | No | Redis for caching (optional) |
+| `HOST` | No | Bind address (default: 0.0.0.0) |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | Yes | Postgres connection — set to `localhost:5432` when targeting the dockerised postgres from the host |
+| `REDIS_URL` | No | Redis connection string |
+| `JWT_SECRET` | Yes | Farmer JWT signing secret |
+| `ADMIN_JWT_SECRET` | Yes | Admin JWT signing secret |
+| `ALLOWED_ORIGINS` | Yes | CORS allowlist |
+
+### Dashboard (`dashboard/.env.local`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_BASE_URL` | Yes | Where the dashboard reaches the backend (default `http://localhost:3000`) |
 
 ---
 
@@ -658,6 +1054,27 @@ Migrations live in `backend/migrations/` and are run automatically on container 
 ### Render Baseline-Skip Fix
 
 On first Render deploy, if core tables (`ponds`, `users`, etc.) already existed, the migration runner would mark **all** migrations as applied without running them — leaving location tables empty. Migration 024 solves this permanently by using `CREATE TABLE IF NOT EXISTS` before all INSERTs, so it is safe to run on any database state.
+
+---
+
+## Project Documentation
+
+In addition to this README, the repository ships a living `documentation/` folder of spec documents that go deeper on specific subsystems:
+
+| Document | Topic |
+| :--- | :--- |
+| **`ARCHITECTURE_AUDIT.md`** | Why the project moved from an npm Workspaces monorepo to standalone mobile / backend / dashboard projects — Metro hoisting issues, Node 22 LTS pinning, IP-discovery fixes |
+| **`DEVELOPER_README.md`** | Current dev status, known gaps, roadmap items, and TODOs not yet tracked elsewhere |
+| **`ECONOMICS_MATH.md`** | The maths behind the ROI Simulator — CAPEX/OPEX line items, BCR formula, break-even quantity derivation, scenario calibration coefficients |
+| **`YOJANA_INTEGRATION_PLAN.md`** | The PMMSY scheme catalog integration spec — application lifecycle, DLC escalation, milestone proof requirements |
+| **`MatsyaMitra_Hatchery_Feature_Implementation.md`** | The hatchery marketplace v2 feature build plan — listing lifecycle, order state machine, dispute taxonomy |
+| **`AGENTS.md`** | AI agent prompts and operating guidance used during development |
+| **`SECURITY.md`** | Platform-wide security posture (mobile + backend); see also `dashboard/SECURITY.md` for the admin-side document |
+| **`backend/MARKET_DATA_STRATEGY.md`** | AGMARKNET + FMPIS scraping strategy, fallback chains, data quality guarantees |
+| **`mobile/METRO_HANG_RESOLUTION.md`** | Field log of every Metro / Node / Expo hang we've hit and how we fixed it |
+| **`mobile/TESTFLIGHT_SETUP.md`** | iOS build and TestFlight workflow |
+| **`dashboard/README.md`** | Dashboard quick-start (matches the section above) |
+| **`dashboard/SECURITY.md`** | Dashboard threat model, lockout policy, password policy, deployment checklist |
 
 ---
 
@@ -830,10 +1247,14 @@ Two new tables + screens for cycle-based survey data:
 
 ## For Developers
 
-- **`DEVELOPER_README.md`** — development status, known gaps, and roadmap
+- **`documentation/DEVELOPER_README.md`** — development status, known gaps, and roadmap
+- **`documentation/ARCHITECTURE_AUDIT.md`** — monorepo → standalone migration rationale
+- **`documentation/ECONOMICS_MATH.md`** — economic formulas, BCR assumptions, and calculations
+- **`documentation/YOJANA_INTEGRATION_PLAN.md`** — scheme catalog spec
+- **`documentation/SECURITY.md`** + **`dashboard/SECURITY.md`** — security posture
 - **`mobile/TESTFLIGHT_SETUP.md`** — iOS build and TestFlight workflow
-- **`backend/MARKET_DATA_STRATEGY.md`** — market data pipeline and sourcing
-- **`ECONOMICS_MATH.md`** — economic formulas, BCR assumptions, and calculations
+- **`mobile/METRO_HANG_RESOLUTION.md`** — Metro / Node / Expo troubleshooting log
+- **`backend/MARKET_DATA_STRATEGY.md`** — AGMARKNET + FMPIS scrape pipeline
 
 ---
 
