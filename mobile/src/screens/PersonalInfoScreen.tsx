@@ -295,7 +295,10 @@ export default function PersonalInfoScreen({ navigation }: any) {
                 : t('common.offline');
 
             Alert.alert(t('common.success'), message, [
-                { text: t('common.ok'), onPress: () => navigation.navigate('Main') },
+                // goBack lets navigation pop to whichever screen pushed PersonalInfo
+                // (FarmerProfile / HatcheryProfile / DoctorProfile) — hard-coding
+                // 'Main' worked only for the farmer stack and crashed on the others.
+                { text: t('common.ok'), onPress: () => navigation.goBack() },
             ]);
         } catch {
             Alert.alert(t('common.error'), t('personalInfo.saveError'));
@@ -321,7 +324,10 @@ export default function PersonalInfoScreen({ navigation }: any) {
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backBtn}
-                    onPress={() => navigation.navigate('Main', { screen: 'Profile' })}
+                    // PersonalInfo is reachable from FarmerProfile, HatcheryProfile,
+                    // and DoctorProfile — each lives under a different root navigator.
+                    // goBack pops to whichever stack pushed us, working for all 3.
+                    onPress={() => navigation.goBack()}
                 >
                     <Ionicons name="arrow-back" size={22} color={c.textPrimary} />
                 </TouchableOpacity>

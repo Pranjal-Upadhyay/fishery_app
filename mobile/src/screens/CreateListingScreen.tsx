@@ -71,11 +71,26 @@ export default function CreateListingScreen() {
     const [description, setDescription] = useState('');
 
     // Quantity & pricing
+    //
+    // The backend stores prices and thresholds in PER-PIECE terms (price_per_piece,
+    // bulk_price_per_piece, bulk_price_threshold). To keep the operator's mental
+    // model simple, the form lets them think in whichever unit matches how they
+    // actually sell — per piece OR per batch. We convert at submit time.
+    //
+    //  - totalQuantity   → total stock the hatchery has available
+    //  - batchSize       → how many fishes per batch (also serves as min_order_qty)
+    //  - pricingMode     → whether `priceInput` is per piece or per batch
+    //  - priceInput      → the headline price the user types
+    //  - bulkPriceInput  → discounted price when buyer takes multiple batches
+    //  - bulkBatches     → from how many batches the bulk price kicks in (≥ 2)
+    type PricingMode = 'per_piece' | 'per_batch';
     const [totalQuantity, setTotalQuantity] = useState('');
-    const [minOrderQty, setMinOrderQty] = useState('100');
-    const [pricePerPiece, setPricePerPiece] = useState('');
-    const [bulkPrice, setBulkPrice] = useState('');
-    const [bulkThreshold, setBulkThreshold] = useState('');
+    const [batchSize, setBatchSize] = useState('');
+    const [pricingMode, setPricingMode] = useState<PricingMode>('per_piece');
+    const [priceInput, setPriceInput] = useState('');
+    const [bulkPriceInput, setBulkPriceInput] = useState('');
+    const [bulkBatches, setBulkBatches] = useState('2');
+    const [pricingModePickerOpen, setPricingModePickerOpen] = useState(false);
 
     // Timing
     const [expectedReadyDate, setExpectedReadyDate] = useState(todayISO(7));
@@ -154,6 +169,22 @@ export default function CreateListingScreen() {
     const resolvedSpeciesName = matchedSpec ? matchedSpec.name : speciesPick;
     const resolvedSpeciesVariant = matchedSpec ? matchedSpec.variant : speciesVariant;
 
+    /**
+     * Resolve the per-piece price from the user-facing pricing mode.
+     * - Per piece mode: the input is already per piece.
+     * - Per batch mode: divide the batch price by batchSize to get per piece.
+     * Returns NaN when inputs are incomplete or invalid.
+     */
+    const computePerPiece = (rawPrice: string, batchSizeNum: number): number => {
+        const v = parseFloat(rawPrice);
+        if (isNaN(v) || v <= 0) return NaN;
+        if (pricingMode === 'per_batch') {
+            if (!batchSizeNum || batchSizeNum <= 0) return NaN;
+            return v / batchSizeNum;
+        }
+        return v;
+    };
+
     const validate = (): string | null => {
         if (!profile) return 'Please complete your hatchery profile first.';
         if (!profile.hatchery_uid) return 'Your government registration UID is missing. Update your hatchery profile first.';
@@ -162,21 +193,29 @@ export default function CreateListingScreen() {
         if (!resolvedSpeciesName) return 'Please select or enter a species name.';
 
         const qty = parseInt(totalQuantity, 10);
-        if (!qty || qty <= 0) return 'Total quantity must be a positive number.';
+        if (!qty || qty <= 0) return 'Total stock must be a positive number.';
 
-        const minQty = parseInt(minOrderQty, 10);
-        if (!minQty || minQty <= 0) return 'Minimum order quantity must be a positive number.';
-        if (minQty > qty) return 'Minimum order quantity cannot exceed total quantity.';
+        const bSize = parseInt(batchSize, 10);
+        if (!bSize || bSize <= 0) return 'Batch size must be a positive number.';
+        if (bSize > qty) return 'Batch size cannot exceed total stock.';
 
-        const price = parseFloat(pricePerPiece);
-        if (isNaN(price) || price <= 0) return 'Price per piece must be greater than zero.';
+        const perPiece = computePerPiece(priceInput, bSize);
+        if (isNaN(perPiece) || perPiece <= 0) {
+            return pricingMode === 'per_batch'
+                ? 'Please enter a valid price per batch.'
+                : 'Please enter a valid price per piece.';
+        }
 
-        if (bulkPrice) {
-            const bp = parseFloat(bulkPrice);
-            const bt = parseInt(bulkThreshold, 10);
-            if (isNaN(bp) || bp <= 0) return 'Bulk price must be a positive number.';
-            if (bp >= price) return 'Bulk price must be lower than the standard price.';
-            if (!bt || bt <= minQty) return 'Bulk threshold must be greater than minimum order quantity.';
+        if (bulkPriceInput) {
+            const bulkPerPiece = computePerPiece(bulkPriceInput, bSize);
+            if (isNaN(bulkPerPiece) || bulkPerPiece <= 0) {
+                return pricingMode === 'per_batch'
+                    ? 'Bulk price per batch must be a positive number.'
+                    : 'Bulk price per piece must be a positive number.';
+            }
+            if (bulkPerPiece >= perPiece) return 'Bulk price must be lower than the standard price.';
+            const bBatches = parseInt(bulkBatches, 10);
+            if (!bBatches || bBatches < 2) return 'Bulk discount must kick in at 2 or more batches.';
         }
 
         if (expectedReadyDate >= lastAvailableDate) return 'Last available date must be after the ready date.';
@@ -200,6 +239,15 @@ export default function CreateListingScreen() {
 
         setSubmitting(true);
         try {
+            // Convert the UI-level pricing mode into the per-piece values the
+            // backend expects. The batch size doubles as `min_order_qty` so
+            // buyers can't order partial batches.
+            const bSize = parseInt(batchSize, 10);
+            const perPiece = computePerPiece(priceInput, bSize);
+            const bulkPerPiece = bulkPriceInput ? computePerPiece(bulkPriceInput, bSize) : null;
+            const bulkThresholdQty =
+                bulkPriceInput && bulkBatches ? bSize * parseInt(bulkBatches, 10) : null;
+
             const created = await marketplaceService.createListing({
                 stage,
                 species_name: resolvedSpeciesName,
@@ -207,10 +255,10 @@ export default function CreateListingScreen() {
                 description: description.trim() || null,
                 size_description: sizeDescription.trim() || null,
                 total_quantity: parseInt(totalQuantity, 10),
-                min_order_qty: parseInt(minOrderQty, 10),
-                price_per_piece: parseFloat(pricePerPiece),
-                bulk_price_per_piece: bulkPrice ? parseFloat(bulkPrice) : null,
-                bulk_price_threshold: bulkPrice && bulkThreshold ? parseInt(bulkThreshold, 10) : null,
+                min_order_qty: bSize,
+                price_per_piece: perPiece,
+                bulk_price_per_piece: bulkPerPiece,
+                bulk_price_threshold: bulkThresholdQty,
                 expected_ready_date: expectedReadyDate,
                 last_available_date: lastAvailableDate,
                 pickup_available: pickupAvailable,
@@ -239,10 +287,12 @@ export default function CreateListingScreen() {
         }
     };
 
-    // Computed preview
+    // Computed preview — convert to per-piece terms for the totals display
     const qty = parseInt(totalQuantity, 10) || 0;
-    const price = parseFloat(pricePerPiece) || 0;
-    const showPreview = qty > 0 && price > 0;
+    const bSizePreview = parseInt(batchSize, 10) || 0;
+    const perPiecePreview = computePerPiece(priceInput, bSizePreview) || 0;
+    const showPreview = qty > 0 && perPiecePreview > 0;
+    const batchesAvailable = bSizePreview > 0 ? Math.floor(qty / bSizePreview) : 0;
 
     if (loadingProfile) {
         return (
@@ -356,73 +406,101 @@ export default function CreateListingScreen() {
                         />
                     </Section>
 
-                    {/* ── Quantity ── */}
-                    <Section title="Quantity">
-                        <View style={styles.rowSection}>
-                            <View style={{ flex: 1 }}>
-                                <Label>Batch Size (pieces) *</Label>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="e.g. 10000"
-                                    placeholderTextColor={theme.colors.textMuted}
-                                    value={totalQuantity}
-                                    onChangeText={setTotalQuantity}
-                                    keyboardType="numeric"
-                                />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Label>Min Order Qty *</Label>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="e.g. 100"
-                                    placeholderTextColor={theme.colors.textMuted}
-                                    value={minOrderQty}
-                                    onChangeText={setMinOrderQty}
-                                    keyboardType="numeric"
-                                />
-                            </View>
-                        </View>
+                    {/* ── Stock & Batch ── */}
+                    <Section title="Stock & Batch">
+                        <Label>Total Stock (pieces) *</Label>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="e.g. 100000"
+                            placeholderTextColor={theme.colors.textMuted}
+                            value={totalQuantity}
+                            onChangeText={setTotalQuantity}
+                            keyboardType="numeric"
+                        />
+                        <Text style={styles.hint}>Total number of fish you have ready to sell.</Text>
+                        <View style={{ height: 10 }} />
+                        <Label>Batch Size (pieces per batch) *</Label>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="e.g. 10000"
+                            placeholderTextColor={theme.colors.textMuted}
+                            value={batchSize}
+                            onChangeText={setBatchSize}
+                            keyboardType="numeric"
+                        />
+                        <Text style={styles.hint}>
+                            Smallest quantity a buyer can order. {batchesAvailable > 0
+                                ? `Stock supports ${batchesAvailable} batch${batchesAvailable === 1 ? '' : 'es'}.`
+                                : 'You can be paid per piece or per whole batch — pick below.'}
+                        </Text>
                     </Section>
 
                     {/* ── Pricing ── */}
                     <Section title="Pricing">
-                        <Label>Price per Piece (₹) *</Label>
+                        <Label>How do you want to price? *</Label>
+                        <TouchableOpacity
+                            style={styles.dropdownInput}
+                            onPress={() => setPricingModePickerOpen(true)}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.dropdownInputText}>
+                                {pricingMode === 'per_piece' ? 'Per piece' : 'Per batch'}
+                            </Text>
+                            <Ionicons name="chevron-down" size={16} color={theme.colors.textMuted} />
+                        </TouchableOpacity>
+                        <View style={{ height: 10 }} />
+
+                        <Label>
+                            {pricingMode === 'per_piece' ? 'Price per Piece (₹) *' : 'Price per Batch (₹) *'}
+                        </Label>
                         <View style={styles.priceWrap}>
                             <Text style={styles.rupeeSign}>₹</Text>
                             <TextInput
                                 style={[styles.input, { flex: 1, borderWidth: 0, paddingHorizontal: 0 }]}
-                                placeholder="0.00"
+                                placeholder={pricingMode === 'per_piece' ? '0.00' : 'e.g. 50000'}
                                 placeholderTextColor={theme.colors.textMuted}
-                                value={pricePerPiece}
-                                onChangeText={setPricePerPiece}
+                                value={priceInput}
+                                onChangeText={setPriceInput}
                                 keyboardType="decimal-pad"
                             />
                         </View>
-                        <View style={{ height: 10 }} />
+                        {pricingMode === 'per_batch' && bSizePreview > 0 && perPiecePreview > 0 && (
+                            <Text style={styles.hint}>= ₹{perPiecePreview.toFixed(2)} per piece</Text>
+                        )}
+
+                        <View style={{ height: 16 }} />
+
                         <Label>Bulk Discount (optional)</Label>
+                        <Text style={styles.hint}>
+                            Discounted {pricingMode === 'per_piece' ? 'per-piece' : 'per-batch'} price when a buyer
+                            orders multiple batches at once.
+                        </Text>
                         <View style={styles.rowSection}>
-                            <View style={{ flex: 1 }}>
+                            <View style={{ flex: 1.4 }}>
                                 <View style={styles.priceWrap}>
                                     <Text style={styles.rupeeSign}>₹</Text>
                                     <TextInput
                                         style={[styles.input, { flex: 1, borderWidth: 0, paddingHorizontal: 0 }]}
-                                        placeholder="Bulk price"
+                                        placeholder={pricingMode === 'per_piece' ? 'Bulk price/pc' : 'Bulk price/batch'}
                                         placeholderTextColor={theme.colors.textMuted}
-                                        value={bulkPrice}
-                                        onChangeText={setBulkPrice}
+                                        value={bulkPriceInput}
+                                        onChangeText={setBulkPriceInput}
                                         keyboardType="decimal-pad"
                                     />
                                 </View>
                             </View>
                             <View style={{ flex: 1 }}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="From qty"
-                                    placeholderTextColor={theme.colors.textMuted}
-                                    value={bulkThreshold}
-                                    onChangeText={setBulkThreshold}
-                                    keyboardType="numeric"
-                                />
+                                <View style={styles.suffixWrap}>
+                                    <TextInput
+                                        style={[styles.input, { flex: 1, borderWidth: 0, paddingHorizontal: 0 }]}
+                                        placeholder="2"
+                                        placeholderTextColor={theme.colors.textMuted}
+                                        value={bulkBatches}
+                                        onChangeText={setBulkBatches}
+                                        keyboardType="numeric"
+                                    />
+                                    <Text style={styles.suffixText}>batches+</Text>
+                                </View>
                             </View>
                         </View>
                     </Section>
@@ -553,10 +631,15 @@ export default function CreateListingScreen() {
                             <View style={{ flex: 1, gap: 3 }}>
                                 <Text style={styles.previewTitle}>Revenue Preview</Text>
                                 <Text style={styles.previewText}>
-                                    {qty.toLocaleString('en-IN')} pcs × ₹{price.toFixed(2)}
+                                    {qty.toLocaleString('en-IN')} pcs × ₹{perPiecePreview.toFixed(2)}
                                 </Text>
+                                {batchesAvailable > 0 && (
+                                    <Text style={styles.previewText}>
+                                        ≈ {batchesAvailable} batch{batchesAvailable === 1 ? '' : 'es'} of {bSizePreview.toLocaleString('en-IN')} pcs
+                                    </Text>
+                                )}
                                 <Text style={[styles.previewText, { color: theme.colors.primary, fontWeight: '800' }]}>
-                                    Potential revenue: ₹{(qty * price).toLocaleString('en-IN')}
+                                    Potential revenue: ₹{(qty * perPiecePreview).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                                 </Text>
                             </View>
                         </View>
@@ -581,7 +664,52 @@ export default function CreateListingScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-
+            {/* ── Pricing-mode picker ───────────────────────────────────── */}
+            <Modal
+                visible={pricingModePickerOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setPricingModePickerOpen(false)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setPricingModePickerOpen(false)}
+                >
+                    <View style={styles.modalSheet}>
+                        <Text style={styles.modalTitle}>Choose pricing mode</Text>
+                        <View style={styles.modalOptionList}>
+                            {(['per_piece', 'per_batch'] as const).map((m) => (
+                            <TouchableOpacity
+                                key={m}
+                                style={[
+                                    styles.modalOption,
+                                    pricingMode === m && styles.modalOptionActive,
+                                ]}
+                                onPress={() => {
+                                    setPricingMode(m);
+                                    setPricingModePickerOpen(false);
+                                }}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.modalOptionTitle}>
+                                        {m === 'per_piece' ? 'Per piece' : 'Per batch'}
+                                    </Text>
+                                    <Text style={styles.modalOptionSub}>
+                                        {m === 'per_piece'
+                                            ? 'Quote a price for one fish — buyers see ₹/pc on the listing.'
+                                            : 'Quote a price for a full batch — buyers see one round number per batch.'}
+                                    </Text>
+                                </View>
+                                {pricingMode === m && (
+                                    <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -714,6 +842,63 @@ const getStyles = (theme: any) => {
         switchLabel: { fontSize: 14, fontWeight: '700', color: c.textPrimary },
         switchHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
         hint: { fontSize: 12, color: c.textMuted, marginTop: 6, fontStyle: 'italic' },
+
+        // Pricing-mode dropdown trigger — visually consistent with text inputs
+        dropdownInput: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: c.surface,
+            borderWidth: 1,
+            borderColor: c.border,
+            borderRadius: r.md ?? 12,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            marginTop: 6,
+        },
+        dropdownInputText: { fontSize: 14, color: c.textPrimary, fontWeight: '700' },
+
+        // "X batches+" suffix input on bulk threshold
+        suffixWrap: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: c.surface,
+            borderWidth: 1,
+            borderColor: c.border,
+            borderRadius: r.md ?? 12,
+            paddingHorizontal: 12,
+            paddingVertical: 4,
+        },
+        suffixText: {
+            fontSize: 12,
+            fontWeight: '700',
+            color: c.textMuted,
+            marginLeft: 6,
+        },
+
+        // Pricing-mode picker options (modalOverlay / modalSheet / modalTitle
+        // are already defined further down — reused from the species picker.)
+        modalOptionList: {
+            paddingHorizontal: 20,
+            paddingTop: 12,
+            gap: 12,
+        },
+        modalOption: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            backgroundColor: c.background,
+            borderWidth: 1,
+            borderColor: c.border,
+            borderRadius: r.md ?? 12,
+            padding: 14,
+        },
+        modalOptionActive: {
+            borderColor: c.primary,
+            backgroundColor: (c.primary ?? '#0ea5e9') + '14',
+        },
+        modalOptionTitle: { fontSize: 14, fontWeight: '800', color: c.textPrimary },
+        modalOptionSub: { fontSize: 12, color: c.textMuted, marginTop: 4, lineHeight: 17 },
         previewCard: {
             flexDirection: 'row',
             alignItems: 'flex-start',
