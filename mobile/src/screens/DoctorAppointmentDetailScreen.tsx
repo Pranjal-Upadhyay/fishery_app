@@ -2,6 +2,8 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -116,6 +118,34 @@ export default function DoctorAppointmentDetailScreen() {
     }
   };
 
+  /**
+   * Open the pond's coordinates in the OS-default maps app.
+   * iOS → Apple Maps via maps:// scheme.
+   * Android → geo: intent which Google Maps / OsmAnd / etc. all handle.
+   * Universal fallback → google.com/maps which any browser/maps app intercepts.
+   */
+  const openInMaps = async (lat: number, lng: number, label?: string) => {
+    const labelEnc = encodeURIComponent(label || 'Pond');
+    const schemeUrl = Platform.select({
+      ios: `maps://?ll=${lat},${lng}&q=${labelEnc}`,
+      android: `geo:${lat},${lng}?q=${lat},${lng}(${labelEnc})`,
+    });
+    const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+    try {
+      if (schemeUrl) {
+        const can = await Linking.canOpenURL(schemeUrl);
+        if (can) {
+          await Linking.openURL(schemeUrl);
+          return;
+        }
+      }
+      await Linking.openURL(fallbackUrl);
+    } catch {
+      Alert.alert('Cannot open maps', 'No maps application is available on this device.');
+    }
+  };
+
   const handleStatusProgress = async () => {
     if (!appointment) return;
     try {
@@ -160,7 +190,32 @@ export default function DoctorAppointmentDetailScreen() {
             <MetaLine icon="location-outline" text={appointment.location.addressLine} />
             <MetaLine icon="time-outline" text={appointment.timeRemainingHours >= 0 ? `${appointment.timeRemainingHours} hours left inside SLA` : `${Math.abs(appointment.timeRemainingHours)} hours overdue`} />
             <MetaLine icon="calendar-outline" text={`Booked ${new Date(appointment.bookedAt).toLocaleString('en-IN')}`} />
-            <MetaLine icon="navigate-outline" text={appointment.coordinates ? `${appointment.coordinates.latitude.toFixed(4)}, ${appointment.coordinates.longitude.toFixed(4)}` : 'Coordinates not available'} />
+            {appointment.coordinates ? (
+              <View style={styles.coordRow}>
+                <View style={styles.coordTextWrap}>
+                  <Ionicons name="navigate-outline" size={15} color={c.textSecondary} />
+                  <Text style={styles.coordText}>
+                    {appointment.coordinates.latitude.toFixed(4)}, {appointment.coordinates.longitude.toFixed(4)}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.mapsButton}
+                  onPress={() =>
+                    void openInMaps(
+                      appointment.coordinates!.latitude,
+                      appointment.coordinates!.longitude,
+                      appointment.pondName
+                    )
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="map-outline" size={14} color={c.textInverse} />
+                  <Text style={styles.mapsButtonText}>Open in Maps</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <MetaLine icon="navigate-outline" text="Coordinates not available" />
+            )}
           </View>
           {appointment.derivedStatus === 'NEW' || appointment.derivedStatus === 'ACKNOWLEDGED' ? (
             <TouchableOpacity style={styles.heroAction} onPress={() => void handleStatusProgress()}>
@@ -426,6 +481,40 @@ const getStyles = (theme: any) => {
     },
     metaWrap: {
       marginBottom: 8,
+    },
+    coordRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      marginBottom: 10,
+    },
+    coordTextWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flex: 1,
+    },
+    coordText: {
+      color: c.textSecondary,
+      fontSize: 13,
+      lineHeight: 20,
+      flex: 1,
+    },
+    mapsButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: c.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+    },
+    mapsButtonText: {
+      color: c.textInverse,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.3,
     },
     heroAction: {
       marginTop: 12,

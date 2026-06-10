@@ -13,6 +13,7 @@ import {
   Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -58,6 +59,11 @@ export default function DoctorNetworkScreen() {
   const [sugg, setSugg] = useState<any>(null);
   const [symptomsInputFocused, setSymptomsInputFocused] = useState(false);
   const [issueInputFocused, setIssueInputFocused] = useState(false);
+
+  // Per-booking GPS capture: a number bump that forces the selectedPond
+  // reactive view to refresh after the pond's local lat/lng changes.
+  const [locationBumpKey, setLocationBumpKey] = useState(0);
+  const [capturingLocation, setCapturingLocation] = useState(false);
 
   useEffect(() => {
     void initialize();
@@ -162,6 +168,62 @@ export default function DoctorNetworkScreen() {
         error?.message ||
         'Could not analyze symptoms right now.';
       Alert.alert('Suggestion unavailable', message);
+    }
+  };
+
+  /**
+   * Capture current GPS coordinates and save them to the selected pond.
+   *
+   * The doctor view reads coordinates via JOIN on the ponds table, so updating
+   * the pond's lat/lng (and triggering the regular sync) is enough — no
+   * appointment-level location columns needed.
+   */
+  const captureCurrentLocation = async () => {
+    if (!selectedPondId) {
+      Alert.alert(
+        'Select a pond first',
+        'Please choose which pond this appointment is for, then tag its GPS location.'
+      );
+      return;
+    }
+    setCapturingLocation(true);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permission needed',
+          'Location access is required to tag this appointment with your pond’s GPS coordinates.'
+        );
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      const pond = await database.collections.get<Pond>('ponds').find(selectedPondId);
+      await database.write(async () => {
+        await pond.update((p) => {
+          p.latitude = lat;
+          p.longitude = lng;
+          p.localSyncStatus = 'PENDING';
+        });
+      });
+
+      // Refresh in-memory pond list so the UI re-reads the new lat/lng.
+      setPonds((prev) => prev.map((p) => (p.id === selectedPondId ? pond : p)));
+      setLocationBumpKey((k) => k + 1);
+
+      Alert.alert(
+        'Location saved',
+        `Pond location tagged at ${lat.toFixed(5)}, ${lng.toFixed(5)}. The doctor will see this on the appointment.`
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Location failed',
+        error?.message || 'Could not get GPS location. Please try again outdoors.'
+      );
+    } finally {
+      setCapturingLocation(false);
     }
   };
 
@@ -363,6 +425,52 @@ export default function DoctorNetworkScreen() {
                     ) : null}
                   </>
                 )}
+              </View>
+            </>
+          )}
+
+          {/* ── Pond Location ────────────────────────────────── */}
+          {selectedPond && (
+            <>
+              <Text style={styles.sectionHeader}>POND LOCATION</Text>
+              <View style={styles.card} key={`loc-${locationBumpKey}`}>
+                {selectedPond.latitude && selectedPond.longitude ? (
+                  <View style={styles.locationRow}>
+                    <Ionicons name="location" size={18} color={c.secondary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.locationLabel}>Saved coordinates</Text>
+                      <Text style={styles.locationCoords}>
+                        {selectedPond.latitude.toFixed(5)}, {selectedPond.longitude.toFixed(5)}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.locationRow}>
+                    <Ionicons name="alert-circle-outline" size={18} color={c.accent} />
+                    <Text style={[styles.helper, { flex: 1, marginBottom: 0 }]}>
+                      No GPS location saved for this pond. Tag your current location so
+                      the doctor can find the pond on a map.
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.actionBtn, { marginTop: 12 }, capturingLocation && styles.bookBtnDisabled]}
+                  onPress={captureCurrentLocation}
+                  disabled={capturingLocation}
+                >
+                  {capturingLocation ? (
+                    <ActivityIndicator color={c.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="navigate-outline" size={16} color={c.primary} />
+                      <Text style={styles.actionBtnText}>
+                        {selectedPond.latitude && selectedPond.longitude
+                          ? 'Update GPS to current location'
+                          : 'Use my current GPS location'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -723,6 +831,26 @@ const getStyles = (theme: any) => {
       color: c.primary,
       fontWeight: '800',
       fontSize: 14,
+    },
+
+    // Pond location section
+    locationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    locationLabel: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    locationCoords: {
+      color: c.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      marginTop: 2,
     },
 
     // Suggestion card
