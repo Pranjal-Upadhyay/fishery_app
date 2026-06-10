@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
-import api from '../services/apiService';
+import api, { marketplaceService, MarketplaceListing } from '../services/apiService';
 
 const STAGE_ORDER = ['broodstock', 'spawning', 'hatching', 'nursery', 'rearing', 'fingerling_ready', 'sold'];
 
@@ -50,11 +50,31 @@ export default function BatchDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [advancing, setAdvancing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Tracks whether this batch already has an open marketplace listing.
+  // ACTIVE here means DRAFT / UPCOMING / AVAILABLE — i.e. not closed/expired.
+  // If active, we hide "List to Market" and surface "View Listing" instead so
+  // the operator can't accidentally double-list the same batch.
+  const [existingListing, setExistingListing] = useState<MarketplaceListing | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await api.get(`/api/v1/hatcheries/batches/${batchId}`);
       setData(res.data?.data ?? null);
+
+      // Look up listings owned by this hatchery and find one bound to this batch
+      // that is still in an active lifecycle state. Failure here is silent — we
+      // simply fall back to showing "List to Market".
+      try {
+        const myListings = (await marketplaceService.getMyListings()) as MarketplaceListing[];
+        const active = myListings.find(
+          (l) =>
+            l.batch_id === batchId &&
+            ['DRAFT', 'UPCOMING', 'AVAILABLE'].includes(l.status)
+        );
+        setExistingListing(active ?? null);
+      } catch {
+        setExistingListing(null);
+      }
     } catch {
       // keep stale
     } finally {
@@ -254,13 +274,32 @@ export default function BatchDetailScreen() {
           )}
 
           {batch.current_stage === 'fingerling_ready' && (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSell]}
-              onPress={() => navigation.navigate('CreateListing', { batchId })}
-            >
-              <Ionicons name="storefront-outline" size={20} color={theme.colors.textInverse} />
-              <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>List to Market</Text>
-            </TouchableOpacity>
+            existingListing ? (
+              // Batch is already listed — surface a "View Listing" button that
+              // jumps straight to the listing detail (read-only for the owner).
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnPrimary]}
+                onPress={() =>
+                  navigation.navigate('ListingDetail', {
+                    listingId: existingListing.id,
+                    viewOnly: true,
+                  })
+                }
+              >
+                <Ionicons name="eye-outline" size={20} color={theme.colors.textInverse} />
+                <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>
+                  View Listing on Marketplace
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnSell]}
+                onPress={() => navigation.navigate('CreateListing', { batchId })}
+              >
+                <Ionicons name="storefront-outline" size={20} color={theme.colors.textInverse} />
+                <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>List to Market</Text>
+              </TouchableOpacity>
+            )
           )}
         </View>
 
