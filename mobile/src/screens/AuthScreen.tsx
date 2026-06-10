@@ -101,6 +101,24 @@ function hasValidPhoneNumber(value: string) {
     return digitsOnly.length === 10;
 }
 
+// Phone input sanitisation: the input only holds 10 local digits.
+// The +91 country code is rendered as a fixed prefix label inside the input
+// shell so the user can never delete or mangle it.
+function sanitizePhoneDigits(raw: string) {
+    // Strip everything that isn't a digit
+    let digits = raw.replace(/[^\d]/g, '');
+    // If the user pasted a number that already includes the 91 prefix, drop it
+    if (digits.startsWith('91') && digits.length > 10) {
+        digits = digits.slice(2);
+    }
+    // If the user pasted a leading zero (common when copying landline-style)
+    if (digits.startsWith('0') && digits.length > 10) {
+        digits = digits.slice(1);
+    }
+    // Cap at 10 — local Indian mobile numbers are exactly 10 digits
+    return digits.slice(0, 10);
+}
+
 export default function AuthScreen({ onLoginSuccess }: Props) {
     const { theme } = useTheme();
     const { t } = useTranslation();
@@ -109,7 +127,9 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
 
     const [selectedRole, setSelectedRole] = useState<AppRole>('FARMER');
     const [isLogin, setIsLogin] = useState(true);
-    const [phone, setPhone] = useState('+91 ');
+    // Holds only the 10 local digits. The +91 prefix is rendered as a fixed
+    // label inside the input and prepended at submit time.
+    const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [stateCode, setStateCode] = useState('BR');
@@ -140,9 +160,10 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
     };
 
     const handleSubmit = async () => {
-        const formattedPhone = normalizePhoneNumber(phone);
+        // `phone` state holds only 10 digits — prepend the locked +91 prefix.
+        const formattedPhone = phone.length === 10 ? `+91${phone}` : normalizePhoneNumber(phone);
 
-        if (!hasValidPhoneNumber(phone) || !password.trim()) {
+        if (phone.length !== 10 || !password.trim()) {
             Alert.alert(t('auth.errors.missingFields'), t('auth.errors.missingFieldsBody'));
             return;
         }
@@ -381,16 +402,10 @@ export default function AuthScreen({ onLoginSuccess }: Props) {
                                 </>
                             ) : null}
 
-                            <FormField
+                            <PhoneField
                                 label={t('auth.phoneNumber')}
-                                icon="call-outline"
-                                placeholder={t('auth.phonePlaceholder')}
                                 value={phone}
-                                onChangeText={setPhone}
-                                autoCorrect={false}
-                                autoCapitalize="none"
-                                keyboardType="phone-pad"
-                                autoComplete="tel"
+                                onChangeText={(raw) => setPhone(sanitizePhoneDigits(raw))}
                             />
 
                             <FormField
@@ -497,6 +512,46 @@ function FormField({
     );
 }
 
+/**
+ * Phone field with a locked `+91` country code.
+ *
+ * The +91 prefix is rendered as a static label inside the input shell — it is
+ * NOT part of the editable TextInput. The user can only type up to 10 digits
+ * for the local mobile number. Backspace can never delete the +91 because the
+ * prefix isn't in the editable string.
+ */
+function PhoneField({ label, value, onChangeText }: { label: string; value: string; onChangeText: (v: string) => void }) {
+    const { theme } = useTheme();
+    const c = theme.colors;
+
+    return (
+        <View style={stylesField.container}>
+            <Text style={[stylesField.label, { color: c.textSecondary }]}>{label}</Text>
+            <View style={[stylesField.inputShell, { backgroundColor: theme.isDark ? c.surfaceAlt : c.surfaceLow, borderColor: c.border }]}>
+                <Ionicons name="call-outline" size={18} color={c.textMuted} />
+                <View style={[stylesField.prefixPill, { backgroundColor: theme.isDark ? c.surface : c.background, borderColor: c.border }]}>
+                    <Text style={[stylesField.prefixText, { color: c.textPrimary }]}>+91</Text>
+                </View>
+                <TextInput
+                    style={[stylesField.input, { color: c.textPrimary }]}
+                    placeholderTextColor={c.textMuted}
+                    selectionColor={c.primary}
+                    placeholder="00000 00000"
+                    value={value}
+                    onChangeText={onChangeText}
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                    maxLength={10}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    autoComplete="tel-national"
+                    textContentType="telephoneNumber"
+                />
+            </View>
+        </View>
+    );
+}
+
 const stylesField = StyleSheet.create({
     container: {
         marginBottom: 14,
@@ -522,6 +577,17 @@ const stylesField = StyleSheet.create({
         minHeight: 50,
         fontSize: 15,
         paddingVertical: 10,
+    },
+    prefixPill: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 10,
+        borderWidth: 1,
+    },
+    prefixText: {
+        fontSize: 14,
+        fontWeight: '700',
+        letterSpacing: 0.5,
     },
 });
 
