@@ -258,4 +258,185 @@ router.get('/me', requireAdmin, async (req, res, next) => {
   }
 });
 
+// Helper function to format district names to Title Case for frontend map lookup
+function toTitleCase(str: string | null | undefined): string {
+  if (!str) return 'Unknown';
+  return str
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/Purbi/g, 'Purbi')
+    .replace(/Pashchimi/g, 'Pashchimi');
+}
+
+// Helper function to format system type names to match frontend display expectations
+function formatSystemType(sys: string | null | undefined): string {
+  if (!sys) return 'Earthen';
+  const upper = sys.toUpperCase();
+  if (upper === 'EXTENSIVE' || upper === 'SEMI_INTENSIVE' || upper === 'EARTHEN') return 'Earthen';
+  if (upper === 'INTENSIVE' || upper === 'BIOFLOC') return 'Biofloc';
+  if (upper === 'RAS') return 'RAS';
+  if (upper === 'CAGES') return 'Cages';
+  return toTitleCase(sys);
+}
+
+// Helper function to format pond activity type to match PondMapItem type
+function formatPondActivity(act: string | null | undefined): 'GROW_OUT' | 'HATCHERY' | 'NURSERY' | 'BROODSTOCK' {
+  if (!act) return 'GROW_OUT';
+  const upper = act.toUpperCase();
+  if (upper === 'NURSERY') return 'NURSERY';
+  if (upper === 'BROODSTOCK') return 'BROODSTOCK';
+  if (upper === 'GROW_OUT' || upper === 'MIXED') return 'GROW_OUT';
+  return 'GROW_OUT';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/admin/atlas-items
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/atlas-items', requireAdmin, async (req, res, next) => {
+  try {
+    // 1. Fetch ponds
+    const pondsRes = await query(`
+      SELECT 
+        p.id,
+        p.name,
+        u.name AS farmer_name,
+        ST_Y(p.location::geometry) AS lat,
+        ST_X(p.location::geometry) AS lng,
+        p.pond_activity_type,
+        d.district_name,
+        k.data->>'label' AS species_label,
+        p.system_type,
+        p.ownership_type,
+        p.water_source_type,
+        p.area_hectares,
+        p.wide_angle_photo_uri, p.embankment_photo_uri, p.close_view_photo_uri, p.farmer_with_pond_photo_uri,
+        p.disease_occurrence
+      FROM ponds p
+      LEFT JOIN users u ON u.id = p.user_id
+      LEFT JOIN loc_districts d ON d.district_code = p.district_code
+      LEFT JOIN knowledge_nodes k ON k.id = p.species_id
+    `);
+
+    // 2. Fetch hatcheries
+    const hatcheriesRes = await query(`
+      SELECT 
+        h.id,
+        h.name,
+        u.name AS farmer_name,
+        h.latitude AS lat,
+        h.longitude AS lng,
+        COALESCE(h.district, 'Unknown') AS district,
+        h.capacity_kg,
+        h.disease_occurrence
+      FROM hatcheries h
+      LEFT JOIN users u ON u.id = h.operator_id
+    `);
+
+    // 3. Fetch BAIP Geotagged Farmers (hatcheries)
+    const baipRes = await query(`
+      SELECT 
+        id::text,
+        farmer_name || ' (BAIP Hatchery)' AS name,
+        farmer_name,
+        latitude AS lat,
+        longitude AS lng,
+        COALESCE(district, 'Unknown') AS district,
+        disease_occurrence
+      FROM baip_geotagged_farmers
+    `);
+
+    const allItems: any[] = [];
+
+    // Map Ponds
+    pondsRes.rows.forEach((row: any) => {
+      const latVal = parseFloat(String(row.lat));
+      const lonVal = parseFloat(String(row.lng));
+      if (isNaN(latVal) || isNaN(lonVal)) return;
+
+      const isCritical = row.disease_occurrence === 'major' || row.disease_occurrence === 'critical';
+
+      allItems.push({
+        id: row.id,
+        name: row.name,
+        farmerName: row.farmer_name || 'Unknown Farmer',
+        lat: latVal,
+        lng: lonVal,
+        type: formatPondActivity(row.pond_activity_type),
+        alertStatus: isCritical ? 'critical' : 'normal',
+        district: toTitleCase(row.district_name),
+        species: row.species_label || 'Standard Rohu',
+        system: formatSystemType(row.system_type),
+        ownerType: row.ownership_type || 'OWNED',
+        waterSource: row.water_source_type || 'PERENNIAL',
+        areaHectares: parseFloat(String(row.area_hectares || 1.0)),
+        photos: [
+          row.wide_angle_photo_uri,
+          row.embankment_photo_uri,
+          row.close_view_photo_uri,
+          row.farmer_with_pond_photo_uri
+        ].filter(Boolean),
+        alertReason: isCritical ? 'Critical: Major disease outbreak reported' : undefined,
+      });
+    });
+
+    // Map Hatcheries
+    hatcheriesRes.rows.forEach((row: any) => {
+      const latVal = parseFloat(String(row.lat));
+      const lonVal = parseFloat(String(row.lng));
+      if (isNaN(latVal) || isNaN(lonVal)) return;
+
+      const isCritical = row.disease_occurrence === 'major' || row.disease_occurrence === 'critical';
+
+      allItems.push({
+        id: row.id,
+        name: row.name,
+        farmerName: row.farmer_name || 'Unknown Operator',
+        lat: latVal,
+        lng: lonVal,
+        type: 'HATCHERY',
+        alertStatus: isCritical ? 'critical' : 'normal',
+        district: toTitleCase(row.district),
+        species: 'Jayanti Rohu',
+        system: 'Earthen',
+        ownerType: 'OWNED',
+        waterSource: 'PERENNIAL',
+        areaHectares: parseFloat(String(row.capacity_kg ? row.capacity_kg / 1000.0 : 1.0)),
+        photos: [],
+        alertReason: isCritical ? 'Critical: Major disease outbreak reported' : undefined,
+      });
+    });
+
+    // Map BAIP Hatcheries
+    baipRes.rows.forEach((row: any) => {
+      const latVal = parseFloat(String(row.lat));
+      const lonVal = parseFloat(String(row.lng));
+      if (isNaN(latVal) || isNaN(lonVal)) return;
+
+      const isCritical = row.disease_occurrence === 'major' || row.disease_occurrence === 'critical';
+
+      allItems.push({
+        id: row.id,
+        name: row.name,
+        farmerName: row.farmer_name,
+        lat: latVal,
+        lng: lonVal,
+        type: 'HATCHERY',
+        alertStatus: isCritical ? 'critical' : 'normal',
+        district: toTitleCase(row.district),
+        species: 'Jayanti Rohu',
+        system: 'Earthen',
+        ownerType: 'OWNED',
+        waterSource: 'PERENNIAL',
+        areaHectares: 1.5,
+        photos: [],
+        alertReason: isCritical ? 'Critical: Major disease outbreak reported' : undefined,
+      });
+    });
+
+    res.json({ success: true, data: allItems });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export { router as adminRouter };
