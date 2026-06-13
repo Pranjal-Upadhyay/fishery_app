@@ -137,7 +137,8 @@ export class KnowledgeRulesService {
     stateCode: string,
     category: FarmerCategory,
     projectType: PMMSYSubsidyInput['projectType'],
-    preferredSpecies?: string[]
+    preferredSpecies?: string[],
+    systemType?: string
   ): Promise<SubsidyKnowledgeContext> {
     const knowledgeProject = this.mapProjectTypeToKnowledgeProject(projectType);
     const regionGroup = this.getRegionGroupForState(stateCode);
@@ -157,7 +158,7 @@ export class KnowledgeRulesService {
             : 'State Funding Share (Standard)'
         ),
         this.getHighlightsBySlugs(POLICY_HIGHLIGHT_SLUGS),
-        this.getStateBenchmarks(stateCode, knowledgeProject),
+        this.getStateBenchmarks(stateCode, knowledgeProject, systemType),
         this.getWarningHighlights(stateCode, knowledgeProject),
         this.getEconomicTemplateDefaults(stateCode, knowledgeProject, preferredSpecies),
       ]);
@@ -307,7 +308,8 @@ export class KnowledgeRulesService {
 
   private static async getStateBenchmarks(
     stateCode: string,
-    projectType: string
+    projectType: string,
+    systemType?: string
   ): Promise<KnowledgeHighlight[]> {
     const result = await query<KnowledgeRuleRecord>(
       `
@@ -318,12 +320,61 @@ export class KnowledgeRulesService {
           AND active_for_calculator = true
           AND (project_types ? $2 OR project_types ? 'ALL')
         ORDER BY record_type, metric_name
-        LIMIT 4
+        LIMIT 15
       `,
       [stateCode.toUpperCase(), projectType]
     );
 
-    return result.rows.map(this.toHighlight);
+    let rows = result.rows;
+
+    if (systemType) {
+      const normalizedSystem = systemType.toUpperCase();
+      if (normalizedSystem === 'BIOFLOC') {
+        rows = rows.filter(r => 
+          r.id_slug.includes('biofloc') || 
+          r.metric_name.toLowerCase().includes('biofloc') ||
+          (!r.id_slug.includes('pond-construction') && 
+           !r.id_slug.includes('cage') && 
+           !r.id_slug.includes('hatchery') && 
+           !r.metric_name.toLowerCase().includes('pond construction') &&
+           !r.metric_name.toLowerCase().includes('cage culture') &&
+           !r.metric_name.toLowerCase().includes('hatchery'))
+        );
+      } else if (normalizedSystem === 'CAGES') {
+        rows = rows.filter(r => 
+          r.id_slug.includes('cage') || 
+          r.metric_name.toLowerCase().includes('cage') ||
+          (!r.id_slug.includes('pond-construction') && 
+           !r.id_slug.includes('biofloc') && 
+           !r.id_slug.includes('hatchery') && 
+           !r.metric_name.toLowerCase().includes('pond construction') &&
+           !r.metric_name.toLowerCase().includes('biofloc') &&
+           !r.metric_name.toLowerCase().includes('hatchery'))
+        );
+      } else if (normalizedSystem === 'EARTHEN') {
+        rows = rows.filter(r => 
+          !r.id_slug.includes('biofloc') && 
+          !r.id_slug.includes('cage') && 
+          !r.id_slug.includes('ras') &&
+          !r.metric_name.toLowerCase().includes('biofloc') &&
+          !r.metric_name.toLowerCase().includes('cage') &&
+          !r.metric_name.toLowerCase().includes('ras')
+        );
+      } else if (normalizedSystem === 'RAS') {
+        rows = rows.filter(r => 
+          r.id_slug.includes('ras') || 
+          r.metric_name.toLowerCase().includes('ras') ||
+          (!r.id_slug.includes('pond-construction') && 
+           !r.id_slug.includes('biofloc') && 
+           !r.id_slug.includes('cage') && 
+           !r.metric_name.toLowerCase().includes('pond construction') &&
+           !r.metric_name.toLowerCase().includes('biofloc') &&
+           !r.metric_name.toLowerCase().includes('cage'))
+        );
+      }
+    }
+
+    return rows.slice(0, 4).map(this.toHighlight);
   }
 
   private static async getWarningHighlights(

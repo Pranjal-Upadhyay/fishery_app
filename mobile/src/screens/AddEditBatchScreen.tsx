@@ -25,7 +25,8 @@ import api from '../services/apiService';
 
 const ALLOWED_BATCH_SPECIES = [
   { label: 'Jayanti Rohu', name: 'Rohu', variant: 'Jayanti Rohu' },
-  { label: 'Amrita Catla', name: 'Catla', variant: 'Amrita Catla' },
+  { label: 'Amrit Catla', name: 'Catla', variant: 'Amrit Catla' },
+  { label: 'Amur Carp', name: 'Common Carp', variant: 'Amur Carp' },
   { label: 'Pangasius', name: 'Pangasius', variant: '' }
 ];
 

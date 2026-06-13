@@ -50,6 +50,7 @@ const advisorySchema = z.object({
   stateCode: z.string().length(2),
   farmerCategory: z.enum(['GENERAL', 'WOMEN', 'SC', 'ST', 'EBC']),
   projectType: z.enum(['FRESHWATER', 'BRACKISH', 'INTEGRATED', 'RAS']).optional(),
+  systemType: z.enum(['EARTHEN', 'BIOFLOC', 'RAS', 'CAGES']).optional(),
 });
 
 /**
@@ -148,7 +149,9 @@ router.get('/advisory', async (req, res, next) => {
     const knowledgeInsights = await KnowledgeRulesService.getSubsidyKnowledgeContext(
       validated.stateCode,
       validated.farmerCategory as FarmerCategory,
-      projectType
+      projectType,
+      undefined,
+      validated.systemType
     );
 
     res.json({

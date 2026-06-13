@@ -715,7 +715,10 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
     const saveImageToPond = async (pond: Pond, uri: string) => {
         try {
             await database.write(async () => {
-                await pond.update((p) => { p.imageUri = uri; });
+                await pond.update((p) => {
+                    p.imageUri = uri;
+                    p.wideAnglePhotoUri = uri;
+                });
             });
         } catch {
             Alert.alert(t('ponds.photoErrorTitle'), t('ponds.photoErrorBody'));

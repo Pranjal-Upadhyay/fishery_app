@@ -108,6 +108,7 @@ export default function FeedCatalogScreen() {
                 data={FEED_CATEGORIES}
                 keyExtractor={item => item}
                 contentContainerStyle={styles.categoryRow}
+                style={styles.categoryList}
                 renderItem={({ item }) => (
                     <TouchableOpacity
                         style={[styles.categoryChip, activeCategory === item && styles.categoryChipActive]}
@@ -290,13 +291,23 @@ const getStyles = (theme: any) => StyleSheet.create({
         fontWeight: '500',
     },
 
+    categoryList: {
+        height: 54,
+        flexGrow: 0,
+        flexShrink: 0,
+    },
     // Category filter chips — horizontal scroll, pill shape
-    categoryRow: { paddingHorizontal: 16, paddingTop: 2, paddingBottom: 12, gap: 8 },
+    categoryRow: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 8,
+        gap: 8,
+        alignItems: 'center',
+    },
     categoryChip: {
-        minHeight: 36,
+        height: 38,
         borderRadius: 9999,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+        paddingHorizontal: 16,
         backgroundColor: theme.colors.surfaceAlt,
         borderWidth: 1.5,
         borderColor: theme.colors.border,

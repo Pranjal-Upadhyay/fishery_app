@@ -1,0 +1,132 @@
+{
+  "state": "Bihar",
+  "igod_url": "https://igod.gov.in/sg/BR/E042/organizations",
+  "districts": [
+    {
+      "id": "qjg3tXQBW7DqAzx4Vrut",
+      "name": "Araria",
+      "blocks": []
+    },
+    {
+      "id": "xDg3tXQBW7DqAzx4Vrqs",
+      "name": "Arwal",
+      "blocks": []
+    },
+    {
+      "id": "dL6-uIsBC8DLsKxJelF0",
+      "name": "Aurangabad",
+      "blocks": []
+    },
+    {
+      "id": "uzg3tXQBW7DqAzx4Vrut",
+      "name": "Banka",
+      "blocks": []
+    },
+    {
+      "id": "tjg3tXQBW7DqAzx4Vrqs",
+      "name": "Begusarai",
+      "blocks": []
+    },
+    {
+      "id": "JTg3tXQBW7DqAzx4Vr2t",
+      "name": "Bhagalpur",
+      "blocks": []
+    },
+    {
+      "id": "Jjg3tXQBW7DqAzx4Vr2t",
+      "name": "Bhojpur",
+      "blocks": []
+    },
+    {
+      "id": "tjg3tXQBW7DqAzx4Vrut",
+      "name": "Buxar",
+      "blocks": []
+    },
+    {
+      "id": "1Tg3tXQBW7DqAzx4Vrqs",
+      "name": "Darbhanga",
+      "blocks": []
+    },
+    {
+      "id": "ujg3tXQBW7DqAzx4Vrqs",
+      "name": "Gaya",
+      "blocks": []
+    },
+    {
+      "id": "uzg3tXQBW7DqAzx4Vrqs",
+      "name": "Gopalganj",
+      "blocks": []
+    },
+    {
+      "id": "zTg3tXQBW7DqAzx4Vrqs",
+      "name": "Jamui",
+      "blocks": []
+    },
+    {
+      "id": "Bjg3tXQBW7DqAzx4Vr2t",
+      "name": "Jehanabad",
+      "blocks": []
+    },
+    {
+      "id": "rzg3tXQBW7DqAzx4Vrut",
+      "name": "Kaimur (Bhabua)",
+      "blocks": []
+    },
+    {
+      "id": "DDg3tXQBW7DqAzx4Vr2t",
+      "name": "Katihar",
+      "blocks": []
+    },
+    {
+      "id": "vDg3tXQBW7DqAzx4Vrqs",
+      "name": "Khagaria",
+      "blocks": []
+    },
+    {
+      "id": "zjg3tXQBW7DqAzx4Vrqs",
+      "name": "Kishanganj",
+      "blocks": []
+    },
+    {
+      "id": "zzg3tXQBW7DqAzx4Vrqs",
+      "name": "Lakhisarai",
+      "blocks": []
+    },
+    {
+      "id": "DTg3tXQBW7DqAzx4Vr2t",
+      "name": "Madhepura",
+      "blocks": []
+    },
+    {
+      "id": "1Dg3tXQBW7DqAzx4Vrqs",
+      "name": "Madhubani",
+      "blocks": []
+    },
+    {
+      "id": "Xjg3tXQBW7DqAzx4Vrus",
+      "name": "Munger",
+      "blocks": []
+    },
+    {
+      "id": "yDg3tXQBW7DqAzx4Vryt",
+      "name": "Muzaffarpur",
+      "blocks": []
+    },
+    {
+      "id": "0Dg3tXQBW7DqAzx4Vrqs",
+      "name": "Nalanda",
+      "blocks": []
+    },
+    {
+      "id": "sjg3tXQBW7DqAzx4Vrut",
+      "name": "Nawada",
+      "blocks": []
+    },
+    {
+      "id": "vTg3tXQBW7DqAzx4Vrqs",
+      "name": "Pashchim Champaran",
+      "blocks": []
+    }
+  ],
+  "scraped_at": "2026-06-13T10:30:08.959Z"
+}

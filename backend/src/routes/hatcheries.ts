@@ -29,6 +29,13 @@ const createHatcherySchema = z.object({
   upi_id: z.string().max(120).optional(),
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
+  social_category: z.string().max(40).optional().nullable(),
+  age: z.number().int().positive().optional().nullable(),
+  annual_income: z.number().nonnegative().optional().nullable(),
+  family_size: z.number().int().nonnegative().optional().nullable(),
+  flood_impact_3yrs: z.boolean().optional().nullable(),
+  disease_occurrence: z.enum(['NONE', 'MINOR', 'MAJOR']).optional().nullable(),
+  pond_insured: z.boolean().optional().nullable(),
 });
 
 const updateHatcheryProfileSchema = z.object({
@@ -43,6 +50,13 @@ const updateHatcheryProfileSchema = z.object({
   upi_id: z.string().max(120).optional().nullable(),
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
+  social_category: z.string().max(40).optional().nullable(),
+  age: z.number().int().positive().optional().nullable(),
+  annual_income: z.number().nonnegative().optional().nullable(),
+  family_size: z.number().int().nonnegative().optional().nullable(),
+  flood_impact_3yrs: z.boolean().optional().nullable(),
+  disease_occurrence: z.enum(['NONE', 'MINOR', 'MAJOR']).optional().nullable(),
+  pond_insured: z.boolean().optional().nullable(),
 });
 
 const createBatchSchema = z.object({
@@ -146,6 +160,8 @@ router.get('/me-profile', requireAuth, async (req, res, next) => {
       SELECT h.id, h.name, h.district, h.block, h.panchayat, h.capacity_kg,
              h.hatchery_uid, h.contact_number, h.email, h.upi_id,
              h.latitude, h.longitude,
+             h.social_category, h.age, h.annual_income, h.family_size,
+             h.flood_impact_3yrs, h.disease_occurrence, h.pond_insured,
              h.created_at, h.updated_at,
              u.phone_number AS operator_phone
       FROM hatcheries h
@@ -188,15 +204,20 @@ router.patch('/me-profile', requireAuth, async (req, res, next) => {
       const created = await query(`
         INSERT INTO hatcheries (
           name, operator_id, district, block, panchayat, capacity_kg,
-          hatchery_uid, contact_number, email, upi_id, latitude, longitude
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          hatchery_uid, contact_number, email, upi_id, latitude, longitude,
+          social_category, age, annual_income, family_size, flood_impact_3yrs,
+          disease_occurrence, pond_insured
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         RETURNING *
       `, [
         data.name, userId, data.district ?? null, data.block ?? null,
         data.panchayat ?? null, data.capacity_kg ?? null,
         data.hatchery_uid ?? null, data.contact_number ?? null,
         data.email ?? null, data.upi_id ?? null,
-        data.latitude ?? null, data.longitude ?? null
+        data.latitude ?? null, data.longitude ?? null,
+        data.social_category ?? null, data.age ?? null, data.annual_income ?? null,
+        data.family_size ?? null, data.flood_impact_3yrs ?? null,
+        data.disease_occurrence ?? null, data.pond_insured ?? null
       ]);
       return res.status(201).json({ success: true, data: created.rows[0] });
     }
@@ -220,6 +241,13 @@ router.patch('/me-profile', requireAuth, async (req, res, next) => {
     if (data.upi_id !== undefined) push('upi_id', data.upi_id);
     if (data.latitude !== undefined) push('latitude', data.latitude);
     if (data.longitude !== undefined) push('longitude', data.longitude);
+    if (data.social_category !== undefined) push('social_category', data.social_category);
+    if (data.age !== undefined) push('age', data.age);
+    if (data.annual_income !== undefined) push('annual_income', data.annual_income);
+    if (data.family_size !== undefined) push('family_size', data.family_size);
+    if (data.flood_impact_3yrs !== undefined) push('flood_impact_3yrs', data.flood_impact_3yrs);
+    if (data.disease_occurrence !== undefined) push('disease_occurrence', data.disease_occurrence);
+    if (data.pond_insured !== undefined) push('pond_insured', data.pond_insured);
 
     if (!fields.length) {
       return res.json({ success: true, data: existing.rows[0] });
@@ -250,16 +278,21 @@ router.post('/', requireAuth, async (req, res, next) => {
     const result = await query(`
       INSERT INTO hatcheries (
         name, operator_id, district, block, panchayat, capacity_kg,
-        hatchery_uid, contact_number, email, upi_id, latitude, longitude
+        hatchery_uid, contact_number, email, upi_id, latitude, longitude,
+        social_category, age, annual_income, family_size, flood_impact_3yrs,
+        disease_occurrence, pond_insured
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `, [
       data.name, userId, data.district ?? null, data.block ?? null,
       data.panchayat ?? null, data.capacity_kg ?? null,
       data.hatchery_uid ?? null, data.contact_number ?? null,
       data.email ?? null, data.upi_id ?? null,
-      data.latitude ?? null, data.longitude ?? null
+      data.latitude ?? null, data.longitude ?? null,
+      data.social_category ?? null, data.age ?? null, data.annual_income ?? null,
+      data.family_size ?? null, data.flood_impact_3yrs ?? null,
+      data.disease_occurrence ?? null, data.pond_insured ?? null
     ]);
 
     logger.info('Hatchery created', { hatcheryId: result.rows[0].id, userId });

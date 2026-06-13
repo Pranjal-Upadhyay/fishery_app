@@ -165,6 +165,7 @@ export default function EconomicsScreen() {
           stateCode,
           farmerCategory,
           projectType: projectType as any,
+          systemType: pondSystem,
         });
         if (isMounted && response.success) {
           setKnowledgeInsights(response.data?.knowledgeInsights ?? null);
@@ -397,11 +398,52 @@ export default function EconomicsScreen() {
   const completedFieldCount = profileFields.filter(Boolean).length;
   const profileCompletionPercent = Math.round((completedFieldCount / profileFields.length) * 100);
 
-  // Subsidy preview data
-  const subsidyPercent = knowledgeInsights?.beneficiarySubsidyPercent;
-  const centralPercent = knowledgeInsights?.fundingShare?.centralPercent;
-  const statePercent = knowledgeInsights?.fundingShare?.statePercent;
-  const categoryPreview = getCategorySubsidyPreview(farmerCategory, subsidyPercent);
+  // Instantly calculate net shares based on stateCode, farmerCategory, pondSystem, and tank count
+  const getDynamicSubsidy = () => {
+    let sub = farmerCategory === 'GENERAL' ? 40 : 60; // National baseline
+    const isBihar = stateCode === 'BR';
+    if (isBihar) {
+      sub = farmerCategory === 'GENERAL' ? 50 : 70;
+    }
+
+    // Special condition: Biofloc with less than 7 tanks in Bihar gets no subsidy
+    if (pondSystem === 'BIOFLOC' && isBihar) {
+      const tankCount = parseInt(numberOfBioflocTanks || '0');
+      if (tankCount > 0 && tankCount < 7) {
+        sub = 0;
+      }
+    }
+
+    // Funding split percentages based on state/region
+    let central = 60;
+    let state = 40;
+    const neHilly = ['AR', 'AS', 'HP', 'JK', 'LA', 'MN', 'ML', 'MZ', 'NL', 'SK', 'TR', 'UT'];
+    const uts = ['AN', 'CH', 'DH', 'DL', 'LD', 'PY'];
+    if (uts.includes(stateCode)) {
+      central = 100;
+      state = 0;
+    } else if (neHilly.includes(stateCode)) {
+      central = 90;
+      state = 10;
+    }
+
+    // Net percentages of total project cost
+    const netCentral = sub > 0 ? Math.round((sub * central) / 100) : 0;
+    const netState = sub > 0 ? Math.round((sub * state) / 100) : 0;
+    const netYouPay = 100 - sub;
+
+    return {
+      subsidyPercent: sub,
+      centralPercent: central,
+      statePercent: state,
+      netCentral,
+      netState,
+      netYouPay,
+    };
+  };
+
+  const dynamicSubsidy = getDynamicSubsidy();
+  const categoryPreview = getCategorySubsidyPreview(farmerCategory, dynamicSubsidy.subsidyPercent);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -935,7 +977,10 @@ export default function EconomicsScreen() {
                 <View style={[styles.subsidyCard, { borderLeftColor: theme.colors.primary }]}>
                   <Text style={styles.subsidyCardLabel}>CENTRAL SHARE</Text>
                   <Text style={styles.subsidyCardValue}>
-                    {centralPercent != null ? `${centralPercent}%` : 'N/A'}
+                    {dynamicSubsidy.netCentral}%
+                  </Text>
+                  <Text style={styles.subsidyCardSubText}>
+                    {dynamicSubsidy.centralPercent}% of subsidy
                   </Text>
                   <Ionicons
                     name="business-outline"
@@ -947,7 +992,10 @@ export default function EconomicsScreen() {
                 <View style={[styles.subsidyCard, { borderLeftColor: theme.colors.secondary }]}>
                   <Text style={styles.subsidyCardLabel}>STATE SHARE</Text>
                   <Text style={[styles.subsidyCardValue, { color: theme.colors.secondary }]}>
-                    {statePercent != null ? `${statePercent}%` : 'N/A'}
+                    {dynamicSubsidy.netState}%
+                  </Text>
+                  <Text style={styles.subsidyCardSubText}>
+                    {dynamicSubsidy.statePercent}% of subsidy
                   </Text>
                   <Ionicons
                     name="flag-outline"
@@ -959,7 +1007,10 @@ export default function EconomicsScreen() {
                 <View style={[styles.subsidyCard, { borderLeftColor: theme.colors.accent }]}>
                   <Text style={styles.subsidyCardLabel}>YOU PAY</Text>
                   <Text style={[styles.subsidyCardValue, { color: theme.colors.accent }]}>
-                    {subsidyPercent != null ? `${100 - subsidyPercent}%` : 'N/A'}
+                    {dynamicSubsidy.netYouPay}%
+                  </Text>
+                  <Text style={styles.subsidyCardSubText}>
+                    Your contribution
                   </Text>
                   <Ionicons
                     name="person-outline"
@@ -974,10 +1025,10 @@ export default function EconomicsScreen() {
                 <View style={[styles.subsidySchemeCard, { borderLeftColor: theme.colors.primary }]}>
                   <Text style={styles.subsidySchemeName}>PMMSY — Beneficiary Subsidy</Text>
                   <Text style={styles.subsidySchemeValue}>
-                    {categoryPreview.percentLabel}
+                    {dynamicSubsidy.subsidyPercent}%
                   </Text>
                   <Text style={styles.subsidyEligibility}>
-                    {getPolicyPreviewDescription(knowledgeInsights, farmerCategory)}
+                    {getPolicyPreviewDescription(knowledgeInsights, farmerCategory, dynamicSubsidy)}
                   </Text>
                   <Text style={styles.subsidyCategoryMeta}>{categoryPreview.note}</Text>
                 </View>
@@ -1087,20 +1138,19 @@ function formatKnowledgeValue(value: number | null | undefined, unit?: string | 
   }
 }
 
-function getPolicyPreviewDescription(knowledgeInsights: any, farmerCategory: string) {
-  if (!knowledgeInsights) {
-    const fallback = getCategorySubsidyPreview(farmerCategory);
-    return `Choose your state to load policy-backed guidance. The preview is currently showing the default ${fallback.percentLabel} assumption for ${fallback.label}.`;
-  }
-  const subsidy = knowledgeInsights?.beneficiarySubsidyPercent;
-  const central = knowledgeInsights?.fundingShare?.centralPercent;
-  const state = knowledgeInsights?.fundingShare?.statePercent;
+function getPolicyPreviewDescription(
+  knowledgeInsights: any,
+  farmerCategory: string,
+  dynamicSubsidy: { subsidyPercent: number; centralPercent: number; statePercent: number }
+) {
+  const subsidy = dynamicSubsidy.subsidyPercent;
+  const central = dynamicSubsidy.centralPercent;
+  const state = dynamicSubsidy.statePercent;
   const categoryLabel = getCategorySubsidyPreview(farmerCategory, subsidy).label;
-  if (subsidy == null) return 'The app has not found a subsidy percentage for this profile yet.';
-  if (central != null && state != null) {
-    return `For a ${categoryLabel} applicant — up to ${subsidy}% support on eligible project cost. Centre:State split is ${central}:${state}.`;
+  if (subsidy === 0) {
+    return `You selected less than 7 Biofloc tanks in Bihar. PMMSY guidelines require at least 7 tanks to qualify for subsidy.`;
   }
-  return `For a ${categoryLabel} applicant — up to ${subsidy}% support on eligible project cost.`;
+  return `For a ${categoryLabel} applicant — up to ${subsidy}% support on eligible project cost. Centre:State split is ${central}:${state}.`;
 }
 
 function getCategorySubsidyPreview(
@@ -1528,6 +1578,12 @@ const getStyles = (theme: any) => StyleSheet.create({
     color: theme.colors.primary,
     fontSize: 22,
     fontWeight: '900',
+  },
+  subsidyCardSubText: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 4,
   },
   subsidyCardGhostIcon: {
     position: 'absolute',

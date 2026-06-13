@@ -101,7 +101,7 @@ const SYSTEM_SPECIES_RECOMMENDED: Record<string, string[]> = {
  *  For EARTHEN and PENS we return all species (no restriction).
  *  For other systems, we do a case-insensitive substring match on scientificName. */
 function filterSpeciesBySystem(all: SpeciesOption[], system: string): SpeciesOption[] {
-    const priorityLabels = ['Jayanti Rohu', 'Amrita Katla', 'Pangasius'];
+    const priorityLabels = ['Jayanti Rohu', 'Amrit Catla', 'Amur Carp', 'Pangasius'];
     const recommended = SYSTEM_SPECIES_RECOMMENDED[system] || [];
     if (recommended.length === 0) return all; // no restriction
     return all.filter(opt =>
@@ -300,7 +300,6 @@ export default function AddEditPondScreen({ route }: any) {
     const [isSaving, setIsSaving] = useState(false);
     const [pondStateCode, setPondStateCode] = useState('');
     const [pondLocation, setPondLocation] = useState<Partial<LocationSelection>>({});
-    const [photoUri, setPhotoUri] = useState<string>('');
 
     // ── Bucket 2 — gov survey Section B/D/F fields ──
     const [ownershipType, setOwnershipType] = useState<typeof OWNERSHIP_TYPES[number]['value'] | ''>('');
@@ -365,7 +364,9 @@ export default function AddEditPondScreen({ route }: any) {
                         if (scientificName === 'Labeo rohita') {
                             commonName = 'Jayanti Rohu';
                         } else if (scientificName === 'Catla catla') {
-                            commonName = 'Amrita Katla';
+                            commonName = 'Amrit Catla';
+                        } else if (scientificName === 'Cyprinus carpio haematopterus') {
+                            commonName = 'Amur Carp';
                         } else if (scientificName === 'Pangasianodon hypophthalmus' || scientificName === 'Pangasionodon hypophthalmus') {
                             commonName = 'Pangasius';
                         }
@@ -373,7 +374,7 @@ export default function AddEditPondScreen({ route }: any) {
                         return { label: commonName, value: item.id, scientificName };
                     });
 
-                const priority = ['Jayanti Rohu', 'Amrita Katla', 'Pangasius'];
+                const priority = ['Jayanti Rohu', 'Amrit Catla', 'Amur Carp', 'Pangasius'];
                 options.sort((a: SpeciesOption, b: SpeciesOption) => {
                     const idxA = priority.indexOf(a.label);
                     const idxB = priority.indexOf(b.label);
@@ -403,7 +404,6 @@ export default function AddEditPondScreen({ route }: any) {
             setStatus(pond.status);
             setSpeciesId(pond.speciesId || '');
             setStockingDate(formatDateInput(pond.stockingDate));
-            if (pond.imageUri) setPhotoUri(pond.imageUri);
             if (pond.latitude) setLat(pond.latitude.toString());
             if (pond.longitude) setLng(pond.longitude.toString());
             if (pond.districtCode) {
@@ -493,6 +493,7 @@ export default function AddEditPondScreen({ route }: any) {
                 p.isInsured             = isInsured ?? undefined;
                 p.floodImpact3Yrs       = floodImpact3Yrs ?? undefined;
                 p.diseaseOccurrence     = diseaseOccurrence || undefined;
+                p.imageUri              = wideAnglePhoto || undefined;
             };
 
             await database.write(async () => {
@@ -515,7 +516,6 @@ export default function AddEditPondScreen({ route }: any) {
                         p.panchayatCode = pondLocation.panchayatCode || undefined;
                         p.panchayatName = pondLocation.panchayatName || undefined;
                         p.localSyncStatus = 'PENDING';
-                        if (photoUri) p.imageUri = photoUri;
                         applySurveyFields(p);
                     });
                 } else {
@@ -538,7 +538,6 @@ export default function AddEditPondScreen({ route }: any) {
                         p.panchayatCode = pondLocation.panchayatCode || undefined;
                         p.panchayatName = pondLocation.panchayatName || undefined;
                         p.localSyncStatus = 'NEW';
-                        if (photoUri) p.imageUri = photoUri;
                         applySurveyFields(p);
                     });
                 }
@@ -583,33 +582,7 @@ export default function AddEditPondScreen({ route }: any) {
         );
     };
 
-    const handlePickPhoto = async () => {
-        Alert.alert(
-            'Add Pond Photo',
-            'Choose how to add a photo (optional)',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Take Photo',
-                    onPress: async () => {
-                        const perm = await ImagePicker.requestCameraPermissionsAsync();
-                        if (!perm.granted) { Alert.alert('Permission needed', 'Camera access is required.'); return; }
-                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-                        if (!result.canceled && result.assets?.length) setPhotoUri(result.assets[0].uri);
-                    },
-                },
-                {
-                    text: 'Choose from Gallery',
-                    onPress: async () => {
-                        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                        if (!perm.granted) { Alert.alert('Permission needed', 'Gallery access is required.'); return; }
-                        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
-                        if (!result.canceled && result.assets?.length) setPhotoUri(result.assets[0].uri);
-                    },
-                },
-            ]
-        );
-    };
+
 
     const openCalendar = () => {
         const baseDate = parseDateInput(stockingDate) || new Date();
@@ -726,7 +699,13 @@ export default function AddEditPondScreen({ route }: any) {
                             <TouchableOpacity
                                 key={item}
                                 style={[styles.chip, status === item && styles.chipActive]}
-                                onPress={() => setStatus(item)}
+                                onPress={() => {
+                                    setStatus(item);
+                                    if (item === 'FALLOW') {
+                                        setSpeciesId('');
+                                        setStockingDate('');
+                                    }
+                                }}
                             >
                                 <Text style={[styles.chipText, status === item && styles.chipTextActive]}>{item}</Text>
                             </TouchableOpacity>
@@ -734,67 +713,71 @@ export default function AddEditPondScreen({ route }: any) {
                     </View>
 
                     {/* ── Section: Culture details ── */}
-                    <SectionHeader label={t('addEditPond.speciesAndStocking').toUpperCase()} styles={styles} />
-                    <View style={styles.sectionCard}>
-                        {/* Species selector */}
-                        <View style={styles.fieldWrap}>
-                            <Text style={styles.fieldLabel}>SPECIES</Text>
-                            {/* Show recommended hint for intensive systems */}
-                            {(system === 'RAS' || system === 'BIOFLOC' || system === 'CAGES') && (
-                                <Text style={[styles.helperText, { marginBottom: 6, color: theme.colors.primary }]}>
-                                    {system === 'RAS' ? '⚡ Recommended for RAS: GIFT Tilapia, Pangasius, Pabda, Magur, Singhi'
-                                    : system === 'BIOFLOC' ? '🟤 Recommended for Biofloc: Tilapia, Pangasius, Magur, Singhi, Pabda'
-                                    : '🌊 Recommended for Cage Farming: Pangasius, GIFT Tilapia, Bekti, Rohu'}
-                                </Text>
-                            )}
-                            <TouchableOpacity style={styles.selectorField} onPress={() => setSpeciesModalVisible(true)}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={[styles.selectorValue, !speciesId && styles.selectorPlaceholder]}>
-                                        {selectedSpecies?.label || 'Select species'}
-                                    </Text>
-                                    {selectedSpecies?.scientificName && selectedSpecies.scientificName !== selectedSpecies.label ? (
-                                        <Text style={styles.selectorHint}>{selectedSpecies.scientificName}</Text>
+                    {status === 'ACTIVE' && (
+                        <>
+                            <SectionHeader label={t('addEditPond.speciesAndStocking').toUpperCase()} styles={styles} />
+                            <View style={styles.sectionCard}>
+                                {/* Species selector */}
+                                <View style={styles.fieldWrap}>
+                                    <Text style={styles.fieldLabel}>SPECIES</Text>
+                                    {/* Show recommended hint for intensive systems */}
+                                    {(system === 'RAS' || system === 'BIOFLOC' || system === 'CAGES') && (
+                                        <Text style={[styles.helperText, { marginBottom: 6, color: theme.colors.primary }]}>
+                                            {system === 'RAS' ? '⚡ Recommended for RAS: GIFT Tilapia, Pangasius, Pabda, Magur, Singhi'
+                                            : system === 'BIOFLOC' ? '🟤 Recommended for Biofloc: Tilapia, Pangasius, Magur, Singhi, Pabda'
+                                            : '🌊 Recommended for Cage Farming: Pangasius, GIFT Tilapia, Bekti, Rohu'}
+                                        </Text>
+                                    )}
+                                    <TouchableOpacity style={styles.selectorField} onPress={() => setSpeciesModalVisible(true)}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.selectorValue, !speciesId && styles.selectorPlaceholder]}>
+                                                {selectedSpecies?.label || 'Select species'}
+                                            </Text>
+                                            {selectedSpecies?.scientificName && selectedSpecies.scientificName !== selectedSpecies.label ? (
+                                                <Text style={styles.selectorHint}>{selectedSpecies.scientificName}</Text>
+                                            ) : null}
+                                        </View>
+                                        {isLoadingSpecies
+                                            ? <ActivityIndicator size="small" color={theme.colors.primary} />
+                                            : <Ionicons name="chevron-down" size={18} color={theme.colors.textMuted} />
+                                        }
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Stocking date */}
+                                <View style={styles.fieldWrap}>
+                                    <Text style={styles.fieldLabel}>STOCKING DATE</Text>
+                                    <TouchableOpacity style={styles.selectorField} onPress={openCalendar}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.selectorValue, !stockingDate && styles.selectorPlaceholder]}>
+                                                {formatDateLabel(stockingDate) || 'Choose from calendar'}
+                                            </Text>
+                                            <Text style={styles.selectorHint}>
+                                                {stockingDate ? 'Tap to change date' : 'Select when fish or shrimp were stocked'}
+                                            </Text>
+                                        </View>
+                                        <Ionicons name="calendar-outline" size={20} color={theme.colors.primary} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Quick date actions */}
+                                <View style={styles.quickRow}>
+                                    <TouchableOpacity style={styles.quickPill} onPress={() => setStockingDate(formatDateInput(Date.now()))}>
+                                        <Text style={styles.quickPillText}>Today</Text>
+                                    </TouchableOpacity>
+                                    {stockingDate ? (
+                                        <TouchableOpacity style={styles.quickPillMuted} onPress={() => setStockingDate('')}>
+                                            <Text style={styles.quickPillMutedText}>Clear</Text>
+                                        </TouchableOpacity>
                                     ) : null}
                                 </View>
-                                {isLoadingSpecies
-                                    ? <ActivityIndicator size="small" color={theme.colors.primary} />
-                                    : <Ionicons name="chevron-down" size={18} color={theme.colors.textMuted} />
-                                }
-                            </TouchableOpacity>
-                        </View>
 
-                        {/* Stocking date */}
-                        <View style={styles.fieldWrap}>
-                            <Text style={styles.fieldLabel}>STOCKING DATE</Text>
-                            <TouchableOpacity style={styles.selectorField} onPress={openCalendar}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={[styles.selectorValue, !stockingDate && styles.selectorPlaceholder]}>
-                                        {formatDateLabel(stockingDate) || 'Choose from calendar'}
-                                    </Text>
-                                    <Text style={styles.selectorHint}>
-                                        {stockingDate ? 'Tap to change date' : 'Select when fish or shrimp were stocked'}
-                                    </Text>
-                                </View>
-                                <Ionicons name="calendar-outline" size={20} color={theme.colors.primary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Quick date actions */}
-                        <View style={styles.quickRow}>
-                            <TouchableOpacity style={styles.quickPill} onPress={() => setStockingDate(formatDateInput(Date.now()))}>
-                                <Text style={styles.quickPillText}>Today</Text>
-                            </TouchableOpacity>
-                            {stockingDate ? (
-                                <TouchableOpacity style={styles.quickPillMuted} onPress={() => setStockingDate('')}>
-                                    <Text style={styles.quickPillMutedText}>Clear</Text>
-                                </TouchableOpacity>
-                            ) : null}
-                        </View>
-
-                        <Text style={styles.helperText}>
-                            Active ponds should include species and stocking date so harvest progress and alerts can work correctly.
-                        </Text>
-                    </View>
+                                <Text style={styles.helperText}>
+                                    Active ponds should include species and stocking date so harvest progress and alerts can work correctly.
+                                </Text>
+                            </View>
+                        </>
+                    )}
 
                     {/* ── Section: Pond Panchayat ── */}
                     <SectionHeader label={t('personalInfo.fields.panchayat').toUpperCase()} styles={styles} />
@@ -807,30 +790,6 @@ export default function AddEditPondScreen({ route }: any) {
                         value={pondLocation}
                         onChange={setPondLocation}
                     />
-
-                    {/* ── Section: Pond Photo (optional) ── */}
-                    <SectionHeader label="POND PHOTO (OPTIONAL)" styles={styles} />
-                    <TouchableOpacity
-                        style={[styles.photoPickerBox, photoUri ? styles.photoPickerBoxFilled : null]}
-                        onPress={handlePickPhoto}
-                        activeOpacity={0.8}
-                    >
-                        {photoUri ? (
-                            <>
-                                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-                                <View style={styles.photoRetakeOverlay}>
-                                    <Ionicons name="camera-outline" size={18} color="#fff" />
-                                    <Text style={styles.photoRetakeText}>Change Photo</Text>
-                                </View>
-                            </>
-                        ) : (
-                            <>
-                                <Ionicons name="camera-outline" size={28} color={theme.colors.textMuted} />
-                                <Text style={styles.photoPickerLabel}>Tap to add a photo of your pond</Text>
-                                <Text style={styles.photoPickerSub}>Optional — you can add it later too</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
 
                     {/* ── Section: Survey-cycle nav cards (only for existing ponds) ── */}
                     {existingPondId && (
@@ -1377,55 +1336,7 @@ const getStyles = (theme: any) => StyleSheet.create({
         marginTop: 6,
     },
 
-    // Photo picker
-    photoPickerBox: {
-        height: 140,
-        borderRadius: theme.borderRadius.lg,
-        borderWidth: 1.5,
-        borderColor: theme.colors.border,
-        borderStyle: 'dashed',
-        backgroundColor: theme.colors.surfaceAlt,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        marginBottom: 4,
-        overflow: 'hidden',
-    },
-    photoPickerBoxFilled: {
-        borderStyle: 'solid',
-        borderColor: theme.colors.primary + '40',
-    },
-    photoPickerLabel: {
-        color: theme.colors.textMuted,
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    photoPickerSub: {
-        color: theme.colors.textMuted,
-        fontSize: 11,
-    },
-    photoPreview: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    photoRetakeOverlay: {
-        position: 'absolute',
-        bottom: 10,
-        right: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-    },
-    photoRetakeText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '700',
-    },
+
 
     // Location
     locationHeader: {

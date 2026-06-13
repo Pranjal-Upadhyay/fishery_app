@@ -155,6 +155,66 @@ export default function EconomicsResultScreen() {
           )}
         </View>
 
+        {/* ── Risk & Management Assessment ── */}
+        <SectionHeader label="RISK & MANAGEMENT ASSESSMENT" theme={theme} />
+        <View style={styles.breakdownCard}>
+          <BreakdownRow 
+            label="Risk Tolerance Setting" 
+            value={simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM'} 
+            dot={
+              (simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'LOW'
+                ? theme.colors.success
+                : (simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'MEDIUM'
+                ? theme.colors.accent
+                : theme.colors.error
+            } 
+            valueColor={
+              (simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'LOW'
+                ? theme.colors.success
+                : (simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'MEDIUM'
+                ? theme.colors.accent
+                : theme.colors.error
+            }
+            strong 
+            theme={theme} 
+          />
+          <BreakdownRow 
+            label="Assumed Mortality Rate" 
+            value={`${simulationData.riskAnalysisProfile?.mortalityRiskPercent || 15}%`} 
+            dot={theme.colors.border} 
+            theme={theme} 
+          />
+          <BreakdownRow 
+            label="Price Volatility Buffer" 
+            value={`±${Math.round((simulationData.riskAnalysisProfile?.marketPriceVolatility || 0.15) * 100)}%`} 
+            dot={theme.colors.border} 
+            theme={theme} 
+          />
+          <View style={{ paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 18 }}>
+              {(simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'LOW' ? (
+                <Text style={{ fontWeight: '600', color: theme.colors.success }}>
+                  Conservative Mode:
+                </Text>
+              ) : (simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'HIGH' ? (
+                <Text style={{ fontWeight: '600', color: theme.colors.error }}>
+                  Aggressive Mode:
+                </Text>
+              ) : (
+                <Text style={{ fontWeight: '600', color: theme.colors.accent }}>
+                  Balanced Mode:
+                </Text>
+              )}
+              {' '}
+              {(simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'LOW' 
+                ? 'ROI is estimated using highly conservative yield/price baselines (20th percentile yield, 30th percentile price) and +3% higher survival rates. This ensures a safer, more reliable return projection.'
+                : (simulationData.riskAnalysisProfile?.overallRisk || 'MEDIUM') === 'HIGH'
+                ? 'ROI assumes a high-density, high-output management style (50th percentile yield/price) with a -5% lower survival rate penalty due to stress. Projections are more optimistic but carry higher operational risk.'
+                : 'ROI uses moderate, balanced baselines (35th percentile yield, 40th percentile price) suitable for standard farming practices.'}
+            </Text>
+          </View>
+        </View>
+
         {/* ── Risk flags ── */}
         {knowledgeInsights?.warningHighlights?.length ? (
           <>

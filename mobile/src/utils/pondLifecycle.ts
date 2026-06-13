@@ -575,6 +575,32 @@ export const SPECIES_PROFILES: Record<string, SpeciesProfile> = {
       { dayFrom: 60,  dayTo: 240, stage: 'Grow-out to Harvest',      action: 'Monthly weight check. Harvest at 500g+.' },
     ],
   },
+
+  // ── AMUR CARP ─────────────────────────────────────────────────────────────
+  'Cyprinus carpio haematopterus': {
+    scientificName: 'Cyprinus carpio haematopterus',
+    commonName: 'Amur Carp',
+    localName: 'अमुर कार्प',
+    category: 'EXOTIC_CARP',
+    defaultSystem: 'EARTHEN',
+    culturePeriods: {
+      EARTHEN: { label: 'Amur Carp', days: 240, harvestWeightGMin: 600, harvestWeightGMax: 1200, cropsPerYear: 1, note: 'Hungarian strain of common carp. Grows 30-40% faster and matures later.' },
+    },
+    waterQuality: { tempMin: 15, tempMax: 32, tempOptMin: 22, tempOptMax: 30, doMin: 4, doOpt: 6, phMin: 6.5, phMax: 9.0, phOpt: 7.5, ammoniaMax: 0.5 },
+    feeding: {
+      feedType: 'Sinking or slow-sinking pellets',
+      proteinPercent: '28–32%',
+      bwPercentEarly: '5–7%',
+      bwPercentGrowOut: '2–3%',
+      frequencyPerDay: 2,
+      feedingTimes: ['7:00 AM', '4:00 PM'],
+      tips: ['Highly efficient feed conversion', 'Delayed maturity channels energy into somatic growth', 'Ideal for low-input polyculture'],
+    },
+    milestones: [
+      { dayFrom: 0,   dayTo: 45,  stage: 'Fingerling Establishment', action: 'Feed 5-7% body weight. Monitor water quality.' },
+      { dayFrom: 45,  dayTo: 240, stage: 'Grow-out Phase',      action: 'Monthly weight check. High growth rate. Harvest at 600g+.' },
+    ],
+  },
 };
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
