@@ -49,6 +49,30 @@ const YES_NO_OPTIONS = [
   { label: 'No', value: false },
 ];
 
+const GENDER_OPTIONS = [
+  { label: 'Male', value: 'male' },
+  { label: 'Female', value: 'female' },
+  { label: 'Other', value: 'other' },
+];
+
+const EDUCATION_LEVEL_OPTIONS = [
+  { label: 'No formal education', value: 'no_formal' },
+  { label: 'Primary (1–5)', value: 'primary' },
+  { label: 'Middle (6-8)', value: 'middle' },
+  { label: 'Secondary (9-10)', value: 'secondary' },
+  { label: 'Higher Secondary (11-12)', value: 'higher_sec' },
+  { label: 'Graduate', value: 'graduate' },
+  { label: 'Postgraduate', value: 'postgraduate' },
+];
+
+const INCOME_CONTROL_OPTIONS = [
+  { label: 'Sole Control', value: 'sole' },
+  { label: 'Joint Control', value: 'joint' },
+  { label: 'Man Decides', value: 'man' },
+  { label: 'Woman Decides', value: 'woman' },
+];
+
+
 export default function AddHatcheryScreen() {
   const { theme } = useTheme();
   const styles = getStyles(theme);
@@ -81,6 +105,11 @@ export default function AddHatcheryScreen() {
   const [floodImpact, setFloodImpact] = useState<boolean | null>(null);
   const [diseaseOccurrence, setDiseaseOccurrence] = useState<'NONE' | 'MINOR' | 'MAJOR' | null>(null);
   const [pondInsured, setPondInsured] = useState<boolean | null>(null);
+  const [gender, setGender] = useState<string | null>(null);
+  const [femaleHeaded, setFemaleHeaded] = useState<boolean | null>(null);
+  const [educationLevel, setEducationLevel] = useState<string | null>(null);
+  const [incomeControl, setIncomeControl] = useState<string | null>(null);
+
 
   useEffect(() => {
     (async () => {
@@ -115,6 +144,10 @@ export default function AddHatcheryScreen() {
           if (existing.flood_impact_3yrs != null) setFloodImpact(existing.flood_impact_3yrs);
           if (existing.disease_occurrence) setDiseaseOccurrence(existing.disease_occurrence as any);
           if (existing.pond_insured != null) setPondInsured(existing.pond_insured);
+          if (existing.gender) setGender(existing.gender);
+          if (existing.female_headed != null) setFemaleHeaded(existing.female_headed);
+          if (existing.education_level) setEducationLevel(existing.education_level);
+          if (existing.income_control) setIncomeControl(existing.income_control);
         } else {
           // First-time create — prefill from user profile
           const profile = await loadProfile();
@@ -195,6 +228,10 @@ export default function AddHatcheryScreen() {
         flood_impact_3yrs: floodImpact,
         disease_occurrence: diseaseOccurrence,
         pond_insured: pondInsured,
+        gender: gender,
+        female_headed: femaleHeaded,
+        education_level: educationLevel,
+        income_control: incomeControl,
       });
 
       Alert.alert(
@@ -412,6 +449,66 @@ export default function AddHatcheryScreen() {
                   onPress={() => setPondInsured(pondInsured === item.value ? null : item.value)}
                 >
                   <Text style={[styles.chipText, pondInsured === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.subhead}>Gender</Text>
+            <View style={styles.chipRow}>
+              {GENDER_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.chip, gender === item.value && styles.chipActive]}
+                  onPress={() => setGender(gender === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, gender === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.subhead}>Female Headed Household</Text>
+            <View style={styles.chipRow}>
+              {YES_NO_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.label}
+                  style={[styles.chip, femaleHeaded === item.value && styles.chipActive]}
+                  onPress={() => setFemaleHeaded(femaleHeaded === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, femaleHeaded === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.subhead}>Education Level</Text>
+            <View style={styles.chipRow}>
+              {EDUCATION_LEVEL_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.chip, educationLevel === item.value && styles.chipActive]}
+                  onPress={() => setEducationLevel(educationLevel === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, educationLevel === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.subhead}>Income Control Decision Maker</Text>
+            <View style={styles.chipRow}>
+              {INCOME_CONTROL_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.chip, incomeControl === item.value && styles.chipActive]}
+                  onPress={() => setIncomeControl(incomeControl === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, incomeControl === item.value && styles.chipTextActive]}>
                     {item.label}
                   </Text>
                 </TouchableOpacity>

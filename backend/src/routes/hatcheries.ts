@@ -36,6 +36,10 @@ const createHatcherySchema = z.object({
   flood_impact_3yrs: z.boolean().optional().nullable(),
   disease_occurrence: z.enum(['NONE', 'MINOR', 'MAJOR']).optional().nullable(),
   pond_insured: z.boolean().optional().nullable(),
+  gender: z.string().max(20).optional().nullable(),
+  female_headed: z.boolean().optional().nullable(),
+  education_level: z.string().max(100).optional().nullable(),
+  income_control: z.string().max(100).optional().nullable(),
 });
 
 const updateHatcheryProfileSchema = z.object({
@@ -57,6 +61,10 @@ const updateHatcheryProfileSchema = z.object({
   flood_impact_3yrs: z.boolean().optional().nullable(),
   disease_occurrence: z.enum(['NONE', 'MINOR', 'MAJOR']).optional().nullable(),
   pond_insured: z.boolean().optional().nullable(),
+  gender: z.string().max(20).optional().nullable(),
+  female_headed: z.boolean().optional().nullable(),
+  education_level: z.string().max(100).optional().nullable(),
+  income_control: z.string().max(100).optional().nullable(),
 });
 
 const createBatchSchema = z.object({
@@ -162,6 +170,7 @@ router.get('/me-profile', requireAuth, async (req, res, next) => {
              h.latitude, h.longitude,
              h.social_category, h.age, h.annual_income, h.family_size,
              h.flood_impact_3yrs, h.disease_occurrence, h.pond_insured,
+             h.gender, h.female_headed, h.education_level, h.income_control,
              h.created_at, h.updated_at,
              u.phone_number AS operator_phone
       FROM hatcheries h
@@ -206,8 +215,8 @@ router.patch('/me-profile', requireAuth, async (req, res, next) => {
           name, operator_id, district, block, panchayat, capacity_kg,
           hatchery_uid, contact_number, email, upi_id, latitude, longitude,
           social_category, age, annual_income, family_size, flood_impact_3yrs,
-          disease_occurrence, pond_insured
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          disease_occurrence, pond_insured, gender, female_headed, education_level, income_control
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
         RETURNING *
       `, [
         data.name, userId, data.district ?? null, data.block ?? null,
@@ -217,7 +226,9 @@ router.patch('/me-profile', requireAuth, async (req, res, next) => {
         data.latitude ?? null, data.longitude ?? null,
         data.social_category ?? null, data.age ?? null, data.annual_income ?? null,
         data.family_size ?? null, data.flood_impact_3yrs ?? null,
-        data.disease_occurrence ?? null, data.pond_insured ?? null
+        data.disease_occurrence ?? null, data.pond_insured ?? null,
+        data.gender ?? null, data.female_headed ?? null,
+        data.education_level ?? null, data.income_control ?? null
       ]);
       return res.status(201).json({ success: true, data: created.rows[0] });
     }
@@ -248,6 +259,10 @@ router.patch('/me-profile', requireAuth, async (req, res, next) => {
     if (data.flood_impact_3yrs !== undefined) push('flood_impact_3yrs', data.flood_impact_3yrs);
     if (data.disease_occurrence !== undefined) push('disease_occurrence', data.disease_occurrence);
     if (data.pond_insured !== undefined) push('pond_insured', data.pond_insured);
+    if (data.gender !== undefined) push('gender', data.gender);
+    if (data.female_headed !== undefined) push('female_headed', data.female_headed);
+    if (data.education_level !== undefined) push('education_level', data.education_level);
+    if (data.income_control !== undefined) push('income_control', data.income_control);
 
     if (!fields.length) {
       return res.json({ success: true, data: existing.rows[0] });
@@ -280,9 +295,9 @@ router.post('/', requireAuth, async (req, res, next) => {
         name, operator_id, district, block, panchayat, capacity_kg,
         hatchery_uid, contact_number, email, upi_id, latitude, longitude,
         social_category, age, annual_income, family_size, flood_impact_3yrs,
-        disease_occurrence, pond_insured
+        disease_occurrence, pond_insured, gender, female_headed, education_level, income_control
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *
     `, [
       data.name, userId, data.district ?? null, data.block ?? null,
@@ -292,7 +307,9 @@ router.post('/', requireAuth, async (req, res, next) => {
       data.latitude ?? null, data.longitude ?? null,
       data.social_category ?? null, data.age ?? null, data.annual_income ?? null,
       data.family_size ?? null, data.flood_impact_3yrs ?? null,
-      data.disease_occurrence ?? null, data.pond_insured ?? null
+      data.disease_occurrence ?? null, data.pond_insured ?? null,
+      data.gender ?? null, data.female_headed ?? null,
+      data.education_level ?? null, data.income_control ?? null
     ]);
 
     logger.info('Hatchery created', { hatcheryId: result.rows[0].id, userId });

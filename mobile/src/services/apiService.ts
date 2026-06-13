@@ -901,6 +901,10 @@ export interface HatcheryProfile {
     flood_impact_3yrs?: boolean | null;
     disease_occurrence?: 'NONE' | 'MINOR' | 'MAJOR' | null;
     pond_insured?: boolean | null;
+    gender?: string | null;
+    female_headed?: boolean | null;
+    education_level?: string | null;
+    income_control?: string | null;
 }
 
 export const hatcheryProfileService = {
