@@ -303,7 +303,7 @@ router.get('/atlas-items', requireAdmin, async (req, res, next) => {
         ST_Y(p.location::geometry) AS lat,
         ST_X(p.location::geometry) AS lng,
         p.pond_activity_type,
-        d.district_name,
+        d.name AS district_name,
         k.data->>'label' AS species_label,
         p.system_type,
         p.ownership_type,
@@ -313,7 +313,7 @@ router.get('/atlas-items', requireAdmin, async (req, res, next) => {
         p.disease_occurrence
       FROM ponds p
       LEFT JOIN users u ON u.id = p.user_id
-      LEFT JOIN loc_districts d ON d.district_code = p.district_code
+      LEFT JOIN loc_districts d ON d.code = p.district_code
       LEFT JOIN knowledge_nodes k ON k.id = p.species_id
     `);
 
