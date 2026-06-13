@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { Eye, MapPin, X, Filter, Sparkles, Activity, ShieldCheck, ChevronRight, User, AlertTriangle } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { MapCanvas, type PondMapItem } from '@/components/map/map-canvas';
+import { api } from '@/lib/api';
+import { ApiEnvelope } from '@/lib/types';
+
 
 // Mock Ponds with real-world metrics and geo-tagged mock coordinates
 const INITIAL_PONDS: PondMapItem[] = [
@@ -169,15 +172,53 @@ export default function DashboardHome() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [showHeatmap, setShowHeatmap] = useState<boolean>(false);
 
+  // Load live data from backend
+  useEffect(() => {
+    async function fetchLiveItems() {
+      try {
+        const res = await api.get<ApiEnvelope<PondMapItem[]>>('/api/v1/admin/atlas-items');
+        if (res.success && res.data) {
+          const doVal = parseFloat(localStorage.getItem('thresholds_do') || '3.5');
+          const ammoniaVal = parseFloat(localStorage.getItem('thresholds_ammonia') || '0.05');
+
+          const updatedItems = res.data.map((p) => {
+            if (p.id === 'p3') {
+              const currentDo = 2.8;
+              if (currentDo < doVal) {
+                return {
+                  ...p,
+                  alertStatus: 'critical' as const,
+                  alertReason: `Critical: Dissolved Oxygen is ${currentDo} mg/L (Below threshold of ${doVal} mg/L)`,
+                };
+              }
+            }
+            if (p.id === 'p6') {
+              const currentAmmonia = 0.12;
+              if (currentAmmonia > ammoniaVal) {
+                return {
+                  ...p,
+                  alertStatus: 'critical' as const,
+                  alertReason: `Critical: High Ammonia level ${currentAmmonia} ppm (Above threshold of ${ammoniaVal} ppm)`,
+                };
+              }
+            }
+            return p;
+          });
+          setPonds(updatedItems);
+        }
+      } catch (err) {
+        console.error('Failed to fetch live atlas items:', err);
+      }
+    }
+    fetchLiveItems();
+  }, []);
+
   // Dynamic user-defined thresholds loaded from localStorage settings
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const doVal = parseFloat(localStorage.getItem('thresholds_do') || '3.5');
-      const phMinVal = parseFloat(localStorage.getItem('thresholds_phMin') || '6.5');
-      const phMaxVal = parseFloat(localStorage.getItem('thresholds_phMax') || '8.5');
       const ammoniaVal = parseFloat(localStorage.getItem('thresholds_ammonia') || '0.05');
 
-      // Update mock ponds' alert status based on dynamic thresholds
       setPonds((prevPonds) =>
         prevPonds.map((p) => {
           if (p.id === 'p3') {
@@ -185,7 +226,7 @@ export default function DashboardHome() {
             if (currentDo < doVal) {
               return {
                 ...p,
-                alertStatus: 'critical',
+                alertStatus: 'critical' as const,
                 alertReason: `Critical: Dissolved Oxygen is ${currentDo} mg/L (Below threshold of ${doVal} mg/L)`,
               };
             }
@@ -195,12 +236,12 @@ export default function DashboardHome() {
             if (currentAmmonia > ammoniaVal) {
               return {
                 ...p,
-                alertStatus: 'critical',
+                alertStatus: 'critical' as const,
                 alertReason: `Critical: High Ammonia level ${currentAmmonia} ppm (Above threshold of ${ammoniaVal} ppm)`,
               };
             }
           }
-          return { ...p, alertStatus: 'normal', alertReason: undefined };
+          return { ...p, alertStatus: p.alertStatus, alertReason: p.alertReason };
         })
       );
     }
@@ -338,11 +379,13 @@ export default function DashboardHome() {
                 className="w-full bg-canvas-950 border border-glass-border rounded-lg p-2 text-ink-secondary outline-none focus:border-teal-500/50"
               >
                 <option value="all">All Species</option>
-                <option value="Jayanti Rohu">Jayanti Rohu</option>
-                <option value="Amrita Katla">Amrita Katla</option>
-                <option value="Pangasius">Pangasius</option>
-                <option value="Standard Rohu">Standard Rohu</option>
-                <option value="Standard Katla">Standard Katla</option>
+                {Array.from(new Set(ponds.map((p) => p.species).filter(Boolean)))
+                  .sort()
+                  .map((sp) => (
+                    <option key={sp} value={sp}>
+                      {sp}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -355,10 +398,13 @@ export default function DashboardHome() {
                 className="w-full bg-canvas-950 border border-glass-border rounded-lg p-2 text-ink-secondary outline-none focus:border-teal-500/50"
               >
                 <option value="all">All Systems</option>
-                <option value="Earthen">Earthen</option>
-                <option value="Biofloc">Biofloc</option>
-                <option value="RAS">RAS</option>
-                <option value="Cages">Cages</option>
+                {Array.from(new Set(ponds.map((p) => p.system).filter(Boolean)))
+                  .sort()
+                  .map((sys) => (
+                    <option key={sys} value={sys}>
+                      {sys}
+                    </option>
+                  ))}
               </select>
             </div>
 
