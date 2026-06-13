@@ -176,9 +176,37 @@ const FALLBACK_FEED = [
 ];
 
 const FALLBACK_PRICES = [
-    { id: 'pr_1', species_name: 'Rohu', market_name: 'Local Fish Market', state_code: 'AP', price_inr_per_kg: 150, grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 500 },
-    { id: 'pr_2', species_name: 'Catla', market_name: 'Local Fish Market', state_code: 'AP', price_inr_per_kg: 160, grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 300 },
-    { id: 'pr_3', species_name: 'Vannamei Shrimp', market_name: 'Export Hub', state_code: 'AP', price_inr_per_kg: 400, grade: 'Premium', date: new Date().toISOString(), source: 'Export Data', volume_kg: 1000 }
+    // Andhra Pradesh (AP)
+    { id: 'pr_ap_1', species_name: 'Rohu', market_name: 'Nellore Wholesale Fish Market', state_code: 'AP', price_inr_per_kg: '155', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 1200 },
+    { id: 'pr_ap_2', species_name: 'Catla', market_name: 'Nellore Wholesale Fish Market', state_code: 'AP', price_inr_per_kg: '165', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 800 },
+    { id: 'pr_ap_3', species_name: 'Amur Carp', market_name: 'Nellore Wholesale Fish Market', state_code: 'AP', price_inr_per_kg: '125', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 600 },
+    { id: 'pr_ap_4', species_name: 'Common Carp', market_name: 'Nellore Wholesale Fish Market', state_code: 'AP', price_inr_per_kg: '115', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 500 },
+    { id: 'pr_ap_5', species_name: 'Vannamei Shrimp', market_name: 'Bhimavaram Export Hub', state_code: 'AP', price_inr_per_kg: '410', grade: 'Premium', date: new Date().toISOString(), source: 'Export Data', volume_kg: 3500 },
+
+    // Bihar (BR)
+    { id: 'pr_br_1', species_name: 'Rohu', market_name: 'Patna Bazar Samiti', state_code: 'BR', price_inr_per_kg: '180', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 1500 },
+    { id: 'pr_br_2', species_name: 'Catla', market_name: 'Patna Bazar Samiti', state_code: 'BR', price_inr_per_kg: '195', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 1200 },
+    { id: 'pr_br_3', species_name: 'Amur Carp', market_name: 'Patna Bazar Samiti', state_code: 'BR', price_inr_per_kg: '140', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 800 },
+    { id: 'pr_br_4', species_name: 'Common Carp', market_name: 'Patna Bazar Samiti', state_code: 'BR', price_inr_per_kg: '120', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 700 },
+
+    // Uttar Pradesh (UP)
+    { id: 'pr_up_1', species_name: 'Rohu', market_name: 'Lucknow Mandi', state_code: 'UP', price_inr_per_kg: '165', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 1600 },
+    { id: 'pr_up_2', species_name: 'Catla', market_name: 'Lucknow Mandi', state_code: 'UP', price_inr_per_kg: '175', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 1100 },
+    { id: 'pr_up_3', species_name: 'Amur Carp', market_name: 'Lucknow Mandi', state_code: 'UP', price_inr_per_kg: '130', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 700 },
+    { id: 'pr_up_4', species_name: 'Common Carp', market_name: 'Lucknow Mandi', state_code: 'UP', price_inr_per_kg: '110', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 600 },
+
+    // West Bengal (WB)
+    { id: 'pr_wb_1', species_name: 'Rohu', market_name: 'Howrah Wholesale Fish Market', state_code: 'WB', price_inr_per_kg: '175', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 2500 },
+    { id: 'pr_wb_2', species_name: 'Catla', market_name: 'Howrah Wholesale Fish Market', state_code: 'WB', price_inr_per_kg: '190', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 1800 },
+    { id: 'pr_wb_3', species_name: 'Amur Carp', market_name: 'Howrah Wholesale Fish Market', state_code: 'WB', price_inr_per_kg: '135', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 900 },
+    { id: 'pr_wb_4', species_name: 'Common Carp', market_name: 'Howrah Wholesale Fish Market', state_code: 'WB', price_inr_per_kg: '120', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 800 },
+    { id: 'pr_wb_5', species_name: 'Vannamei Shrimp', market_name: 'Kolkata Airport Cargo Hub', state_code: 'WB', price_inr_per_kg: '430', grade: 'Premium', date: new Date().toISOString(), source: 'Export Data', volume_kg: 2000 },
+
+    // Karnataka (KA)
+    { id: 'pr_ka_1', species_name: 'Rohu', market_name: 'Yeshwanthpur Fish Market', state_code: 'KA', price_inr_per_kg: '160', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 1100 },
+    { id: 'pr_ka_2', species_name: 'Catla', market_name: 'Yeshwanthpur Fish Market', state_code: 'KA', price_inr_per_kg: '170', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 950 },
+    { id: 'pr_ka_3', species_name: 'Amur Carp', market_name: 'Yeshwanthpur Fish Market', state_code: 'KA', price_inr_per_kg: '128', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 500 },
+    { id: 'pr_ka_4', species_name: 'Common Carp', market_name: 'Yeshwanthpur Fish Market', state_code: 'KA', price_inr_per_kg: '112', grade: 'Medium', date: new Date().toISOString(), source: 'Local Data', volume_kg: 400 }
 ];
 
 const FALLBACK_SPECIES = [
@@ -374,6 +402,29 @@ const FALLBACK_SPECIES = [
             survival_rate_percent: 65,
         }
     },
+    {
+        id: 'sp_13',
+        data: {
+            scientific_name: "Cyprinus carpio haematopterus",
+            common_names: { "en": "Amur Carp", "hi": "अमुर कार्प" },
+            category: "EXOTIC_CARP",
+            habitat: "freshwater",
+            culture_period_months: { min: 6, max: 10 },
+            optimal_systems: ["TRADITIONAL_POND", "BIOFLOC", "RAS"],
+            biological_parameters: { salinity_tolerance_ppt: { min: 0, max: 5 }, temperature_celsius: { min: 15, max: 32 }, ph: { min: 6.5, max: 9.0 } },
+            stocking_density_per_hectare: { min: 5000, max: 10000 },
+            average_harvest_weight_kg: 1.2,
+            fcr: 1.6,
+            survival_rate_percent: 80,
+            description: "🐟 Amur Carp is a genetically improved Hungarian strain of Common Carp. It is highly popular in India due to its 30-40% faster growth rate, delayed sexual maturity (which prevents unwanted breeding in grow-out ponds), and high disease resistance. It is very hardy and performs exceptionally well in low-input polyculture systems.",
+            excel_economics: {
+                market_price_inr_kg: 130,
+                culture_period_months: 8,
+                harvest_survival_percent: 80,
+                capital_investment_lakh_ha: 2.2
+            }
+        }
+    },
 ];
 
 export const geoService = {
@@ -426,6 +477,7 @@ export const economicsService = {
         stateCode: string;
         farmerCategory: 'GENERAL' | 'WOMEN' | 'SC' | 'ST' | 'EBC';
         projectType?: 'FRESHWATER' | 'BRACKISH' | 'INTEGRATED' | 'RAS';
+        systemType?: 'EARTHEN' | 'BIOFLOC' | 'RAS' | 'CAGES';
     }) => {
         const response = await api.get('/api/v1/economics/advisory', { params });
         return response.data;
@@ -842,6 +894,13 @@ export interface HatcheryProfile {
     longitude?: number | null;
     operator_phone?: string;
     operator_email?: string;
+    social_category?: string | null;
+    age?: number | null;
+    annual_income?: number | null;
+    family_size?: number | null;
+    flood_impact_3yrs?: boolean | null;
+    disease_occurrence?: 'NONE' | 'MINOR' | 'MAJOR' | null;
+    pond_insured?: boolean | null;
 }
 
 export const hatcheryProfileService = {
@@ -1209,6 +1268,41 @@ export const yojanaService = {
         const response = await api.post(`/api/v1/yojana/transactions/${transactionId}/confirm`);
         return response.data;
     },
+};
+
+export interface BaipFarmer {
+    id: string;
+    objectid: number;
+    farmer_name: string;
+    farmer_mobile: string;
+    globalid: string;
+    uniquerowid: string;
+    state: string;
+    district: string;
+    subdistrict: string;
+    gpname: string;
+    village: string;
+    age: number;
+    gender: string;
+    female_headed: string;
+    total_number_family: number;
+    social_category: string;
+    education_level: string;
+    income_control: string;
+    annual_income: string;
+    flood_impact: string;
+    disease_occurrence: string;
+    pond_insured: string;
+    latitude: string;
+    longitude: string;
+    survey_date: string;
+}
+
+export const baipFarmersService = {
+    getAll: async (): Promise<BaipFarmer[]> => {
+        const res = await api.get('/api/v1/baip-farmers');
+        return res.data?.data as BaipFarmer[];
+    }
 };
 
 export default api;

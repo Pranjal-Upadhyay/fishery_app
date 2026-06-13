@@ -34,6 +34,7 @@ import { notificationsRouter } from './routes/notifications';
 import { cropCyclesAndAssetsRouter } from './routes/cropCyclesAndAssets';
 import { adminRouter } from './routes/admin';
 import { yojanaRouter } from './routes/yojana';
+import { baipFarmersRouter } from './routes/baipFarmers';
 import { startHatcheryCron } from './cron/hatcheryNotifications';
 
 // Load environment variables
@@ -198,6 +199,7 @@ app.use('/api/v1/lab-reports', labReportsRouter);
 app.use('/api/v1/locations', locationsRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/yojana', yojanaRouter);
+app.use('/api/v1/baip-farmers', baipFarmersRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {

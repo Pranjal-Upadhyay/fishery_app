@@ -29,6 +29,26 @@ import * as Location from 'expo-location';
 import { loadProfile } from '../services/profileService';
 import { hatcheryProfileService } from '../services/apiService';
 
+const SOCIAL_CATEGORIES = [
+  { label: 'General', value: 'general' },
+  { label: 'OBC', value: 'obc' },
+  { label: 'EBC', value: 'ebc' },
+  { label: 'SC', value: 'sc' },
+  { label: 'ST', value: 'st' },
+  { label: 'Minority', value: 'minority' },
+];
+
+const DISEASE_OCCURRENCE_OPTIONS = [
+  { label: 'None', value: 'NONE' as const },
+  { label: 'Minor', value: 'MINOR' as const },
+  { label: 'Major', value: 'MAJOR' as const },
+];
+
+const YES_NO_OPTIONS = [
+  { label: 'Yes', value: true },
+  { label: 'No', value: false },
+];
+
 export default function AddHatcheryScreen() {
   const { theme } = useTheme();
   const styles = getStyles(theme);
@@ -52,6 +72,15 @@ export default function AddHatcheryScreen() {
   const [contactNumber, setContactNumber] = useState('');
   const [email, setEmail] = useState('');
   const [upiId, setUpiId] = useState('');
+
+  // Survey Details (Optional)
+  const [socialCategory, setSocialCategory] = useState<string | null>(null);
+  const [age, setAge] = useState('');
+  const [annualIncome, setAnnualIncome] = useState('');
+  const [familySize, setFamilySize] = useState('');
+  const [floodImpact, setFloodImpact] = useState<boolean | null>(null);
+  const [diseaseOccurrence, setDiseaseOccurrence] = useState<'NONE' | 'MINOR' | 'MAJOR' | null>(null);
+  const [pondInsured, setPondInsured] = useState<boolean | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -79,6 +108,13 @@ export default function AddHatcheryScreen() {
           if (existing.upi_id) setUpiId(existing.upi_id);
           if (existing.latitude != null) setLat(String(existing.latitude));
           if (existing.longitude != null) setLng(String(existing.longitude));
+          if (existing.social_category) setSocialCategory(existing.social_category);
+          if (existing.age != null) setAge(String(existing.age));
+          if (existing.annual_income != null) setAnnualIncome(String(existing.annual_income));
+          if (existing.family_size != null) setFamilySize(String(existing.family_size));
+          if (existing.flood_impact_3yrs != null) setFloodImpact(existing.flood_impact_3yrs);
+          if (existing.disease_occurrence) setDiseaseOccurrence(existing.disease_occurrence as any);
+          if (existing.pond_insured != null) setPondInsured(existing.pond_insured);
         } else {
           // First-time create — prefill from user profile
           const profile = await loadProfile();
@@ -128,6 +164,9 @@ export default function AddHatcheryScreen() {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address, or leave it blank.';
     if (lat && isNaN(Number(lat))) return 'Latitude must be a valid number.';
     if (lng && isNaN(Number(lng))) return 'Longitude must be a valid number.';
+    if (age && (isNaN(Number(age)) || Number(age) <= 0)) return 'Age must be a positive integer.';
+    if (annualIncome && (isNaN(Number(annualIncome)) || Number(annualIncome) < 0)) return 'Annual income must be a valid non-negative number.';
+    if (familySize && (isNaN(Number(familySize)) || Number(familySize) < 0)) return 'Family size must be a valid non-negative integer.';
     return null;
   };
 
@@ -149,6 +188,13 @@ export default function AddHatcheryScreen() {
         upi_id: upiId.trim() || null,
         latitude: lat ? parseFloat(lat) : null,
         longitude: lng ? parseFloat(lng) : null,
+        social_category: socialCategory,
+        age: age ? parseInt(age, 10) : null,
+        annual_income: annualIncome ? parseFloat(annualIncome) : null,
+        family_size: familySize ? parseInt(familySize, 10) : null,
+        flood_impact_3yrs: floodImpact,
+        disease_occurrence: diseaseOccurrence,
+        pond_insured: pondInsured,
       });
 
       Alert.alert(
@@ -276,6 +322,103 @@ export default function AddHatcheryScreen() {
             />
           </View>
 
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Survey Details (Optional)</Text>
+            <Text style={styles.helperText}>
+              Provide additional details to align with the Bihar Aquaculture Improvement Programme (BAIP) survey.
+            </Text>
+
+            <Text style={styles.subhead}>Social Category</Text>
+            <View style={styles.chipRow}>
+              {SOCIAL_CATEGORIES.map(item => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.chip, socialCategory === item.value && styles.chipActive]}
+                  onPress={() => setSocialCategory(socialCategory === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, socialCategory === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <FormField
+              label="Age"
+              value={age}
+              onChangeText={setAge}
+              placeholder="e.g. 35"
+              icon="person-outline"
+              theme={theme}
+              keyboardType="number-pad"
+            />
+
+            <FormField
+              label="Annual Income (INR)"
+              value={annualIncome}
+              onChangeText={setAnnualIncome}
+              placeholder="e.g. 150000"
+              icon="cash-outline"
+              theme={theme}
+              keyboardType="decimal-pad"
+            />
+
+            <FormField
+              label="Household Size"
+              value={familySize}
+              onChangeText={setFamilySize}
+              placeholder="e.g. 4"
+              icon="people-outline"
+              theme={theme}
+              keyboardType="number-pad"
+            />
+
+            <Text style={styles.subhead}>Flood Impact in last 3 years</Text>
+            <View style={styles.chipRow}>
+              {YES_NO_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.label}
+                  style={[styles.chip, floodImpact === item.value && styles.chipActive]}
+                  onPress={() => setFloodImpact(floodImpact === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, floodImpact === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.subhead}>Disease Occurrence History</Text>
+            <View style={styles.chipRow}>
+              {DISEASE_OCCURRENCE_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.chip, diseaseOccurrence === item.value && styles.chipActive]}
+                  onPress={() => setDiseaseOccurrence(diseaseOccurrence === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, diseaseOccurrence === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.subhead}>Pond Insured</Text>
+            <View style={styles.chipRow}>
+              {YES_NO_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.label}
+                  style={[styles.chip, pondInsured === item.value && styles.chipActive]}
+                  onPress={() => setPondInsured(pondInsured === item.value ? null : item.value)}
+                >
+                  <Text style={[styles.chipText, pondInsured === item.value && styles.chipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           <TouchableOpacity
             style={[styles.saveBtn, saving && { opacity: 0.7 }]}
             onPress={() => void handleSave()}
@@ -344,5 +487,32 @@ const getStyles = (theme: any) => {
       gap: 10,
     },
     saveBtnText: { color: c.textInverse, fontSize: 16, fontWeight: '800' },
+    chipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 16,
+      marginTop: 4,
+    },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: c.surfaceLow ?? c.background,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    chipActive: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    chipText: {
+      fontSize: 13,
+      color: c.textSecondary,
+      fontWeight: '600',
+    },
+    chipTextActive: {
+      color: c.textInverse,
+    },
   });
 };

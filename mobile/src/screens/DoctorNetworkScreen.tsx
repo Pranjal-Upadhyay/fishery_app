@@ -23,6 +23,10 @@ import { diseaseService, doctorNetworkService } from '../services/apiService';
 import { loadProfile, isProfileLocationComplete, type UserProfile } from '../services/profileService';
 import database, { Pond } from '../database';
 import { Q } from '@nozbe/watermelondb';
+import CalendarPickerModal, { formatDateISO, formatDateLabel } from '../components/CalendarPickerModal';
+import { resolveDiseaseImage } from '../utils/diseaseImages';
+import { getDiseaseDbOverride, type Lang } from '../utils/diseaseContent';
+
 
 const symptomHints = ['fish gasping', 'white spots', 'red lesions', 'sudden deaths'];
 
@@ -35,7 +39,8 @@ function formatDoctorName(name?: string | null) {
 export default function DoctorNetworkScreen() {
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang: Lang = (i18n.language?.startsWith('hi') ? 'hi' : 'en');
   const c = theme.colors;
   const styles = getStyles(theme);
 
@@ -51,13 +56,48 @@ export default function DoctorNetworkScreen() {
   const [selectedPondId, setSelectedPondId] = useState<string>('');
   const [pondPickerVisible, setPondPickerVisible] = useState(false);
 
-  const [symptoms, setSymptoms] = useState('');
+  // For Date picker
+  const getTomorrowISO = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return formatDateISO(d);
+  };
+  const [selectedDate, setSelectedDate] = useState<string>(getTomorrowISO());
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+
+  // For Disease picker
+  const [diseases, setDiseases] = useState<any[]>([]);
+  const [selectedDisease, setSelectedDisease] = useState<any | null>(null);
+  const [diseasePickerVisible, setDiseasePickerVisible] = useState(false);
+
   const [issueDescription, setIssueDescription] = useState('');
   const [photoPreviewUri, setPhotoPreviewUri] = useState('');
   const [photoUploadValue, setPhotoUploadValue] = useState('');
-  const [sugg, setSugg] = useState<any>(null);
-  const [symptomsInputFocused, setSymptomsInputFocused] = useState(false);
   const [issueInputFocused, setIssueInputFocused] = useState(false);
+
+  const diseaseList = useMemo(() => {
+    const customItems = [
+      {
+        id: 'other',
+        slug: 'other',
+        name: lang === 'hi' ? 'अन्य रोग (सूची में नहीं)' : 'Other Disease (Not Listed)',
+        category: 'ENVIRONMENTAL',
+        severity: 'MEDIUM',
+        symptoms: [],
+      },
+      {
+        id: 'not_sure',
+        slug: 'not_sure',
+        name: lang === 'hi' ? 'मुझे यकीन नहीं है / पता नहीं' : 'I am not sure / Don\'t know',
+        category: 'ENVIRONMENTAL',
+        severity: 'MEDIUM',
+        symptoms: [],
+      }
+    ];
+    return [...diseases, ...customItems];
+  }, [diseases, lang]);
+
+
 
   useEffect(() => {
     void initialize();
@@ -80,6 +120,12 @@ export default function DoctorNetworkScreen() {
         );
         // Fix #15: must reach finally to stop the spinner — don't return early here
         return;
+      }
+
+      // Load diseases list
+      const disRes = await diseaseService.list();
+      if (disRes.success && disRes.data) {
+        setDiseases(disRes.data);
       }
 
       const pondRecords = await database.collections
@@ -138,32 +184,12 @@ export default function DoctorNetworkScreen() {
   const selectedPond = ponds.find((p) => p.id === selectedPondId) || null;
   const doctorDisplayName = formatDoctorName(assignedDoctor?.name);
 
-  const selectedSymptoms = useMemo(
-    () => symptoms.split(',').map((s) => s.trim()).filter(Boolean),
-    [symptoms]
-  );
-
-  const runSuggestion = async () => {
-    if (selectedSymptoms.length === 0) {
-      Alert.alert('Enter symptoms', 'Add at least one symptom to run disease suggestion.');
-      return;
-    }
-    try {
-      const res = await diseaseService.suggest({ symptoms: selectedSymptoms });
-      if (res.success) {
-        setSugg(res.data);
-      } else {
-        Alert.alert('Suggestion unavailable', res.error || 'Could not analyze symptoms right now.');
-      }
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        'Could not analyze symptoms right now.';
-      Alert.alert('Suggestion unavailable', message);
-    }
-  };
+  const minBookingDate = useMemo(() => new Date(), []);
+  const maxBookingDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 90);
+    return d;
+  }, []);
 
   const handlePickImage = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -201,37 +227,48 @@ export default function DoctorNetworkScreen() {
       Alert.alert('Select pond', 'Please select which pond this appointment is for.');
       return;
     }
-    if (!issueDescription.trim()) {
-      Alert.alert('Missing issue', 'Please describe the pond issue.');
-      return;
-    }
 
-    const suspected = sugg?.recommendations?.[0]?.id;
+    const isOtherOrNotSure = selectedDisease?.id === 'other' || selectedDisease?.id === 'not_sure';
+    if (isOtherOrNotSure) {
+      if (!issueDescription.trim()) {
+        Alert.alert('Description required', 'Please describe the pond issue.');
+        return;
+      }
+      if (!photoUploadValue) {
+        Alert.alert('Photo required', 'Please take a photo of the pond or how the stock looks right now.');
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const parsedDate = new Date(`${selectedDate}T12:00:00`);
+
+      const suspectedId =
+        selectedDisease && selectedDisease.id !== 'other' && selectedDisease.id !== 'not_sure'
+          ? selectedDisease.id
+          : undefined;
 
       const res = await doctorNetworkService.createAppointment({
         farmerId: profile.userId,
         doctorId: assignedDoctor.id,
         pondId: selectedPond?.id || undefined,
-        issueDescription: issueDescription.trim(),
-        suspectedDiseaseId: suspected || undefined,
-        scheduledDate: tomorrow.toISOString(),
+        issueDescription: issueDescription.trim() || 'General Consultation / Pond Checkup',
+        suspectedDiseaseId: suspectedId,
+        scheduledDate: parsedDate.toISOString(),
         consultationType: 'VISIT',
-        emergencyFlag: sugg?.urgency === 'CRITICAL',
+        emergencyFlag: selectedDisease?.severity === 'HIGH',
         photoUri: photoUploadValue || undefined,
       });
 
       if (res.success) {
         Alert.alert(
           'Appointment Requested',
-          `${doctorDisplayName} will visit${selectedPond ? ` for pond "${selectedPond.name}"` : ''}.\nVisit fee: ₹400 total — You pay ₹200, Govt pays ₹200.`
+          `${doctorDisplayName} will visit${selectedPond ? ` for pond "${selectedPond.name}"` : ''}.\nVisit Date: ${formatDateLabel(selectedDate)}\nVisit fee: ₹400 total — You pay ₹200, Govt pays ₹200.`
         );
         setIssueDescription('');
-        setSugg(null);
+        setSelectedDisease(null);
+        setSelectedDate(getTomorrowISO());
         setPhotoPreviewUri('');
         setPhotoUploadValue('');
       } else {
@@ -249,11 +286,13 @@ export default function DoctorNetworkScreen() {
     }
   };
 
-  const urgencyColor = sugg?.urgency === 'CRITICAL'
-    ? c.error
-    : sugg?.urgency === 'HIGH'
-    ? c.accent
-    : c.secondary;
+
+  const urgencyColor =
+    selectedDisease?.severity === 'HIGH'
+      ? c.error
+      : selectedDisease?.severity === 'MEDIUM'
+      ? c.accent
+      : c.secondary;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -272,45 +311,58 @@ export default function DoctorNetworkScreen() {
             {routingDoctor ? (
               <ActivityIndicator style={{ marginVertical: 16 }} color={c.primary} />
             ) : assignedDoctor ? (
-              <View style={styles.doctorRow}>
-                {/* Avatar */}
-                <View style={styles.doctorAvatarWrap}>
-                  <Text style={styles.doctorAvatarLetter}>
-                    {assignedDoctor.name?.charAt(0)?.toUpperCase() || 'D'}
-                  </Text>
-                </View>
-
-                {/* Info */}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.doctorName}>{assignedDoctor.name}</Text>
-
-                  {/* Badges row */}
-                  <View style={styles.badgeRow}>
-                    {assignedDoctor.specialization ? (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{assignedDoctor.specialization}</Text>
-                      </View>
-                    ) : null}
-                    <View style={[styles.badge, styles.badgeAvailable]}>
-                      <View style={styles.badgeDot} />
-                      <Text style={[styles.badgeText, { color: c.secondary }]}>Available</Text>
-                    </View>
+              <View>
+                <View style={styles.doctorRow}>
+                  {/* Avatar */}
+                  <View style={styles.doctorAvatarWrap}>
+                    <Text style={styles.doctorAvatarLetter}>
+                      {assignedDoctor.name?.charAt(0)?.toUpperCase() || 'D'}
+                    </Text>
                   </View>
 
-                  <Text style={styles.doctorMeta}>{assignedDoctor.phone}</Text>
-                  <Text style={styles.doctorMeta}>
-                    Area: {profile?.panchayatName || profile?.blockName || 'Your panchayat'}
-                  </Text>
+                  {/* Info */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.doctorName}>{assignedDoctor.name}</Text>
+
+                    {/* Badges row */}
+                    <View style={styles.badgeRow}>
+                      {assignedDoctor.specialization ? (
+                        <View style={styles.badge}>
+                          <Text style={styles.badgeText}>{assignedDoctor.specialization}</Text>
+                        </View>
+                      ) : null}
+                      <View style={[styles.badge, styles.badgeAvailable]}>
+                        <View style={styles.badgeDot} />
+                        <Text style={[styles.badgeText, { color: c.secondary }]}>Available</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.doctorMeta}>{assignedDoctor.phone}</Text>
+                    <Text style={styles.doctorMeta}>
+                      Area: {profile?.panchayatName || profile?.blockName || 'Your panchayat'}
+                    </Text>
+                  </View>
+
+                  {/* Book CTA inline */}
+                  <TouchableOpacity
+                    style={styles.bookInlineBtn}
+                    onPress={() => setDatePickerVisible(true)}
+                    disabled={submitting}
+                  >
+                    <Ionicons name="calendar-outline" size={16} color={c.textInverse} />
+                  </TouchableOpacity>
                 </View>
 
-                {/* Book CTA inline */}
-                <TouchableOpacity
-                  style={styles.bookInlineBtn}
-                  onPress={bookAppointment}
-                  disabled={submitting}
-                >
-                  <Ionicons name="calendar-outline" size={16} color={c.textInverse} />
-                </TouchableOpacity>
+                {/* Visit Date Selection Row */}
+                <View style={styles.dateSelectionRow}>
+                  <Ionicons name="time-outline" size={16} color={c.primary} />
+                  <Text style={styles.dateSelectionText}>
+                    Visit Date: <Text style={{ fontWeight: '800', color: c.textPrimary }}>{formatDateLabel(selectedDate)}</Text>
+                  </Text>
+                  <TouchableOpacity onPress={() => setDatePickerVisible(true)}>
+                    <Text style={styles.dateChangeBtnText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ) : (
               <View style={styles.noDocCard}>
@@ -367,45 +419,66 @@ export default function DoctorNetworkScreen() {
             </>
           )}
 
-          {/* ── Symptom Triage ────────────────────────────────── */}
-          <Text style={styles.sectionHeader}>{t('disease.sections.symptoms').toUpperCase()}</Text>
+          {/* ── Suspected Disease Selector ────────────────────── */}
+          <Text style={styles.sectionHeader}>Suspected Disease (Optional)</Text>
           <View style={styles.card}>
-            <Text style={styles.helper}>Example: {symptomHints.join(', ')}</Text>
-            <TextInput
-              style={[styles.input, symptomsInputFocused && styles.inputFocused]}
-              value={symptoms}
-              onChangeText={setSymptoms}
-              placeholder={t('disease.searchPlaceholder')}
-              placeholderTextColor={c.textMuted}
-              onFocus={() => setSymptomsInputFocused(true)}
-              onBlur={() => setSymptomsInputFocused(false)}
-            />
-            <TouchableOpacity style={styles.actionBtn} onPress={runSuggestion}>
-              <Ionicons name="flask-outline" size={16} color={c.primary} />
-              <Text style={styles.actionBtnText}>{t('disease.title')}</Text>
-            </TouchableOpacity>
-
-            {sugg ? (
-              <View style={[styles.suggestionCard, { borderLeftColor: urgencyColor }]}>
-                <View style={styles.suggestionTopRow}>
-                  <Text style={[styles.suggestionUrgency, { color: urgencyColor }]}>
-                    {sugg.urgency}
+            {selectedDisease ? (
+              <View style={styles.selectedDiseaseContainer}>
+                <Image
+                  source={resolveDiseaseImage({
+                    slug: selectedDisease.slug,
+                    category: selectedDisease.category,
+                    image_url: selectedDisease.image_url,
+                  })}
+                  style={styles.selectedDiseaseImage}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.selectedDiseaseName}>
+                    {getDiseaseDbOverride(selectedDisease.slug, lang)?.name || selectedDisease.name}
                   </Text>
-                  <View style={[styles.urgencyPill, { backgroundColor: urgencyColor + '22' }]}>
-                    <Ionicons name="alert-circle-outline" size={13} color={urgencyColor} />
-                    <Text style={[styles.urgencyPillText, { color: urgencyColor }]}>Urgency</Text>
-                  </View>
+                  <Text style={styles.selectedDiseaseCategory}>
+                    {t(`disease.categories.${selectedDisease.category}`) || selectedDisease.category}
+                  </Text>
                 </View>
-                <Text style={styles.suggestionBody}>{sugg.advisory}</Text>
-                <Text style={[styles.suggestionBody, { marginTop: 6, color: c.textPrimary, fontWeight: '700' }]}>
-                  Top match: {sugg.recommendations?.[0]?.name || 'No strong match'}
-                </Text>
+                <TouchableOpacity
+                  style={styles.clearDiseaseBtn}
+                  onPress={() => setSelectedDisease(null)}
+                >
+                  <Ionicons name="close-circle" size={22} color={c.textMuted} />
+                </TouchableOpacity>
               </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.diseaseSelectorTrigger}
+                onPress={() => setDiseasePickerVisible(true)}
+              >
+                <Ionicons name="bug-outline" size={18} color={c.textMuted} />
+                <Text style={styles.diseaseSelectorTriggerText}>
+                  Select suspected disease...
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={c.textMuted} />
+              </TouchableOpacity>
+            )}
+
+            {selectedDisease && selectedDisease.id !== 'other' && selectedDisease.id !== 'not_sure' ? (
+              <TouchableOpacity
+                style={styles.viewDiseaseDetailsLink}
+                onPress={() => navigation.navigate('DiseaseDetail', { disease: selectedDisease })}
+              >
+                <Ionicons name="eye-outline" size={16} color={c.primary} />
+                <Text style={styles.viewDiseaseDetailsLinkText}>View Disease Intelligence</Text>
+                <Ionicons name="chevron-forward" size={14} color={c.primary} />
+              </TouchableOpacity>
             ) : null}
           </View>
 
           {/* ── Photo ─────────────────────────────────────────── */}
-          <Text style={styles.sectionHeader}>{t('common.add')} {t('common.optional')}</Text>
+          <Text style={styles.sectionHeader}>
+            {t('common.add')}{' '}
+            {selectedDisease?.id === 'other' || selectedDisease?.id === 'not_sure'
+              ? '(Required)'
+              : `(${t('common.optional')})`}
+          </Text>
           <View style={styles.card}>
             <Text style={styles.helper}>{t('ponds.updatePhotoBody')}</Text>
             {photoPreviewUri ? (
@@ -432,7 +505,12 @@ export default function DoctorNetworkScreen() {
               value={issueDescription}
               onChangeText={setIssueDescription}
               multiline
-              placeholder={t('doctor.issue')}
+              placeholder={
+                t('doctor.issue') +
+                (selectedDisease?.id === 'other' || selectedDisease?.id === 'not_sure'
+                  ? ' (Required)'
+                  : ` (${t('common.optional')})`)
+              }
               placeholderTextColor={c.textMuted}
               onFocus={() => setIssueInputFocused(true)}
               onBlur={() => setIssueInputFocused(false)}
@@ -519,6 +597,79 @@ export default function DoctorNetworkScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Disease Picker Modal ───────────────────────────── */}
+      <Modal
+        visible={diseasePickerVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDiseasePickerVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            {/* Handle */}
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Suspected Disease</Text>
+              <TouchableOpacity
+                onPress={() => setDiseasePickerVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={diseaseList}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: 40 }}
+              renderItem={({ item }) => {
+                const displayName = getDiseaseDbOverride(item.slug, lang)?.name || item.name;
+                const imgSource = resolveDiseaseImage({
+                  slug: item.slug,
+                  category: item.category,
+                  image_url: item.image_url,
+                });
+                const isSelected = selectedDisease?.id === item.id;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.diseaseItemRow,
+                      isSelected && styles.diseaseItemRowActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedDisease(item);
+                      setDiseasePickerVisible(false);
+                    }}
+                  >
+                    <Image source={imgSource} style={styles.diseaseItemImage} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.diseaseItemName}>{displayName}</Text>
+                      <Text style={styles.diseaseItemCategory}>
+                        {t(`disease.categories.${item.category}`) || item.category}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={22} color={c.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Calendar Picker Modal ─────────────────────────── */}
+      <CalendarPickerModal
+        visible={datePickerVisible}
+        value={selectedDate}
+        title="Select Visit Date"
+        subtitle="Choose when the doctor should visit your farm"
+        onSelect={setSelectedDate}
+        onClose={() => setDatePickerVisible(false)}
+        minDate={minBookingDate}
+        maxDate={maxBookingDate}
+      />
     </SafeAreaView>
   );
 }
@@ -910,6 +1061,116 @@ const getStyles = (theme: any) => {
     pondItemMeta: {
       color: c.textSecondary,
       fontSize: 13,
+      marginTop: 3,
+    },
+    dateSelectionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      gap: 8,
+    },
+    dateSelectionText: {
+      flex: 1,
+      fontSize: 13,
+      color: c.textSecondary,
+    },
+    dateChangeBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: c.primary,
+    },
+    diseaseSelectorTrigger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: r.md,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: c.surfaceAlt,
+    },
+    diseaseSelectorTriggerText: {
+      flex: 1,
+      fontSize: 15,
+      color: c.textMuted,
+      fontWeight: '500',
+    },
+    selectedDiseaseContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: c.surfaceAlt,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: r.md,
+      padding: 10,
+    },
+    selectedDiseaseImage: {
+      width: 48,
+      height: 48,
+      borderRadius: r.sm,
+      resizeMode: 'cover',
+    },
+    selectedDiseaseName: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: c.textPrimary,
+    },
+    selectedDiseaseCategory: {
+      fontSize: 11,
+      color: c.textMuted,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      marginTop: 2,
+    },
+    clearDiseaseBtn: {
+      padding: 4,
+    },
+    viewDiseaseDetailsLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      marginTop: 12,
+      paddingVertical: 6,
+    },
+    viewDiseaseDetailsLinkText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: c.primary,
+    },
+    diseaseItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+      gap: 12,
+    },
+    diseaseItemRowActive: {
+      backgroundColor: c.primaryLight,
+    },
+    diseaseItemImage: {
+      width: 50,
+      height: 50,
+      borderRadius: r.sm,
+      resizeMode: 'cover',
+    },
+    diseaseItemName: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: c.textPrimary,
+    },
+    diseaseItemCategory: {
+      fontSize: 11,
+      color: c.textMuted,
+      fontWeight: '700',
+      textTransform: 'uppercase',
       marginTop: 3,
     },
   });

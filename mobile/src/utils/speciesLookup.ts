@@ -22,7 +22,9 @@ export function buildSpeciesLookup(records: any[] = []): SpeciesLookup {
     if (scientificName === 'Labeo rohita') {
       label = 'Jayanti Rohu';
     } else if (scientificName === 'Catla catla') {
-      label = 'Amrita Katla';
+      label = 'Amrit Catla';
+    } else if (scientificName === 'Cyprinus carpio haematopterus') {
+      label = 'Amur Carp';
     } else if (scientificName === 'Pangasianodon hypophthalmus' || scientificName === 'Pangasionodon hypophthalmus') {
       label = 'Pangasius';
     }

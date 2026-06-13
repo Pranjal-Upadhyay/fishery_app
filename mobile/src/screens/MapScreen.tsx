@@ -28,7 +28,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../ThemeContext';
-import { geoService } from '../services/apiService';
+import { geoService, baipFarmersService, BaipFarmer } from '../services/apiService';
 import { useNavigation } from '@react-navigation/native';
 
 // Lazy-import MapView so a native crash here doesn't kill the whole app
@@ -141,6 +141,11 @@ export default function MapScreen() {
   const [waterSource, setWaterSource] = useState('BOREWELL');
   const [salinity, setSalinity] = useState('');
 
+  // BAIP Layer State
+  const [baipFarmers, setBaipFarmers] = useState<BaipFarmer[]>([]);
+  const [showBaipLayer, setShowBaipLayer] = useState<boolean>(false);
+  const [selectedBaipFarmer, setSelectedBaipFarmer] = useState<BaipFarmer | null>(null);
+
   // Dropdown states
   const [zones, setZones] = useState<any[]>([]);
   const [isStateOpen, setIsStateOpen] = useState(false);
@@ -158,6 +163,20 @@ export default function MapScreen() {
         }
       } catch (error) {
         console.error('Failed to fetch zones', error);
+      }
+    })();
+  }, []);
+
+  // Load BAIP farmers
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await baipFarmersService.getAll();
+        if (isMounted.current) {
+          setBaipFarmers(response);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch BAIP farmers:', error);
       }
     })();
   }, []);
@@ -510,7 +529,30 @@ export default function MapScreen() {
                     onDragEnd={handleMapPress}
                   />
                 )}
+                {Marker && showBaipLayer && baipFarmers.map((farmer) => {
+                  const latVal = parseFloat(String(farmer.latitude));
+                  const lonVal = parseFloat(String(farmer.longitude));
+                  if (isNaN(latVal) || isNaN(lonVal)) return null;
+                  return (
+                    <Marker
+                      key={farmer.id}
+                      coordinate={{ latitude: latVal, longitude: lonVal }}
+                      title={farmer.farmer_name}
+                      description={`${farmer.village}, ${farmer.district}`}
+                      pinColor="orange"
+                      onPress={() => setSelectedBaipFarmer(farmer)}
+                    />
+                  );
+                })}
               </MapView>
+              {/* BAIP Layer Toggle Button */}
+              <TouchableOpacity 
+                style={[styles.layerToggleBtn, showBaipLayer && styles.layerToggleBtnActive]} 
+                onPress={() => setShowBaipLayer(!showBaipLayer)}
+              >
+                <Ionicons name="layers-outline" size={14} color="#fff" />
+                <Text style={styles.openMapsBtnText}>BAIP Farmers</Text>
+              </TouchableOpacity>
               {/* "Open in Maps" button always visible on top of MapView */}
               <TouchableOpacity style={styles.openMapsBtn} onPress={openInMaps}>
                 <Ionicons name="navigate-outline" size={14} color="#fff" />
@@ -683,6 +725,98 @@ export default function MapScreen() {
         styles={styles}
         theme={theme}
       />
+
+      {/* BAIP Farmer Details Modal */}
+      <Modal 
+        visible={!!selectedBaipFarmer} 
+        transparent 
+        animationType="slide" 
+        onRequestClose={() => setSelectedBaipFarmer(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>BAIP Farmer Profile</Text>
+              <TouchableOpacity onPress={() => setSelectedBaipFarmer(null)}>
+                <Ionicons name="close" size={24} color={theme.colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            {selectedBaipFarmer && (
+              <ScrollView contentContainerStyle={{ padding: 20 }}>
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailTitle}>{selectedBaipFarmer.farmer_name}</Text>
+                  <Text style={styles.detailSub}>{selectedBaipFarmer.village}, {selectedBaipFarmer.district}, {selectedBaipFarmer.state}</Text>
+                </View>
+
+                <View style={styles.detailDivider} />
+
+                <View style={styles.detailRow}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Age / Gender</Text>
+                    <Text style={styles.detailValue}>{selectedBaipFarmer.age} / {selectedBaipFarmer.gender}</Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Mobile</Text>
+                    <Text style={styles.detailValue}>{selectedBaipFarmer.farmer_mobile || 'N/A'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Social Category</Text>
+                    <Text style={[styles.detailValue, { textTransform: 'uppercase', color: theme.colors.primary }]}>
+                      {selectedBaipFarmer.social_category}
+                    </Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Household Size</Text>
+                    <Text style={styles.detailValue}>{selectedBaipFarmer.total_number_family} members</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Education Level</Text>
+                    <Text style={styles.detailValue}>{selectedBaipFarmer.education_level?.replace('_', ' ') || 'N/A'}</Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Annual Income</Text>
+                    <Text style={styles.detailValue}>₹{parseFloat(selectedBaipFarmer.annual_income).toLocaleString('en-IN')}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailDivider} />
+
+                <View style={styles.detailRow}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Flood Impact (3 Yrs)</Text>
+                    <Text style={[styles.detailValue, { color: selectedBaipFarmer.flood_impact === 'yes' ? theme.colors.error : theme.colors.textPrimary }]}>
+                      {selectedBaipFarmer.flood_impact === 'yes' ? 'Affected' : 'No Impact'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Disease History</Text>
+                    <Text style={[styles.detailValue, { color: selectedBaipFarmer.disease_occurrence === 'major' ? theme.colors.error : selectedBaipFarmer.disease_occurrence === 'minor' ? theme.colors.accent : theme.colors.success }]}>
+                      {selectedBaipFarmer.disease_occurrence?.toUpperCase() || 'NONE'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Pond Insured</Text>
+                    <Text style={styles.detailValue}>{selectedBaipFarmer.pond_insured === 'yes' ? 'Yes' : 'No'}</Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>Income Control</Text>
+                    <Text style={styles.detailValue}>{selectedBaipFarmer.income_control || 'N/A'}</Text>
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -793,6 +927,63 @@ const getStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  layerToggleBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    zIndex: 100,
+  },
+  layerToggleBtnActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  detailSection: {
+    marginBottom: 16,
+  },
+  detailTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
+  },
+  detailSub: {
+    fontSize: 14,
+    color: theme.colors.textMuted,
+    marginTop: 4,
+  },
+  detailDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: 16,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  detailCol: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
   openMapsBtn: {
     position: 'absolute',

@@ -175,7 +175,8 @@ export class EconomicsSimulatorService {
     let { expectedYield, projectedRevenue } = this.calculateRevenue(
       eligibleSpecies,
       economicModel,
-      input.landSizeHectares
+      input.landSizeHectares,
+      input.riskTolerance
     );
 
     // No capital efficiency multiplier — having more cash on hand does not automatically
@@ -468,17 +469,28 @@ export class EconomicsSimulatorService {
   private static calculateRevenue(
     species: SpeciesData[],
     model: EconomicData,
-    landSizeHectares: number
+    landSizeHectares: number,
+    riskTolerance: RiskTolerance
   ): { projectedRevenue: number; expectedYield: number } {
     const revenue = model.revenue_projections;
-    // Use 35th percentile for yield — first-time farmers rarely hit the midpoint;
-    // disease, weather, and management gaps consistently push outcomes toward the lower end.
+    
+    // Dynamically adjust percentiles based on risk tolerance
+    let yieldPercentile = 0.35;
+    let pricePercentile = 0.40;
+    
+    if (riskTolerance === RiskTolerance.LOW) {
+      yieldPercentile = 0.20;
+      pricePercentile = 0.30;
+    } else if (riskTolerance === RiskTolerance.HIGH) {
+      yieldPercentile = 0.50;
+      pricePercentile = 0.50;
+    }
+
     const yieldRange = revenue.expected_yield_kg_per_hectare.max - revenue.expected_yield_kg_per_hectare.min;
-    const conservativeYield = revenue.expected_yield_kg_per_hectare.min + yieldRange * 0.35;
-    // Use 40th percentile for price — local/farm-gate prices are typically well below
-    // national averages listed in extension literature.
+    const conservativeYield = revenue.expected_yield_kg_per_hectare.min + yieldRange * yieldPercentile;
+    
     const priceRange = revenue.market_price_inr_per_kg.max - revenue.market_price_inr_per_kg.min;
-    const conservativePrice = revenue.market_price_inr_per_kg.min + priceRange * 0.40;
+    const conservativePrice = revenue.market_price_inr_per_kg.min + priceRange * pricePercentile;
 
     const totalYield = conservativeYield * landSizeHectares;
     const totalRevenue = totalYield * conservativePrice;
@@ -528,7 +540,15 @@ export class EconomicsSimulatorService {
 
       // Use the minimum (pessimistic) survival rate — disease, water quality events,
       // and handling losses mean first-cycle farmers rarely achieve peak survival.
-      const survivalPercent = templateDefaults?.survivalPercent ?? (s.economic_parameters.survival_rate_percent?.min || 70);
+      let survivalPercent = templateDefaults?.survivalPercent ?? (s.economic_parameters.survival_rate_percent?.min || 70);
+      
+      // Adjust survival rate based on risk tolerance
+      if (input.riskTolerance === RiskTolerance.LOW) {
+        survivalPercent = Math.min(95, survivalPercent + 3);
+      } else if (input.riskTolerance === RiskTolerance.HIGH) {
+        survivalPercent = Math.max(50, survivalPercent - 5);
+      }
+
       const speciesYield = expectedYield * (survivalPercent / 100);
       const estRevenue = speciesYield * avgPrice;
 
@@ -637,12 +657,23 @@ export class EconomicsSimulatorService {
       });
     }
 
+    let mortalityRiskPercent = 15;
+    let marketPriceVolatility = 0.15;
+    
+    if (input.riskTolerance === RiskTolerance.LOW) {
+      mortalityRiskPercent = 10;
+      marketPriceVolatility = 0.08;
+    } else if (input.riskTolerance === RiskTolerance.HIGH) {
+      mortalityRiskPercent = 25;
+      marketPriceVolatility = 0.25;
+    }
+
     return {
       overallRisk,
       riskFactors,
       mitigationStrategies: this.getMitigationStrategies(riskFactors),
-      mortalityRiskPercent: 15,
-      marketPriceVolatility: 0.15
+      mortalityRiskPercent,
+      marketPriceVolatility
     };
   }
 
@@ -748,10 +779,20 @@ export class EconomicsSimulatorService {
     const OPEX_PER_CYCLE          = 140000;    // Rs 1,40,000 per cycle
     const CYCLES_PER_YEAR         = 2;
     const FINGERLINGS_PER_UNIT    = 4500;
-    const SURVIVAL_RATE           = 0.80;      // 80%
+    
+    // Scale survival rate and sale price by risk tolerance
+    let SURVIVAL_RATE             = 0.80;      // 80% default
+    let SALE_PRICE_PER_KG         = 150;       // Rs 150/kg default
+    if (input.riskTolerance === 'LOW') {
+      SURVIVAL_RATE               = 0.83;
+      SALE_PRICE_PER_KG           = 140;       // lower conservative price
+    } else if (input.riskTolerance === 'HIGH') {
+      SURVIVAL_RATE               = 0.75;
+      SALE_PRICE_PER_KG           = 160;       // higher optimistic price
+    }
+
     const HARVEST_WEIGHT_KG       = 0.45;      // 450 grams per fish
     const YIELD_PER_CYCLE_KG      = FINGERLINGS_PER_UNIT * SURVIVAL_RATE * HARVEST_WEIGHT_KG; // 1,620 kg
-    const SALE_PRICE_PER_KG       = 150;       // Rs 150/kg live sale
     const CYCLE_MONTHS            = 6;         // 6-month culture period
     const LAND_SQM_PER_UNIT       = 100;       // 100 square meters per unit
 
@@ -904,8 +945,8 @@ export class EconomicsSimulatorService {
           'Daily water quality checks: DO > 4 ppm, pH 7–8, Ammonia < 0.05 ppm',
           'Keep spare pump and aerator parts on hand',
         ],
-        mortalityRiskPercent: 20,
-        marketPriceVolatility: 0.10,
+        mortalityRiskPercent: input.riskTolerance === 'LOW' ? 15 : input.riskTolerance === 'HIGH' ? 30 : 20,
+        marketPriceVolatility: input.riskTolerance === 'LOW' ? 0.05 : input.riskTolerance === 'HIGH' ? 0.15 : 0.10,
       },
       monthlyCashFlow,
       sensitivityAnalysis: {
@@ -977,7 +1018,17 @@ export class EconomicsSimulatorService {
   private static async simulateBiofloc(input: any): Promise<EconomicsSimulatorOutput> {
     const tanks: number    = (input as any).numberOfBioflocTanks || 1;
     const speciesKey       = (((input as any).bioflocSpecies as 'PANGASIUS' | 'MANGUR') || 'PANGASIUS');
-    const sc               = BIOFLOC_SPECIES_CONSTANTS[speciesKey];
+    const sc               = { ...BIOFLOC_SPECIES_CONSTANTS[speciesKey] };
+    
+    // Scale survival rate and sale price by risk tolerance
+    if (input.riskTolerance === 'LOW') {
+      sc.survivalRate      = Math.min(0.95, sc.survivalRate + 0.03);
+      sc.salePrice         = sc.salePrice - 5;
+    } else if (input.riskTolerance === 'HIGH') {
+      sc.survivalRate      = Math.max(0.50, sc.survivalRate - 0.05);
+      sc.salePrice         = sc.salePrice + 10;
+    }
+    
     const recommendationId = uuidv4();
 
     // ── Per-tank production ───────────────────────────────────────────────────
@@ -1159,8 +1210,8 @@ export class EconomicsSimulatorService {
           'Apply for Bihar Yojana/PMMSY subsidy: 50% for General, 70% for SC/ST/EBC, 80% for solar pump',
           'Start with 3–5 tanks to learn system before scaling up',
         ],
-        mortalityRiskPercent: 25,
-        marketPriceVolatility: 0.12,
+        mortalityRiskPercent: input.riskTolerance === 'LOW' ? 20 : input.riskTolerance === 'HIGH' ? 35 : 25,
+        marketPriceVolatility: input.riskTolerance === 'LOW' ? 0.06 : input.riskTolerance === 'HIGH' ? 0.20 : 0.12,
       },
       monthlyCashFlow,
       sensitivityAnalysis: {
@@ -1275,7 +1326,16 @@ export class EconomicsSimulatorService {
       },
     };
 
-    const spec = CAGE_SPECIES_CONSTANTS[cageSpecies];
+    const spec = { ...CAGE_SPECIES_CONSTANTS[cageSpecies] };
+
+    // Scale survival rate and sale price by risk tolerance
+    if (input.riskTolerance === 'LOW') {
+      spec.survivalRate      = Math.min(0.95, spec.survivalRate + 0.03);
+      spec.salePricePerKg    = spec.salePricePerKg - 5;
+    } else if (input.riskTolerance === 'HIGH') {
+      spec.survivalRate      = Math.max(0.50, spec.survivalRate - 0.05);
+      spec.salePricePerKg    = spec.salePricePerKg + 10;
+    }
 
     // ── Scale to N cages ──────────────────────────────────────────────────────
     const totalCapex              = CAPEX_PER_CAGE * numberOfCages;
@@ -1411,8 +1471,8 @@ export class EconomicsSimulatorService {
           'Apply for NFDB Blue Revolution subsidy — training cost borne by NFDB',
           'Engage local fishermen cooperative (SHG/Coop) for cage management',
         ],
-        mortalityRiskPercent: 20,
-        marketPriceVolatility: 0.18,
+        mortalityRiskPercent: input.riskTolerance === 'LOW' ? 15 : input.riskTolerance === 'HIGH' ? 30 : 20,
+        marketPriceVolatility: input.riskTolerance === 'LOW' ? 0.10 : input.riskTolerance === 'HIGH' ? 0.25 : 0.18,
       },
       monthlyCashFlow:    cashFlow,
       sensitivityAnalysis,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, TextInput, RefreshControl, Image, ScrollView
+  ActivityIndicator, TextInput, RefreshControl, Image, ScrollView, Modal
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -141,6 +141,7 @@ export default function SpeciesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showCompareModal, setShowCompareModal] = useState(false);
 
   const loadSpecies = useCallback(async () => {
     setLoadError(null);
@@ -187,6 +188,28 @@ export default function SpeciesScreen() {
     }
 
     next = next.filter((s: any) => matchesCategory(s, activeFilter));
+
+    // Sort next so that premium/improved carps are pinned to the top
+    const priorityScientific = [
+      'labeo rohita',
+      'catla catla',
+      'cyprinus carpio haematopterus'
+    ];
+    
+    next = [...next].sort((a: any, b: any) => {
+      const sciA = (a.data?.scientific_name || '').toLowerCase();
+      const sciB = (b.data?.scientific_name || '').toLowerCase();
+      const idxA = priorityScientific.indexOf(sciA);
+      const idxB = priorityScientific.indexOf(sciB);
+      
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      
+      const nameA = (a.data?.common_names?.en || '').toLowerCase();
+      const nameB = (b.data?.common_names?.en || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
 
     setFiltered(next);
   }, [search, speciesList, currentLang, t, activeFilter]);
@@ -261,13 +284,6 @@ export default function SpeciesScreen() {
         ))}
       </ScrollView>
 
-      {/* Section header — uppercase, textMuted, letterSpacing 2 */}
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeader}>
-          {t('species.speciesCount', { count: filtered.length })}
-        </Text>
-      </View>
-
       {loadError ? (
         <View style={styles.errorBanner}>
           <Ionicons name="cloud-offline-outline" size={16} color={theme.colors.accent} />
@@ -278,6 +294,15 @@ export default function SpeciesScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          search.length === 0 ? (
+            <CarpGeneticsBanner
+              theme={theme}
+              styles={styles}
+              onPressCompare={() => setShowCompareModal(true)}
+            />
+          ) : null
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -302,7 +327,175 @@ export default function SpeciesScreen() {
         }
         contentContainerStyle={styles.listContent}
       />
+
+      <CompareStrainsModal
+        visible={showCompareModal}
+        onClose={() => setShowCompareModal(false)}
+        theme={theme}
+        styles={styles}
+      />
     </SafeAreaView>
+  );
+}
+
+// ─── Banner & Modal helper sub-components ───────────────────────────────────
+
+const CarpGeneticsBanner = ({ theme, styles, onPressCompare }: any) => {
+  return (
+    <View style={styles.bannerContainer}>
+      <View style={styles.bannerGradient}>
+        <View style={styles.bannerHeader}>
+          <View style={styles.bannerBadge}>
+            <Text style={styles.bannerBadgeText}>BIHAR AQUACULTURE PROGRAM</Text>
+          </View>
+          <Ionicons name="git-branch" size={16} color={theme.colors.primary} />
+        </View>
+        <Text style={styles.bannerTitle}>Next-Gen Carp Genetics</Text>
+        <Text style={styles.bannerDesc}>
+          Selectively bred strains with superior genetic gain, faster growth, and enhanced disease resistance.
+        </Text>
+        
+        <View style={styles.bannerStrainsRow}>
+          <View style={styles.bannerStrainChip}>
+            <View style={[styles.bulletDot, { backgroundColor: theme.colors.primary }]} />
+            <Text style={styles.bannerStrainChipText}>Jayanti Rohu</Text>
+          </View>
+          <View style={styles.bannerStrainChip}>
+            <View style={[styles.bulletDot, { backgroundColor: theme.colors.secondary }]} />
+            <Text style={styles.bannerStrainChipText}>Amrit Catla</Text>
+          </View>
+          <View style={styles.bannerStrainChip}>
+            <View style={[styles.bulletDot, { backgroundColor: theme.colors.accent }]} />
+            <Text style={styles.bannerStrainChipText}>Amur Carp</Text>
+          </View>
+        </View>
+        
+        <TouchableOpacity style={styles.bannerButton} onPress={onPressCompare} activeOpacity={0.85}>
+          <Text style={styles.bannerButtonText}>Compare Strains & Benefits</Text>
+          <Ionicons name="chevron-forward" size={15} color={theme.colors.textInverse} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const CompareRow = ({ category, rohuText, catlaText, carpText, theme, styles }: any) => (
+  <View style={styles.compareRowCard}>
+    <Text style={styles.compareCategoryName}>{category}</Text>
+    <View style={styles.compareStrainsGrid}>
+      <View style={[styles.compareStrainCell, { borderColor: theme.colors.primary }]}>
+        <Text style={[styles.compareStrainLabel, { color: theme.colors.primary }]}>Jayanti Rohu</Text>
+        <Text style={styles.compareStrainText}>{rohuText}</Text>
+      </View>
+      <View style={[styles.compareStrainCell, { borderColor: theme.colors.secondary }]}>
+        <Text style={[styles.compareStrainLabel, { color: theme.colors.secondary }]}>Amrit Catla</Text>
+        <Text style={styles.compareStrainText}>{catlaText}</Text>
+      </View>
+      <View style={[styles.compareStrainCell, { borderColor: theme.colors.accent }]}>
+        <Text style={[styles.compareStrainLabel, { color: theme.colors.accent }]}>Amur Carp</Text>
+        <Text style={styles.compareStrainText}>{carpText}</Text>
+      </View>
+    </View>
+  </View>
+);
+
+const CompareStrainsModal = ({ visible, onClose, theme, styles }: any) => {
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Modal Header */}
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderTitleWrap}>
+              <Ionicons name="git-network-outline" size={20} color={theme.colors.primary} />
+              <Text style={styles.modalTitle}>Strains Comparison</Text>
+            </View>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Ionicons name="close" size={20} color={theme.colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Modal Body */}
+          <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+            <Text style={styles.modalIntroText}>
+              Comparison of next-generation genetically improved carp varieties recommended under Bihar Aquaculture Improvement Program.
+            </Text>
+
+            <CompareRow
+              category="High Genetic Gain"
+              rohuText="~18% genetic improvement per generation."
+              catlaText="~15% per generation (~35% cumulative gain by 3rd generation)."
+              carpText="30-40% faster growth compared to local common carp."
+              theme={theme}
+              styles={styles}
+            />
+
+            <CompareRow
+              category="Growth & Culture Cycle"
+              rohuText="Achieves 1–1.2 kg in 8–10 months."
+              catlaText="Grows up to ~1.8 kg annually (12 months)."
+              carpText="Reaches 600–700g in 6 months, up to 1.2–1.5 kg in 12 months."
+              theme={theme}
+              styles={styles}
+            />
+
+            <CompareRow
+              category="Farm Income & Productivity"
+              rohuText="~50% higher economic returns, ~25% increase in income per hectare."
+              catlaText="Larger body size & higher market value."
+              carpText="Late sexual maturation (8-12 months) channels energy into body weight."
+              theme={theme}
+              styles={styles}
+            />
+
+            <CompareRow
+              category="Disease Resistance"
+              rohuText="Bred for Aeromonas hydrophila resistance. Survival heritability: 0.15–0.19."
+              catlaText="More resilient and reliable seed than standard Catla."
+              carpText="High hardiness, lower disease susceptibility than standard common carp."
+              theme={theme}
+              styles={styles}
+            />
+
+            <CompareRow
+              category="Feed Efficiency & Environment"
+              rohuText="10–15% improved feed efficiency. Lower production cost."
+              catlaText="10-15% improved feed efficiency. Reduced carbon footprint."
+              carpText="High feed conversion efficiency, thrives in low-input polyculture."
+              theme={theme}
+              styles={styles}
+            />
+
+            <CompareRow
+              category="Nationwide Adoption"
+              rohuText="Adopted and validated in 14–16 Indian states."
+              catlaText="Officially released, distributed via NFFBB & certified hatcheries."
+              carpText="Widely released by ICAR, available at central/state hatcheries."
+              theme={theme}
+              styles={styles}
+            />
+
+            <CompareRow
+              category="Average Market Price (Consumable)"
+              rohuText="₹150 – ₹220 / kg (Average ₹180/kg)"
+              catlaText="₹180 – ₹240 / kg (Average ₹200/kg)"
+              carpText="₹110 – ₹150 / kg (Average ₹130/kg)"
+              theme={theme}
+              styles={styles}
+            />
+
+            <CompareRow
+              category="Average Seed Price (Fry/Fingerling)"
+              rohuText="₹1.00 – ₹1.50 per piece"
+              catlaText="₹1.20 – ₹1.80 per piece"
+              carpText="₹0.80 – ₹1.20 per piece"
+              theme={theme}
+              styles={styles}
+            />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -585,5 +778,191 @@ const getStyles = (theme: any) => StyleSheet.create({
     color: theme.colors.textMuted,
     marginTop: 12,
     fontSize: 14,
+  },
+
+  // ── Premium Carp Banner ───────────────────────────────────────────────────
+  bannerContainer: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+  },
+  bannerGradient: {
+    padding: 16,
+  },
+  bannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  bannerBadge: {
+    backgroundColor: theme.colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  bannerBadgeText: {
+    color: theme.colors.primary,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  bannerTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    marginBottom: 6,
+  },
+  bannerDesc: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  bannerStrainsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  bannerStrainChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: theme.colors.surfaceLow,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  bannerStrainChipText: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  bannerButton: {
+    height: 40,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  bannerButtonText: {
+    color: theme.colors.textInverse,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+
+  // ── Comparison Modal ───────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.68)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    height: '85%',
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  modalHeaderTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  modalScrollBody: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  modalIntroText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+
+  // ── Comparison Row ────────────────────────────────────────────────────────
+  compareRowCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 12,
+    marginBottom: 14,
+  },
+  compareCategoryName: {
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingBottom: 4,
+  },
+  compareStrainsGrid: {
+    gap: 8,
+  },
+  compareStrainCell: {
+    backgroundColor: theme.colors.surfaceLow,
+    borderRadius: theme.borderRadius.sm,
+    borderLeftWidth: 3,
+    padding: 8,
+  },
+  compareStrainLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  compareStrainText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

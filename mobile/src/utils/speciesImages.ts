@@ -80,6 +80,7 @@ const SPECIES_MAP: Record<string, any> = {
   'labeo calbasu':               img(IMG_LABEO_CALBASU),
   'labeo bata':                  img(IMG_LABEO_BATA),
   'cyprinus carpio':             img(IMG_CYPRINUS_CARPIO),
+  'cyprinus carpio haematopterus': img(IMG_CYPRINUS_CARPIO),
   'ctenopharyngodon idella':     img(IMG_CTENOPHARYNGODON_IDELLA),
   'hypophthalmichthys molitrix': img(IMG_HYPOPHTHALMICHTHYS_MOLITRIX),
   'aristichthys nobilis':        img(IMG_ARISTICHTHYS_NOBILIS),
