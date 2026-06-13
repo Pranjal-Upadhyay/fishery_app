@@ -1,5 +1,18 @@
--- Migration 047: Add Amur Carp and Seed Premium Market Prices
--- Strains covered: Amur Carp (Cyprinus carpio haematopterus), Jayanti Rohu (Labeo rohita), Amrit Catla (Catla catla)
+-- Ensure unique constraint exists (self-healing for schema drift)
+DELETE FROM market_prices a USING market_prices b
+WHERE a.id < b.id 
+  AND a.species_id = b.species_id 
+  AND a.market_name = b.market_name 
+  AND a.date = b.date;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'unique_market_price'
+    ) THEN
+        ALTER TABLE market_prices ADD CONSTRAINT unique_market_price UNIQUE (species_id, market_name, date);
+    END IF;
+END $$;
 
 -- 1. Insert Amur Carp SPECIES node
 INSERT INTO knowledge_nodes (id, parent_id, node_type, data)
