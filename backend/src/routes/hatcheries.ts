@@ -75,6 +75,7 @@ const createBatchSchema = z.object({
   broodstock_total_kg: z.number().nonnegative().optional(),
   spawning_date: z.string().datetime({ offset: true }).optional(),
   estimated_spawn_count: z.number().int().nonnegative().optional(),
+  current_stage: z.enum(['broodstock', 'spawning']).optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -120,12 +121,12 @@ const fingerlingSaleSchema = z.object({
 });
 
 const STAGE_GUIDELINES: Record<string, string> = {
-  broodstock: 'Batch moved to Broodstock stage. Conditioning guidelines: Maintain controlled density (100-200 kg/ha) and feed high-protein diet (30-35% protein). Optimal water temperature is 26-32°C.',
-  spawning: 'Batch advanced to Induced Spawning stage. Induced spawning protocol: Females get primary/secondary hormone dose (Ovaprim/HCG); latency period is 6-12 hours in aerated circular spawning tanks. Monitor and log estimated egg count.',
-  hatching: 'Batch advanced to Hatching stage. Fertilized eggs hatch in 12-20 hours (at 28°C). Keep circular troughs circulating. Sac fry will absorb yolk sacs over the next 48-72 hours (do not feed externally).',
-  nursery: 'Batch advanced to Nursery Pond. Stocking density: 3-5 million spawn/hectare in shallow ponds. Ensure pre-treatment with lime and organic manure for zooplankton bloom. Supplemental feeding begins Day 5-7.',
-  rearing: 'Batch advanced to Rearing Pond. Stocking density: 0.2-0.5 million fry/hectare. Supplemental feeding continues twice daily. Monitor water quality (DO, pH, ammonia) closely.',
-  fingerling_ready: 'Batch advanced to Fingerling Ready stage. Average weight is typically 8-15g. Record fingerling sales to generate transaction QR codes for grow-out farmers.',
+  broodstock: 'Batch moved to Broodstock stage. Conditioning guidelines: Maintain controlled density (100-200 kg/ha) and feed high-protein diet (30-35% protein). Optimal water temperature is 26-32°C. Conditioning takes total 120 days.',
+  spawning: 'Batch advanced to Induced Spawning stage. Induced spawning protocol: latency period is 12-18 hours in aerated circular spawning tanks. Monitor and log estimated egg count.',
+  hatching: 'Batch advanced to Hatching stage. Fertilized eggs hatch in 12-20 hours (takes 0-1 day). Keep circular troughs circulating. Sac fry will absorb yolk sacs over the next 48-72 hours.',
+  nursery: 'Batch advanced to Nursery Pond. Nursery stage takes 21-30 days. Fry is created at the end of this stage (spawn grows into fry). Stocking density: 3-5 million spawn/hectare in shallow ponds.',
+  rearing: 'Batch advanced to Rearing Pond. Rearing stage takes 60-90 days. Fingerlings are created at the end of this stage (fry grows into fingerlings). Stocking density: 0.2-0.5 million fry/hectare.',
+  fingerling_ready: 'Batch advanced to Fingerling Ready stage. Average weight is typically 8-15g. Fingerlings are ready for sale. Record fingerling sales to generate transaction QR codes.',
   sold: 'Batch completed and sold. Fingerling sales recorded and handoff transaction finalized.'
 };
 
@@ -461,7 +462,11 @@ router.get('/:id/batches', requireAuth, async (req, res, next) => {
       SELECT b.*,
              (SELECT COUNT(*) FROM hatchery_stage_logs sl WHERE sl.batch_id = b.id) AS log_count,
              (SELECT sl.survival_rate_pct FROM hatchery_stage_logs sl
-              WHERE sl.batch_id = b.id ORDER BY sl.created_at DESC LIMIT 1) AS last_survival_rate
+              WHERE sl.batch_id = b.id ORDER BY sl.created_at DESC LIMIT 1) AS last_survival_rate,
+             EXISTS(
+               SELECT 1 FROM fingerling_listings fl
+               WHERE fl.batch_id = b.id AND fl.status IN ('AVAILABLE', 'UPCOMING', 'DRAFT')
+             ) AS is_listed
       FROM hatchery_batches b
       WHERE b.hatchery_id = $1
       ORDER BY b.created_at DESC
@@ -490,13 +495,15 @@ router.post('/:id/batches', requireAuth, async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
+    const startStage = data.current_stage ?? 'broodstock';
+
     const result = await query(`
       INSERT INTO hatchery_batches (
         hatchery_id, species_name, species_variant,
         broodstock_male_count, broodstock_female_count, broodstock_total_kg,
-        spawning_date, estimated_spawn_count, notes
+        spawning_date, estimated_spawn_count, current_stage, notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `, [
       id,
@@ -505,35 +512,41 @@ router.post('/:id/batches', requireAuth, async (req, res, next) => {
       data.broodstock_male_count ?? null,
       data.broodstock_female_count ?? null,
       data.broodstock_total_kg ?? null,
-      data.spawning_date ? new Date(data.spawning_date) : null,
+      data.spawning_date ? new Date(data.spawning_date) : (startStage === 'spawning' ? new Date() : null),
       data.estimated_spawn_count ?? null,
+      startStage,
       data.notes ?? null,
     ]);
 
     const newBatch = result.rows[0];
 
-    // Log the initial broodstock stage transition
+    // Log the initial stage transition
+    const countAtEntry = startStage === 'spawning'
+      ? (data.estimated_spawn_count ?? null)
+      : (data.broodstock_male_count ? (data.broodstock_male_count + (data.broodstock_female_count || 0)) : null);
+
     await query(`
       INSERT INTO hatchery_stage_logs (
         batch_id, stage, count_at_entry, observations, logged_by
       )
-      VALUES ($1, 'broodstock', $2, $3, $4)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       newBatch.id,
-      data.broodstock_male_count ? (data.broodstock_male_count + (data.broodstock_female_count || 0)) : null,
+      startStage,
+      countAtEntry,
       'Batch created',
       userId,
     ]);
 
     // Send initial notification
-    const initialGuide = STAGE_GUIDELINES.broodstock;
+    const initialGuide = STAGE_GUIDELINES[startStage] || STAGE_GUIDELINES.broodstock;
     const hatcheryInfo = await query('SELECT name FROM hatcheries WHERE id = $1', [id]);
     const hatcheryName = hatcheryInfo.rows[0]?.name || 'Hatchery';
 
     await query(`
       INSERT INTO farmer_notifications (farmer_id, type, title, message, is_read, created_at)
       VALUES ($1, 'hatchery_alert', $2, $3, FALSE, NOW())
-    `, [userId, 'Hatchery Stage: BROODSTOCK', initialGuide]);
+    `, [userId, `Hatchery Stage: ${startStage.toUpperCase()}`, initialGuide]);
 
     await query(`
       INSERT INTO farmer_notifications (farmer_id, type, title, message, is_read, created_at)
@@ -589,12 +602,20 @@ router.get('/batches/:batchId', requireAuth, async (req, res, next) => {
         END
     `);
 
+    const listingResult = await query(`
+      SELECT id, status, price_per_piece, quantity_available
+      FROM fingerling_listings
+      WHERE batch_id = $1 AND status IN ('AVAILABLE', 'UPCOMING', 'DRAFT')
+      LIMIT 1
+    `, [batchId]);
+
     res.json({
       success: true,
       data: {
         batch: batchResult.rows[0],
         logs: logsResult.rows,
         benchmarks: benchmarksResult.rows,
+        listing: listingResult.rows[0] ?? null,
       }
     });
   } catch (error) {
@@ -626,6 +647,13 @@ router.patch('/batches/:batchId/stage', requireAuth, async (req, res, next) => {
     }
 
     const updatedBatch = await transaction(async (client) => {
+      // End previous log
+      await client.query(`
+        UPDATE hatchery_stage_logs
+        SET ended_at = NOW()
+        WHERE batch_id = $1 AND ended_at IS NULL
+      `, [batchId]);
+
       // Log the stage transition
       await client.query(`
         INSERT INTO hatchery_stage_logs (

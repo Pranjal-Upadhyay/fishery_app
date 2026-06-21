@@ -213,6 +213,19 @@ export default function MyOrdersScreen() {
         }
     };
 
+    const handleVerifyAndStock = (order: MarketplaceOrder) => {
+        const listingForStocking = {
+            id: order.listing_id || order.id,
+            species_name: order.species_name || '',
+            species_variant: order.species_variant || null,
+            estimated_fingerling_count: order.quantity_ordered,
+            avg_fingerling_weight_g: null,
+            hatchery_name: order.hatchery_name || '',
+            hatchery_district: order.hatchery_district || '',
+        };
+        navigation.navigate('StockFingerlings', { listing: listingForStocking });
+    };
+
     const copy = async (text: string, label: string) => {
         // Use native Share sheet as a copy-friendly alternative (works without
         // expo-clipboard). User can tap "Copy" in the share sheet.
@@ -238,7 +251,7 @@ export default function MyOrdersScreen() {
         <SafeAreaView style={styles.safeArea} edges={['top']}>
             <ScreenHeader title="My Orders" onBack={() => navigation.goBack()} />
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filterRow}>
                 {FILTER_TABS.map(t => (
                     <TouchableOpacity
                         key={t.key}
@@ -330,6 +343,13 @@ export default function MyOrdersScreen() {
                                     </View>
                                 )}
 
+                                {item.status === 'HATCHERY_CONFIRMED' && (
+                                    <TouchableOpacity style={[styles.stockBtn, { marginBottom: 8 }]} onPress={() => handleVerifyAndStock(item)}>
+                                        <Ionicons name="qr-code-outline" size={18} color={theme.colors.textInverse} />
+                                        <Text style={styles.stockBtnText}>Verify & Stock Pond</Text>
+                                    </TouchableOpacity>
+                                )}
+
                                 {showFulfillActions && (
                                     <View style={styles.actionRow}>
                                         <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={() => openDispute(item)}>
@@ -341,6 +361,13 @@ export default function MyOrdersScreen() {
                                             <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>Mark Fulfilled</Text>
                                         </TouchableOpacity>
                                     </View>
+                                )}
+
+                                {item.status === 'FULFILLED' && (
+                                    <TouchableOpacity style={[styles.stockBtn, { backgroundColor: theme.colors.secondary }]} onPress={() => handleVerifyAndStock(item)}>
+                                        <Ionicons name="water-outline" size={18} color={theme.colors.textOnSecondary} />
+                                        <Text style={[styles.stockBtnText, { color: theme.colors.textOnSecondary }]}>Verify & Stock Pond Again</Text>
+                                    </TouchableOpacity>
                                 )}
 
                                 {showConvertInterest && (
@@ -484,6 +511,17 @@ const getStyles = (theme: any) => {
             marginTop: 4,
         },
         paidBtnText: { fontSize: 14, fontWeight: '800', color: c.textInverse },
+        stockBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            backgroundColor: c.primary,
+            borderRadius: 12,
+            paddingVertical: 12,
+            marginTop: 4,
+        },
+        stockBtnText: { fontSize: 14, fontWeight: '800', color: c.textInverse },
         infoBox: {
             flexDirection: 'row',
             alignItems: 'center',

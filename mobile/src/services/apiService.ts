@@ -211,7 +211,7 @@ const FALLBACK_PRICES = [
 
 const FALLBACK_SPECIES = [
     {
-        id: 'sp_1',
+        id: '11111111-1111-1111-1111-111111111111',
         data: {
             scientific_name: "Labeo rohita",
             common_names: { "en": "Rohu", "hi": "रोहू" },
@@ -227,7 +227,7 @@ const FALLBACK_SPECIES = [
         }
     },
     {
-        id: 'sp_2',
+        id: '11111111-1111-1111-1111-111111111112',
         data: {
             scientific_name: "Catla catla",
             common_names: { "en": "Catla", "hi": "कतला" },
@@ -243,7 +243,7 @@ const FALLBACK_SPECIES = [
         }
     },
     {
-        id: 'sp_3',
+        id: '7f9df14c-8749-44da-816b-424f232d1087',
         data: {
             scientific_name: "Litopenaeus vannamei",
             common_names: { "en": "Vannamei Shrimp", "hi": "सफेद झींगा" },
@@ -259,7 +259,7 @@ const FALLBACK_SPECIES = [
         }
     },
     {
-        id: 'sp_4',
+        id: '11111111-1111-1111-1111-111111111113',
         data: {
             scientific_name: "Cirrhinus mrigala",
             common_names: { "en": "Mrigal", "hi": "मृगल" },
@@ -275,7 +275,7 @@ const FALLBACK_SPECIES = [
         }
     },
     {
-        id: 'sp_5',
+        id: '55555555-5555-5555-5555-555555555555',
         data: {
             scientific_name: "Oreochromis niloticus (GIFT)",
             common_names: { "en": "GIFT Tilapia", "hi": "तिलापिया (गिफ्ट)" },
@@ -291,7 +291,7 @@ const FALLBACK_SPECIES = [
         }
     },
     {
-        id: 'sp_6',
+        id: '22222222-2222-2222-2222-222222222222',
         data: {
             scientific_name: "Pangasianodon hypophthalmus",
             common_names: { "en": "Pangasius / Basa", "hi": "पंगासियस" },
@@ -307,7 +307,7 @@ const FALLBACK_SPECIES = [
         }
     },
     {
-        id: 'sp_7',
+        id: '2c08a522-330e-40e2-ae4c-7d065686684c',
         data: {
             scientific_name: "Clarias batrachus",
             common_names: { "en": "Singhi / Walking Catfish", "hi": "सिंघी / मांगुर" },
@@ -821,6 +821,7 @@ export interface MarketplaceListing {
     hatchery_id: string;
     hatchery_name: string;
     operator_name: string;
+    operator_id?: string;
     created_at: string;
     updated_at: string;
 }

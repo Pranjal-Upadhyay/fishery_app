@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgis/postgis:15-3.4
     container_name: fishing-god-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-fishinggod}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -24,6 +25,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: fishing-god-backend
+    restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: postgres
@@ -46,6 +48,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: fishing-god-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     networks:
@@ -61,6 +64,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.worker
     container_name: fishing-god-worker
+    restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: postgres

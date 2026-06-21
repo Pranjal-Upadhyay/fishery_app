@@ -60,7 +60,7 @@ const EMPTY_FORM: FormState = {
     purchase_date: '',
     cost_inr: '',
     economic_life_years: '',
-    salvage_value_inr: '0',
+    salvage_value_inr: '',
     remarks: '',
 };
 
@@ -322,7 +322,7 @@ export default function FarmAssetsScreen() {
                             <Section title="Financials (₹)">
                                 <NumField label="Cost (A)"           value={form.cost_inr}            onChange={v => setForm(f => ({ ...f, cost_inr: v }))}            suffix="₹" theme={theme} styles={styles} />
                                 <NumField label="Economic Life (B)"  value={form.economic_life_years} onChange={v => setForm(f => ({ ...f, economic_life_years: v }))} suffix="yr" theme={theme} styles={styles} />
-                                <NumField label="Salvage Value (C)"  value={form.salvage_value_inr}   onChange={v => setForm(f => ({ ...f, salvage_value_inr: v }))}   suffix="₹" theme={theme} styles={styles} />
+                                <NumField label="Salvage Value (C) (Optional)" value={form.salvage_value_inr}   onChange={v => setForm(f => ({ ...f, salvage_value_inr: v }))}   suffix="₹" theme={theme} styles={styles} />
 
                                 {previewDeprec !== null && (
                                     <View style={styles.previewCard}>

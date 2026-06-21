@@ -355,6 +355,16 @@ export default function EconomicsResultScreen() {
                         <Text style={styles.speciesName}>
                           {species.commonName || species.speciesName || species.scientificName || 'Recommended species'}
                         </Text>
+                        {(species.scientificName === 'AhR Jayanti Rohu' || species.commonName?.includes('Jayanti')) && (
+                          <View style={{ backgroundColor: theme.colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginTop: 4, marginBottom: 2 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: theme.colors.primary }}>🛡️ 58% Higher Survival</Text>
+                          </View>
+                        )}
+                        {(species.scientificName === 'CIFA-Amrit Catla' || species.commonName?.includes('Amrit')) && (
+                          <View style={{ backgroundColor: theme.colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginTop: 4, marginBottom: 2 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: theme.colors.primary }}>⚡ 20-30% Faster Growth</Text>
+                          </View>
+                        )}
                         <Text style={styles.speciesMeta}>
                           {species.scientificName && species.scientificName !== species.commonName
                             ? `${species.scientificName} • `

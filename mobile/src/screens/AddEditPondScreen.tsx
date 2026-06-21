@@ -18,6 +18,7 @@ import { speciesService } from '../services/apiService';
 import { getSpeciesDisplay } from '../utils/speciesLookup';
 import LocationCascadePicker, { LocationSelection } from '../components/LocationCascadePicker';
 import { loadProfile } from '../services/profileService';
+import { syncService } from '../services/syncService';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -289,6 +290,9 @@ export default function AddEditPondScreen({ route }: any) {
     const [status, setStatus] = useState('ACTIVE');
     const [speciesId, setSpeciesId] = useState('');
     const [stockingDate, setStockingDate] = useState('');
+    const [speciesVariant, setSpeciesVariant] = useState('');
+    const [fingerlingCount, setFingerlingCount] = useState('');
+    const [fingerlingAvgWeightG, setFingerlingAvgWeightG] = useState('');
     const [lat, setLat] = useState('');
     const [lng, setLng] = useState('');
     const [speciesOptions, setSpeciesOptions] = useState<SpeciesOption[]>([]);
@@ -404,6 +408,9 @@ export default function AddEditPondScreen({ route }: any) {
             setStatus(pond.status);
             setSpeciesId(pond.speciesId || '');
             setStockingDate(formatDateInput(pond.stockingDate));
+            setSpeciesVariant(pond.speciesVariant || '');
+            setFingerlingCount(pond.fingerlingCount ? pond.fingerlingCount.toString() : '');
+            setFingerlingAvgWeightG(pond.fingerlingAvgWeightG ? pond.fingerlingAvgWeightG.toString() : '');
             if (pond.latitude) setLat(pond.latitude.toString());
             if (pond.longitude) setLng(pond.longitude.toString());
             if (pond.districtCode) {
@@ -507,6 +514,9 @@ export default function AddEditPondScreen({ route }: any) {
                         p.status = status;
                         p.speciesId = speciesId || undefined;
                         p.stockingDate = parsedStockingDate ? parsedStockingDate.getTime() : undefined;
+                        p.speciesVariant = speciesVariant.trim() || undefined;
+                        p.fingerlingCount = fingerlingCount ? parseInt(fingerlingCount, 10) : undefined;
+                        p.fingerlingAvgWeightG = fingerlingAvgWeightG ? parseFloat(fingerlingAvgWeightG) : undefined;
                         p.latitude = lat ? Number(lat) : undefined;
                         p.longitude = lng ? Number(lng) : undefined;
                         p.districtCode = pondLocation.districtCode || undefined;
@@ -529,6 +539,9 @@ export default function AddEditPondScreen({ route }: any) {
                         p.status = status;
                         p.speciesId = speciesId || undefined;
                         p.stockingDate = parsedStockingDate ? parsedStockingDate.getTime() : undefined;
+                        p.speciesVariant = speciesVariant.trim() || undefined;
+                        p.fingerlingCount = fingerlingCount ? parseInt(fingerlingCount, 10) : undefined;
+                        p.fingerlingAvgWeightG = fingerlingAvgWeightG ? parseFloat(fingerlingAvgWeightG) : undefined;
                         p.latitude = lat ? Number(lat) : undefined;
                         p.longitude = lng ? Number(lng) : undefined;
                         p.districtCode = pondLocation.districtCode || undefined;
@@ -542,6 +555,10 @@ export default function AddEditPondScreen({ route }: any) {
                     });
                 }
             });
+            // Asynchronously trigger synchronization in the background
+            loadProfile().then(profile => {
+                syncService.sync(profile.userId).catch(console.error);
+            }).catch(console.error);
             navigation.goBack();
         } catch (e: any) {
             Alert.alert(t('addEditPond.saveErrorTitle'), e.message);
@@ -770,6 +787,39 @@ export default function AddEditPondScreen({ route }: any) {
                                             <Text style={styles.quickPillMutedText}>Clear</Text>
                                         </TouchableOpacity>
                                     ) : null}
+                                </View>
+
+                                {/* Stocking details fields */}
+                                <Field
+                                    label="SPECIES VARIANT / STRAIN"
+                                    value={speciesVariant}
+                                    onChangeText={setSpeciesVariant}
+                                    placeholder="e.g. Jayanti Rohu"
+                                    styles={styles}
+                                    theme={theme}
+                                />
+
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    <Field
+                                        label="STOCKING COUNT (PIECES)"
+                                        value={fingerlingCount}
+                                        onChangeText={setFingerlingCount}
+                                        placeholder="e.g. 10000"
+                                        keyboardType="numeric"
+                                        styles={styles}
+                                        theme={theme}
+                                        half
+                                    />
+                                    <Field
+                                        label="AVG WEIGHT (GRAMS)"
+                                        value={fingerlingAvgWeightG}
+                                        onChangeText={setFingerlingAvgWeightG}
+                                        placeholder="e.g. 5.0"
+                                        keyboardType="decimal-pad"
+                                        styles={styles}
+                                        theme={theme}
+                                        half
+                                    />
                                 </View>
 
                                 <Text style={styles.helperText}>

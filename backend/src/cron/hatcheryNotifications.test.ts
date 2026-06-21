@@ -1,12 +1,15 @@
 import cron from 'node-cron';
-import { query } from '../db';
-import { startHatcheryCron } from './hatcheryNotifications';
+import { query, transaction } from '../db';
+import { startHatcheryCron, autoAdvanceBatchStages } from './hatcheryNotifications';
 
 // Mock node-cron
 jest.mock('node-cron', () => ({
   schedule: jest.fn((pattern, fn) => {
-    // Save the function so we can invoke it manually in tests
-    (global as any).cronCallback = fn;
+    if (pattern === '0 0 6 * * *') {
+      (global as any).cronCallback = fn;
+    } else if (pattern === '0 * * * *') {
+      (global as any).autoAdvanceCallback = fn;
+    }
     return { start: jest.fn() };
   }),
 }));
@@ -14,6 +17,10 @@ jest.mock('node-cron', () => ({
 // Mock db query
 jest.mock('../db', () => ({
   query: jest.fn(),
+  transaction: jest.fn(async (cb) => {
+    const client = { query: jest.fn() };
+    return cb(client);
+  }),
 }));
 
 describe('hatcheryNotifications cron job', () => {
@@ -185,5 +192,97 @@ describe('hatcheryNotifications cron job', () => {
     expect(mockQuery).toHaveBeenCalledTimes(3);
     expect(mockQuery.mock.calls[1][1][1]).toBe('Hatchery Alert (WARNING)');
     expect(mockQuery.mock.calls[1][1][2]).toContain('Record sale transactions to clear batch');
+  });
+
+  it('schedules the auto-advance cron job hourly', () => {
+    startHatcheryCron();
+    expect(cron.schedule).toHaveBeenCalledWith('0 * * * *', expect.any(Function));
+  });
+
+  describe('autoAdvanceBatchStages', () => {
+    it('automatically transitions a broodstock batch after 120 days', async () => {
+      const now = new Date();
+      const startedAt = new Date();
+      startedAt.setDate(startedAt.getDate() - 121); // well past 120 days
+
+      // Mock batches query response
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'batch-120',
+            species_name: 'Rohu',
+            current_stage: 'broodstock',
+            stage_started_at: startedAt.toISOString(),
+            hatchery_name: 'Test Hatchery',
+            operator_id: 'operator-1',
+          },
+        ],
+      });
+
+      const mockClient = {
+        query: jest.fn().mockImplementation((q) => {
+          if (q.includes('SELECT count_at_entry')) {
+            return Promise.resolve({ rows: [] });
+          }
+          return Promise.resolve({ rows: [], rowCount: 0 });
+        })
+      };
+      (transaction as jest.Mock).mockImplementationOnce(async (cb) => cb(mockClient));
+
+      await autoAdvanceBatchStages(now);
+
+      // Only the initial batches fetch is called on global query mock
+      expect(mockQuery).toHaveBeenCalledTimes(1);
+
+      // Check transaction query invocations
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE hatchery_stage_logs'),
+        [now, 'batch-120', 'broodstock']
+      );
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO hatchery_stage_logs'),
+        ['batch-120', 'spawning', null, expect.any(String), now]
+      );
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE hatchery_batches'),
+        ['spawning', now, 'batch-120']
+      );
+    });
+
+    it('automatically transitions a spawning batch after 18 hours', async () => {
+      const now = new Date();
+      const startedAt = new Date();
+      startedAt.setHours(startedAt.getHours() - 19); // well past 18 hours
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'batch-spawning',
+            species_name: 'Rohu',
+            current_stage: 'spawning',
+            stage_started_at: startedAt.toISOString(),
+            hatchery_name: 'Test Hatchery',
+            operator_id: 'operator-1',
+          },
+        ],
+      });
+
+      const mockClient = {
+        query: jest.fn().mockImplementation((q) => {
+          if (q.includes('SELECT count_at_entry')) {
+            return Promise.resolve({ rows: [{ count_at_entry: 50000 }] });
+          }
+          return Promise.resolve({ rows: [], rowCount: 0 });
+        })
+      };
+      (transaction as jest.Mock).mockImplementationOnce(async (cb) => cb(mockClient));
+
+      await autoAdvanceBatchStages(now);
+
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO hatchery_stage_logs'),
+        ['batch-spawning', 'hatching', 50000, expect.any(String), now]
+      );
+    });
   });
 });

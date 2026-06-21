@@ -199,7 +199,7 @@ export default function IncomingOrdersScreen() {
                 <SummaryChip label="Disputed" value={orders.filter(o => o.status === 'DISPUTED').length} color="#dc2626" theme={theme} />
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filterRow}>
                 {TABS.map(t => (
                     <TouchableOpacity
                         key={t.key}

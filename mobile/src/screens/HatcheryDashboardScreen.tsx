@@ -20,7 +20,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import { useAuth } from '../AuthContext';
 import ScreenHeader from '../components/ScreenHeader';
-import api from '../services/apiService';
+import api, { marketplaceService, MarketplaceListing } from '../services/apiService';
 
 const STAGE_ORDER = ['broodstock', 'spawning', 'hatching', 'nursery', 'rearing', 'fingerling_ready', 'sold'];
 
@@ -52,6 +52,7 @@ interface Batch {
   spawning_date: string | null;
   updated_at: string;
   log_count: number;
+  is_listed?: boolean;
 }
 
 export default function HatcheryDashboardScreen() {
@@ -62,6 +63,7 @@ export default function HatcheryDashboardScreen() {
 
   const [hatchery, setHatchery] = useState<Hatchery | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -73,9 +75,14 @@ export default function HatcheryDashboardScreen() {
         setHatchery(h);
         const batchesRes = await api.get(`/api/v1/hatcheries/${h.id}/batches`);
         setBatches(batchesRes.data?.data ?? []);
+
+        // Load active listings for validity warnings
+        const listingsRes = await marketplaceService.getMyListings();
+        setListings(listingsRes || []);
       } else {
         setHatchery(null);
         setBatches([]);
+        setListings([]);
       }
     } catch {
       // offline — keep whatever was cached
@@ -92,6 +99,22 @@ export default function HatcheryDashboardScreen() {
   const activeBatches = batches.filter(b => b.current_stage !== 'sold');
   const readyBatches = batches.filter(b => b.current_stage === 'fingerling_ready');
   const totalFingerlings = readyBatches.reduce((sum, b) => sum + (b.estimated_fingerling_count ?? 0), 0);
+
+  const expiringListings = listings.filter((l) => {
+    if (l.status !== 'AVAILABLE' && l.status !== 'UPCOMING') return false;
+    if (l.quantity_available <= 0) return false;
+    if (!l.last_available_date) return false;
+
+    const expiryDate = new Date(l.last_available_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    expiryDate.setHours(0, 0, 0, 0);
+
+    const diffTime = expiryDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays <= 3;
+  });
 
   if (loading) {
     return (
@@ -150,6 +173,67 @@ export default function HatcheryDashboardScreen() {
           <StatCard label="Ready to Sell" value={readyBatches.length} icon="checkmark-circle-outline" theme={theme} accent={theme.colors.secondary} />
           <StatCard label="Fingerlings" value={totalFingerlings > 999 ? `${(totalFingerlings / 1000).toFixed(1)}K` : totalFingerlings} icon="fish-outline" theme={theme} />
         </View>
+
+        {/* Expiring Listings Alerts */}
+        {expiringListings.length > 0 && (
+          <View style={styles.alertsContainer}>
+            <View style={styles.alertsHeader}>
+              <Ionicons name="warning" size={18} color="#ef4444" />
+              <Text style={styles.alertsTitle}>Validity Expiry Alerts</Text>
+            </View>
+            {expiringListings.map(l => {
+              const expiryDate = new Date(l.last_available_date);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              expiryDate.setHours(0, 0, 0, 0);
+              const diffDays = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+              let alertMsg = '';
+              if (diffDays < 0) {
+                alertMsg = `Validity expired ${Math.abs(diffDays)} days ago! Please update or close listing.`;
+              } else if (diffDays === 0) {
+                alertMsg = `Validity expires today! Sell remaining ${l.quantity_available.toLocaleString('en-IN')} pcs quick.`;
+              } else {
+                alertMsg = `Expires in ${diffDays} day${diffDays > 1 ? 's' : ''}! Sell remaining ${l.quantity_available.toLocaleString('en-IN')} pcs quick.`;
+              }
+
+              return (
+                <TouchableOpacity
+                  key={l.id}
+                  style={styles.alertCard}
+                  onPress={() => navigation.navigate('ListingDetail', { listingId: l.id })}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.alertSpeciesText}>
+                      {l.species_name} {l.species_variant ? `(${l.species_variant})` : ''}
+                    </Text>
+                    <Text style={styles.alertMsgText}>{alertMsg}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#ef4444" />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Hatchery Learning Center Banner */}
+        <TouchableOpacity
+          style={styles.learningBanner}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('HatcheryLearning')}
+        >
+          <View style={styles.learningBannerContent}>
+            <View style={styles.learningIconWrap}>
+              <Ionicons name="book" size={24} color={theme.colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.learningBannerTitle}>Hatchery Learning Center</Text>
+              <Text style={styles.learningBannerSub}>Master carp lifecycles, disease prevention & pricing benchmarks</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+          </View>
+        </TouchableOpacity>
 
         {/* Marketplace quick actions */}
         <View style={styles.marketplaceRow}>
@@ -247,7 +331,7 @@ export default function HatcheryDashboardScreen() {
                       <View style={[styles.stagePill, { backgroundColor: meta.color + '22' }]}>
                         <Text style={[styles.stagePillText, { color: meta.color }]}>{meta.label}</Text>
                       </View>
-                      {stage === 'fingerling_ready' && (
+                      {stage === 'fingerling_ready' && !batch.is_listed && (
                         <TouchableOpacity
                           style={styles.sellBtn}
                           onPress={() => navigation.navigate('CreateListing', { batchId: batch.id })}
@@ -325,6 +409,38 @@ const getStyles = (theme: any) => {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
     scroll: { padding: 16, gap: 16 },
     statsRow: { flexDirection: 'row', gap: 10 },
+    learningBanner: {
+      backgroundColor: c.primary + '12',
+      borderWidth: 1,
+      borderColor: c.primary + '30',
+      borderRadius: theme.borderRadius?.lg ?? 16,
+      padding: 14,
+      ...theme.shadows?.sm,
+    },
+    learningBannerContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    learningIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: c.primary + '22',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    learningBannerTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: c.primary,
+    },
+    learningBannerSub: {
+      fontSize: 11,
+      color: c.textSecondary,
+      marginTop: 2,
+      lineHeight: 15,
+    },
     marketplaceRow: { gap: 10 },
     marketplaceCard: {
       flexDirection: 'row',
@@ -407,6 +523,47 @@ const getStyles = (theme: any) => {
       backgroundColor: c.primary,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    alertsContainer: {
+      backgroundColor: '#fef2f2',
+      borderRadius: theme.borderRadius?.lg ?? 16,
+      borderWidth: 1.5,
+      borderColor: '#fca5a5',
+      padding: 14,
+      gap: 10,
+    },
+    alertsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    alertsTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#b91c1c',
+      letterSpacing: 0.5,
+    },
+    alertCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: '#fca5a5',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    alertSpeciesText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#1e293b',
+    },
+    alertMsgText: {
+      fontSize: 12,
+      color: '#b91c1c',
+      fontWeight: '600',
+      marginTop: 2,
     },
   });
 };

@@ -9,6 +9,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../ThemeContext';
 import database from '../database';
+import { loadProfile } from '../services/profileService';
+import { syncService } from '../services/syncService';
 import Pond from '../database/models/Pond';
 import { Q } from '@nozbe/watermelondb';
 import withObservables from '@nozbe/with-observables';
@@ -683,6 +685,9 @@ const PondsList = ({ ponds }: { ponds: Pond[] }) => {
 
     useEffect(() => {
         fetchSpeciesLookup().then(setSpeciesLookup);
+        loadProfile().then(profile => {
+            syncService.sync(profile.userId).catch(console.error);
+        });
     }, []);
 
     const handleDelete = (pond: Pond) => {

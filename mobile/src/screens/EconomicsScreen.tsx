@@ -117,6 +117,8 @@ export default function EconomicsScreen() {
     { label: 'Pangasius', value: 'Pangasianodon hypophthalmus' },
     { label: 'Tilapia', value: 'Oreochromis niloticus' },
     { label: 'Rohu', value: 'Labeo rohita' },
+    { label: 'AhR Jayanti Rohu (Improved)', value: 'AhR Jayanti Rohu' },
+    { label: 'CIFA-Amrit Catla (Improved)', value: 'CIFA-Amrit Catla' },
   ];
 
   useEffect(() => {
