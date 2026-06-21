@@ -329,6 +329,7 @@ router.get('/listings', requireAuth, async (req, res, next) => {
                 fl.updated_at,
                 h.id          AS hatchery_id,
                 h.name        AS hatchery_name,
+                h.operator_id AS operator_id,
                 u.name        AS operator_name
             FROM fingerling_listings fl
             JOIN hatcheries h ON h.id = fl.hatchery_id
@@ -407,6 +408,7 @@ router.get('/listings/:id', requireAuth, async (req, res, next) => {
                 fl.*,
                 h.id          AS hatchery_id,
                 h.name        AS hatchery_name,
+                h.operator_id AS operator_id,
                 u.name        AS operator_name
             FROM fingerling_listings fl
             JOIN hatcheries h ON h.id = fl.hatchery_id
@@ -1419,13 +1421,41 @@ router.patch('/orders/:id/confirm', requireAuth, async (req, res, next) => {
             }
 
             // Move quantity from reserved → confirmed
-            await client.query(`
+            // If the listing is sold out and has no reserved stock remaining, mark it CLOSED
+            const listingUpdateRes = await client.query(`
                 UPDATE fingerling_listings
                 SET reserved_quantity = reserved_quantity - $1,
                     confirmed_quantity = confirmed_quantity + $1,
+                    status = CASE WHEN (quantity_available = 0 AND (reserved_quantity - $1) = 0) THEN 'CLOSED' ELSE status END,
                     updated_at = NOW()
                 WHERE id = $2
+                RETURNING status, batch_id
             `, [order.quantity_ordered, order.listing_id]);
+
+            const updatedListing = listingUpdateRes.rows[0];
+
+            if (updatedListing && updatedListing.status === 'CLOSED' && updatedListing.batch_id) {
+                // Automate batch closing to 'sold' stage
+                await client.query(`
+                    UPDATE hatchery_batches
+                    SET current_stage = 'sold', updated_at = NOW()
+                    WHERE id = $1
+                `, [updatedListing.batch_id]);
+
+                // Update previous active log ended_at
+                await client.query(`
+                    UPDATE hatchery_stage_logs
+                    SET ended_at = NOW()
+                    WHERE batch_id = $1 AND ended_at IS NULL
+                `, [updatedListing.batch_id]);
+
+                // Log the stage transition
+                await client.query(`
+                    INSERT INTO hatchery_stage_logs (
+                        batch_id, stage, count_at_entry, logged_by, observations
+                    ) VALUES ($1, 'sold', 0, $2, 'Batch closed automatically via marketplace listing being sold out.')
+                `, [updatedListing.batch_id, userId]);
+            }
 
             const r = await client.query(`
                 UPDATE fingerling_orders
@@ -1576,11 +1606,13 @@ router.patch('/orders/:id/cancel', requireAuth, async (req, res, next) => {
             }
 
             // If was ACCEPTED or FARMER_PAID, release reserved quantity
+            // If the listing was previously CLOSED because it was sold out, restore it to AVAILABLE
             if (['ACCEPTED', 'FARMER_PAID'].includes(order.status)) {
                 await client.query(`
                     UPDATE fingerling_listings
                     SET reserved_quantity = reserved_quantity - $1,
                         quantity_available = quantity_available + $1,
+                        status = CASE WHEN status = 'CLOSED' THEN 'AVAILABLE' ELSE status END,
                         updated_at = NOW()
                     WHERE id = $2
                 `, [order.quantity_ordered, order.listing_id]);

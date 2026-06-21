@@ -22,6 +22,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../ThemeContext';
 import { database } from '../database';
 import api from '../services/apiService';
+import { loadProfile } from '../services/profileService';
+import { syncService } from '../services/syncService';
+import { fetchSpeciesLookup } from '../utils/speciesLookup';
 
 interface Props {
   visible: boolean;
@@ -59,11 +62,17 @@ export default function StockFingerlingsSheet({ visible, onClose, pondId, prefil
   const [source, setSource] = useState<'hatchery' | 'dealer' | 'own'>(
     prefilledListing ? 'hatchery' : 'dealer'
   );
+  const [scannedHatcheryName, setScannedHatcheryName] = useState('');
 
   // Expected harvest date (days from stocking)
   const [harvestDays, setHarvestDays] = useState('180');
 
   const [saving, setSaving] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanInput, setScanInput] = useState('');
+  const [isVerifiedGeneticPurity, setIsVerifiedGeneticPurity] = useState(
+    Boolean(prefilledListing && (prefilledListing.species_variant?.includes('Jayanti') || prefilledListing.species_variant?.includes('Amrit')))
+  );
 
   const expectedHarvestDate = React.useMemo(() => {
     const days = parseInt(harvestDays, 10);
@@ -104,19 +113,83 @@ export default function StockFingerlingsSheet({ visible, onClose, pondId, prefil
 
     setSaving(true);
     try {
+      // Resolve speciesId from speciesName/speciesVariant using the lookup
+      let resolvedSpeciesId: string | undefined = undefined;
+      try {
+        const speciesLookup = await fetchSpeciesLookup();
+        const searchName = (speciesVariant || speciesName || '').toLowerCase().trim();
+
+        if (searchName) {
+          // 1. Exact match on label
+          for (const [id, entry] of Object.entries(speciesLookup)) {
+            if (entry.label.toLowerCase() === searchName) {
+              resolvedSpeciesId = id;
+              break;
+            }
+          }
+          // 2. Exact match on scientificName
+          if (!resolvedSpeciesId) {
+            for (const [id, entry] of Object.entries(speciesLookup)) {
+              if (entry.scientificName.toLowerCase() === searchName) {
+                resolvedSpeciesId = id;
+                break;
+              }
+            }
+          }
+          // 3. Substring match
+          if (!resolvedSpeciesId) {
+            for (const [id, entry] of Object.entries(speciesLookup)) {
+              const lbl = entry.label.toLowerCase();
+              const sci = entry.scientificName.toLowerCase();
+              if (lbl.includes(searchName) || searchName.includes(lbl) ||
+                  sci.includes(searchName) || searchName.includes(sci)) {
+                resolvedSpeciesId = id;
+                break;
+              }
+            }
+          }
+        }
+
+        // Fallback to the first available species or Rohu if not matched
+        if (!resolvedSpeciesId) {
+          const keys = Object.keys(speciesLookup);
+          if (keys.length > 0) {
+            const rohuKey = keys.find(k => speciesLookup[k].label.toLowerCase().includes('rohu'));
+            resolvedSpeciesId = rohuKey || keys[0];
+          }
+        }
+      } catch (err) {
+        console.error('Failed to resolve speciesId during stocking', err);
+      }
+
       const pond = await database.get<any>('ponds').find(pondId);
       await database.write(async () => {
         await pond.update((p: any) => {
           p.fingerlingCount = fingerlingCount ? parseInt(fingerlingCount, 10) : null;
           p.fingerlingAvgWeightG = avgWeight ? parseFloat(avgWeight) : null;
-          p.fingerlingSource = source;
+          if (prefilledListing) {
+            p.fingerlingSource = `Hatchery: ${prefilledListing.hatchery_name}`;
+          } else if (lookedUpSale) {
+            p.fingerlingSource = `Hatchery: ${lookedUpSale.hatchery_name}`;
+          } else if (scannedHatcheryName) {
+            p.fingerlingSource = `Hatchery: ${scannedHatcheryName}`;
+          } else {
+            p.fingerlingSource = source;
+          }
           p.fingerlingTransactionRef = (lookedUpSale?.transaction_ref ?? txnRef.trim()) || null;
           p.speciesVariant = speciesVariant.trim() || null;
           p.expectedHarvestDate = expectedHarvestDate ? expectedHarvestDate.getTime() : null;
           p.status = 'ACTIVE';
+          p.speciesId = resolvedSpeciesId || undefined;
+          p.stockingDate = Date.now();
           p.localSyncStatus = 'PENDING';
         });
       });
+
+      // Asynchronously trigger synchronization in the background
+      loadProfile().then(profile => {
+        syncService.sync(profile.userId).catch(console.error);
+      }).catch(console.error);
 
       onSuccess?.();
       onClose();
@@ -135,12 +208,13 @@ export default function StockFingerlingsSheet({ visible, onClose, pondId, prefil
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={handleClose}
-    >
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent
+        onRequestClose={handleClose}
+      >
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} onPress={handleClose} />
         <KeyboardAvoidingView
@@ -202,6 +276,27 @@ export default function StockFingerlingsSheet({ visible, onClose, pondId, prefil
                     </View>
                   )}
 
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        backgroundColor: theme.colors.primary + '15',
+                        borderWidth: 1,
+                        borderColor: theme.colors.primary,
+                        borderRadius: 12,
+                        height: 46,
+                      }}
+                      onPress={() => setScannerOpen(true)}
+                    >
+                      <Ionicons name="qr-code-outline" size={18} color={theme.colors.primary} />
+                      <Text style={{ color: theme.colors.primary, fontWeight: '700', fontSize: 13 }}>Scan Hatchery QR</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <View style={styles.dividerRow}>
                     <View style={styles.dividerLine} />
                     <Text style={styles.dividerText}>OR ENTER MANUALLY</Text>
@@ -214,6 +309,28 @@ export default function StockFingerlingsSheet({ visible, onClose, pondId, prefil
               <FormField label="Species" value={speciesName} onChangeText={setSpeciesName} placeholder="e.g. Rohu" icon="fish-outline" theme={theme} />
               <FormField label="Variant / Strain" value={speciesVariant} onChangeText={setSpeciesVariant} placeholder="e.g. Jayanti Rohu" icon="git-branch-outline" theme={theme} />
 
+              {isVerifiedGeneticPurity && (
+                <View style={{
+                  backgroundColor: '#dcfce7',
+                  borderWidth: 1,
+                  borderColor: '#bbf7d0',
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 12,
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                }}>
+                  <Ionicons name="shield-checkmark" size={20} color="#15803d" style={{ marginTop: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#15803d' }}>Verified Genetic Purity</Text>
+                    <Text style={{ fontSize: 11, color: '#166534', marginTop: 2, lineHeight: 15 }}>
+                      Certified ICAR-CIFA improved line, protecting against inbreeding depression.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Quantity */}
               <View style={styles.rowFields}>
                 <View style={{ flex: 1 }}>
@@ -224,23 +341,47 @@ export default function StockFingerlingsSheet({ visible, onClose, pondId, prefil
                 </View>
               </View>
 
-              {/* Source */}
-              <View style={styles.sourceRow}>
-                <Text style={styles.sourceLabel}>Source</Text>
-                <View style={styles.sourceToggle}>
-                  {(['hatchery', 'dealer', 'own'] as const).map(s => (
-                    <TouchableOpacity
-                      key={s}
-                      style={[styles.sourceChip, source === s && styles.sourceChipActive]}
-                      onPress={() => setSource(s)}
-                    >
-                      <Text style={[styles.sourceChipText, source === s && styles.sourceChipTextActive]}>
-                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              {/* Sourced From / Hatchery Info */}
+              {prefilledListing || lookedUpSale || scannedHatcheryName ? (
+                <View style={{
+                  backgroundColor: theme.colors.surfaceLow ?? theme.colors.background,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                }}>
+                  <Ionicons name="business-outline" size={18} color={theme.colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Sourced From
+                    </Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: theme.colors.textPrimary, marginTop: 2 }}>
+                      {prefilledListing?.hatchery_name ?? lookedUpSale?.hatchery_name ?? scannedHatcheryName}
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.sourceRow}>
+                  <Text style={styles.sourceLabel}>Source</Text>
+                  <View style={styles.sourceToggle}>
+                    {(['hatchery', 'dealer', 'own'] as const).map(s => (
+                      <TouchableOpacity
+                        key={s}
+                        style={[styles.sourceChip, source === s && styles.sourceChipActive]}
+                        onPress={() => setSource(s)}
+                      >
+                        <Text style={[styles.sourceChipText, source === s && styles.sourceChipTextActive]}>
+                          {s.charAt(0).toUpperCase() + s.slice(1)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
 
               {/* Harvest days */}
               <View style={styles.harvestSection}>
@@ -277,6 +418,154 @@ export default function StockFingerlingsSheet({ visible, onClose, pondId, prefil
         </KeyboardAvoidingView>
       </View>
     </Modal>
+
+    {/* QR Scanner Simulation Modal */}
+    <Modal
+      visible={scannerOpen}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setScannerOpen(false)}
+    >
+      <View style={styles.overlay}>
+        <TouchableOpacity style={styles.backdrop} onPress={() => setScannerOpen(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetWrapper}
+        >
+          <View style={[styles.sheet, { paddingBottom: 30 }]}>
+            <View style={styles.handle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Scan Hatchery QR</Text>
+              <TouchableOpacity onPress={() => setScannerOpen(false)}>
+                <Ionicons name="close" size={22} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
+              <Text style={{ fontSize: 13, color: theme.colors.textSecondary, lineHeight: 18 }}>
+                In production, this opens the device camera. For testing, paste a copied handshake payload JSON or tap one of the quick test buttons below:
+              </Text>
+
+              <TextInput
+                style={{
+                  backgroundColor: theme.colors.surfaceLow ?? theme.colors.background,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  borderRadius: 12,
+                  padding: 12,
+                  fontSize: 13,
+                  color: theme.colors.textPrimary,
+                  minHeight: 80,
+                }}
+                placeholder='{"variant": "AhR Jayanti Rohu", ...}'
+                placeholderTextColor={theme.colors.textMuted}
+                value={scanInput}
+                onChangeText={setScanInput}
+                multiline
+                textAlignVertical="top"
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.primary + '18',
+                    padding: 10,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                  }}
+                  onPress={() => {
+                    const mock = {
+                      id: "mock-rohu-123",
+                      species_name: "Rohu",
+                      variant: "AhR Jayanti Rohu",
+                      avgWeightG: 5.0,
+                      pricingModel: "PIECES",
+                      pieces: 5000,
+                      totalKg: 25.0,
+                      amount: 10000,
+                      soldDate: new Date().toISOString().slice(0, 10),
+                      hatchery_name: "Begusarai Govt Hatchery",
+                      hatchery_district: "Begusarai",
+                      is_verified_seed: true
+                    };
+                    setScanInput(JSON.stringify(mock, null, 2));
+                  }}
+                >
+                  <Text style={{ color: theme.colors.primary, fontSize: 12, fontWeight: '700' }}>Mock Jayanti Rohu</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.primary + '18',
+                    padding: 10,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                  }}
+                  onPress={() => {
+                    const mock = {
+                      id: "mock-catla-456",
+                      species_name: "Catla",
+                      variant: "CIFA-Amrit Catla",
+                      avgWeightG: 5.5,
+                      pricingModel: "PIECES",
+                      pieces: 4000,
+                      totalKg: 22.0,
+                      amount: 12000,
+                      soldDate: new Date().toISOString().slice(0, 10),
+                      hatchery_name: "Purnia Seed Farm",
+                      hatchery_district: "Purnia",
+                      is_verified_seed: true
+                    };
+                    setScanInput(JSON.stringify(mock, null, 2));
+                  }}
+                >
+                  <Text style={{ color: theme.colors.primary, fontSize: 12, fontWeight: '700' }}>Mock Amrit Catla</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: theme.colors.primary,
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: 10,
+                }}
+                onPress={() => {
+                  try {
+                    const parsed = JSON.parse(scanInput);
+                    if (!parsed.species_name) {
+                      Alert.alert('Invalid Payload', 'JSON payload must contain at least species_name.');
+                      return;
+                    }
+                    setSpeciesName(parsed.species_name);
+                    setSpeciesVariant(parsed.variant ?? parsed.species_variant ?? '');
+                    setFingerlingCount(parsed.pieces?.toString() ?? parsed.quantity?.toString() ?? '');
+                    setAvgWeight(parsed.avgWeightG?.toString() ?? parsed.avg_weight_g?.toString() ?? '');
+                    setIsVerifiedGeneticPurity(Boolean(parsed.is_verified_seed));
+                    setSource('hatchery');
+                    setScannedHatcheryName(parsed.hatchery_name ?? parsed.hatchery_id ?? '');
+                    if (parsed.id) {
+                      setTxnRef(`QR-${parsed.id.slice(0, 8).toUpperCase()}`);
+                    }
+                    setScannerOpen(false);
+                    Alert.alert('Scan Successful', 'Pond stocking details populated successfully!');
+                  } catch {
+                    Alert.alert('Parsing Error', 'Input string is not a valid JSON payload.');
+                  }
+                }}
+              >
+                <Text style={{ color: theme.colors.textInverse, fontSize: 15, fontWeight: '800' }}>Simulate Scan</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  </>
   );
 }
 

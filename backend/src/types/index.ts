@@ -121,6 +121,7 @@ export interface EconomicData {
   benefit_cost_ratio: Range;
   break_even_months: Range;
   pmmsy_subsidy_applicable: boolean;
+  culture_period_months?: Range;
 }
 
 export interface GeographicData {

@@ -19,6 +19,8 @@ import HelplineCard from '../components/HelplineCard';
 import { database } from '../database';
 import { fetchSpeciesLookup } from '../utils/speciesLookup';
 import { getUnreadNotificationCount } from '../utils/notificationCenter';
+import { loadProfile } from '../services/profileService';
+import { syncService } from '../services/syncService';
 
 // Pre-load system type images at module level for Metro static resolution
 const IMG_RAS          = require('../../system_types/RAS.png');
@@ -45,7 +47,7 @@ export default function HomeScreen() {
 
       setPondCount(allPonds.length);
       const active = allPonds
-        .filter((p: any) => (p.status || '').toLowerCase() === 'active' && p.stockingDate)
+        .filter((p: any) => (p.status || '').toLowerCase() === 'active')
         .map((p: any) => ({
           id: p.id,
           name: p.name,
@@ -61,6 +63,29 @@ export default function HomeScreen() {
       const unreadCount = await getUnreadNotificationCount();
       setUnreadNotificationCount(unreadCount);
       setCriticalAlerts(unreadCount);
+
+      // Trigger background synchronization to pull latest server state
+      loadProfile().then(profile => {
+        syncService.sync(profile.userId).then(async (res) => {
+          if (res.success) {
+            const updatedPonds = await pondsCollection.query().fetch();
+            setPondCount(updatedPonds.length);
+            const updatedActive = updatedPonds
+              .filter((p: any) => (p.status || '').toLowerCase() === 'active')
+              .map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                species_id: p.speciesId,
+                species_name: speciesLookup[p.speciesId]?.scientificName || null,
+                species_label: speciesLookup[p.speciesId]?.label || null,
+                stocking_date: p.stockingDate,
+                status: p.status,
+                area_hectares: p.areaHectares ?? 1,
+              }));
+            setActivePonds(updatedActive);
+          }
+        }).catch(console.error);
+      }).catch(console.error);
     } catch {
       // Ignore local-db bootstrap issues during initial app load.
     }

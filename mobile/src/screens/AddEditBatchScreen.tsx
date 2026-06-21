@@ -40,6 +40,7 @@ export default function AddEditBatchScreen() {
   const [speciesName, setSpeciesName] = useState('');
   const [speciesVariant, setSpeciesVariant] = useState('');
   const [selectedSpeciesLabel, setSelectedSpeciesLabel] = useState('');
+  const [startStage, setStartStage] = useState<'spawn' | 'broodstock'>('spawn');
   const [maleCount, setMaleCount] = useState('');
   const [femaleCount, setFemaleCount] = useState('');
   const [totalKg, setTotalKg] = useState('');
@@ -69,15 +70,21 @@ export default function AddEditBatchScreen() {
 
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         species_name: speciesName.trim(),
         species_variant: speciesVariant.trim() || undefined,
-        broodstock_male_count: maleCount ? parseInt(maleCount, 10) : undefined,
-        broodstock_female_count: femaleCount ? parseInt(femaleCount, 10) : undefined,
-        broodstock_total_kg: totalKg ? parseFloat(totalKg) : undefined,
-        estimated_spawn_count: spawnCount ? parseInt(spawnCount, 10) : undefined,
+        current_stage: startStage === 'spawn' ? 'spawning' : 'broodstock',
         notes: notes.trim() || undefined,
       };
+
+      if (startStage === 'spawn') {
+        payload.estimated_spawn_count = spawnCount ? parseInt(spawnCount, 10) : undefined;
+      } else {
+        payload.broodstock_male_count = maleCount ? parseInt(maleCount, 10) : undefined;
+        payload.broodstock_female_count = femaleCount ? parseInt(femaleCount, 10) : undefined;
+        payload.broodstock_total_kg = totalKg ? parseFloat(totalKg) : undefined;
+        payload.estimated_spawn_count = spawnCount ? parseInt(spawnCount, 10) : undefined;
+      }
 
       await api.post(`/api/v1/hatcheries/${hatcheryId}/batches`, payload);
       navigation.goBack();
@@ -128,55 +135,140 @@ export default function AddEditBatchScreen() {
             </View>
           </View>
 
-          {/* Broodstock */}
+          {/* Starting Stage */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Broodstock Details</Text>
-
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <FormField
-                  label="Male Count"
-                  value={maleCount}
-                  onChangeText={setMaleCount}
-                  placeholder="0"
-                  icon="male-outline"
-                  keyboardType="numeric"
-                  theme={theme}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <FormField
-                  label="Female Count"
-                  value={femaleCount}
-                  onChangeText={setFemaleCount}
-                  placeholder="0"
-                  icon="female-outline"
-                  keyboardType="numeric"
-                  theme={theme}
-                />
-              </View>
+            <Text style={styles.sectionTitle}>Starting Stage *</Text>
+            
+            <View style={{
+              flexDirection: 'row',
+              backgroundColor: theme.colors.surfaceLow ?? '#F2F2F7',
+              borderRadius: 12,
+              padding: 4,
+              marginVertical: 4,
+            }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  paddingHorizontal: 8,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  backgroundColor: startStage === 'spawn' ? theme.colors.surface : 'transparent',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: startStage === 'spawn' ? 1 : 0 },
+                  shadowOpacity: startStage === 'spawn' ? 0.12 : 0,
+                  shadowRadius: startStage === 'spawn' ? 1.5 : 0,
+                  elevation: startStage === 'spawn' ? 2 : 0,
+                }}
+                onPress={() => setStartStage('spawn')}
+                activeOpacity={0.8}
+              >
+                <Text style={{
+                  fontSize: 13,
+                  fontWeight: '700',
+                  textAlign: 'center',
+                  color: startStage === 'spawn' ? theme.colors.primary : theme.colors.textSecondary
+                }}>
+                  Starting from Spawn
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  paddingHorizontal: 8,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  backgroundColor: startStage === 'broodstock' ? theme.colors.surface : 'transparent',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: startStage === 'broodstock' ? 1 : 0 },
+                  shadowOpacity: startStage === 'broodstock' ? 0.12 : 0,
+                  shadowRadius: startStage === 'broodstock' ? 1.5 : 0,
+                  elevation: startStage === 'broodstock' ? 2 : 0,
+                }}
+                onPress={() => setStartStage('broodstock')}
+                activeOpacity={0.8}
+              >
+                <Text style={{
+                  fontSize: 13,
+                  fontWeight: '700',
+                  textAlign: 'center',
+                  color: startStage === 'broodstock' ? theme.colors.primary : theme.colors.textSecondary
+                }}>
+                  Starting from Broodstock
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            <FormField
-              label="Total Weight (kg)"
-              value={totalKg}
-              onChangeText={setTotalKg}
-              placeholder="e.g. 120"
-              icon="scale-outline"
-              keyboardType="decimal-pad"
-              theme={theme}
-            />
-
-            <FormField
-              label="Estimated Spawn Count"
-              value={spawnCount}
-              onChangeText={setSpawnCount}
-              placeholder="e.g. 5000000"
-              icon="infinite-outline"
-              keyboardType="numeric"
-              theme={theme}
-            />
           </View>
+
+          {/* Details based on Starting Stage */}
+          {startStage === 'broodstock' ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Broodstock Details</Text>
+
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <FormField
+                    label="Male Count"
+                    value={maleCount}
+                    onChangeText={setMaleCount}
+                    placeholder="0"
+                    icon="male-outline"
+                    keyboardType="numeric"
+                    theme={theme}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <FormField
+                    label="Female Count"
+                    value={femaleCount}
+                    onChangeText={setFemaleCount}
+                    placeholder="0"
+                    icon="female-outline"
+                    keyboardType="numeric"
+                    theme={theme}
+                  />
+                </View>
+              </View>
+
+              <FormField
+                label="Total Weight (kg)"
+                value={totalKg}
+                onChangeText={setTotalKg}
+                placeholder="e.g. 120"
+                icon="scale-outline"
+                keyboardType="decimal-pad"
+                theme={theme}
+              />
+
+              <FormField
+                label="Estimated Spawn Count"
+                value={spawnCount}
+                onChangeText={setSpawnCount}
+                placeholder="e.g. 5000000"
+                icon="infinite-outline"
+                keyboardType="numeric"
+                theme={theme}
+              />
+            </View>
+          ) : (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Spawn Details</Text>
+
+              <FormField
+                label="Actual Spawn Count"
+                value={spawnCount}
+                onChangeText={setSpawnCount}
+                placeholder="e.g. 5000000"
+                icon="infinite-outline"
+                keyboardType="numeric"
+                theme={theme}
+              />
+            </View>
+          )}
 
           {/* Notes */}
           <View style={styles.section}>

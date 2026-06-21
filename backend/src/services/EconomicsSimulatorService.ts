@@ -276,6 +276,16 @@ export class EconomicsSimulatorService {
     `;
     const params: unknown[] = [];
 
+    // Map improved species names to standard ones for database query
+    let mappedPreferred: string[] | undefined = undefined;
+    if (preferredSpecies && preferredSpecies.length > 0) {
+      mappedPreferred = preferredSpecies.map(sp => {
+        if (sp === 'AhR Jayanti Rohu') return 'Labeo rohita';
+        if (sp === 'CIFA-Amrit Catla') return 'Catla catla';
+        return sp;
+      });
+    }
+
     if (waterType === WaterType.BRACKISH || waterType === WaterType.SALINE) {
       queryText += `
         AND (
@@ -287,13 +297,65 @@ export class EconomicsSimulatorService {
     }
 
     // Fix #1: Use parameterized ANY($N) instead of string interpolation to prevent SQL injection
-    if (preferredSpecies && preferredSpecies.length > 0) {
-      params.push(preferredSpecies);
+    if (mappedPreferred && mappedPreferred.length > 0) {
+      params.push(mappedPreferred);
       queryText += ` AND data->>'scientific_name' = ANY($${params.length}::text[])`;
     }
 
     const result = await query<{ data: SpeciesData }>(queryText, params.length > 0 ? params : undefined);
-    return result.rows.map(r => r.data);
+    const baseSpecies = result.rows.map(r => r.data);
+
+    // Dynamically expand to include improved species if the base species are eligible
+    const rohuIndex = baseSpecies.findIndex(s => s.scientific_name === 'Labeo rohita');
+    const catlaIndex = baseSpecies.findIndex(s => s.scientific_name === 'Catla catla');
+    
+    const finalSpecies = [...baseSpecies];
+
+    if (rohuIndex !== -1 && (!preferredSpecies || preferredSpecies.includes('AhR Jayanti Rohu') || preferredSpecies.length === 0)) {
+      const rohuBase = baseSpecies[rohuIndex];
+      const rohuImproved: SpeciesData = {
+        ...rohuBase,
+        scientific_name: 'AhR Jayanti Rohu',
+        common_names: { ...rohuBase.common_names, en: 'AhR Jayanti Rohu (Improved)' },
+        description: 'Genetically improved, Aeromonas-resistant strain of Rohu developed by ICAR-CIFA. 58% higher survival rate under bacterial challenges.',
+        economic_parameters: {
+          ...rohuBase.economic_parameters,
+          survival_rate_percent: { min: 80, max: 95 },
+          feed_conversion_ratio: { min: 1.4, max: 1.8 }
+        },
+        culture_period_months: { min: 6, max: 10 }
+      } as any;
+      
+      if (preferredSpecies && preferredSpecies.includes('AhR Jayanti Rohu') && !preferredSpecies.includes('Labeo rohita')) {
+        const idx = finalSpecies.findIndex(s => s.scientific_name === 'Labeo rohita');
+        if (idx !== -1) finalSpecies.splice(idx, 1);
+      }
+      finalSpecies.push(rohuImproved);
+    }
+
+    if (catlaIndex !== -1 && (!preferredSpecies || preferredSpecies.includes('CIFA-Amrit Catla') || preferredSpecies.length === 0)) {
+      const catlaBase = baseSpecies[catlaIndex];
+      const catlaImproved: SpeciesData = {
+        ...catlaBase,
+        scientific_name: 'CIFA-Amrit Catla',
+        common_names: { ...catlaBase.common_names, en: 'CIFA-Amrit Catla (Improved)' },
+        description: 'Genetically improved strain of Catla released by ICAR-CIFA in 2024, featuring a deeper body and smaller head for higher fillet yield.',
+        economic_parameters: {
+          ...catlaBase.economic_parameters,
+          survival_rate_percent: { min: 75, max: 90 },
+          market_price_per_kg_inr: { min: 145, max: 210 }
+        },
+        culture_period_months: { min: 6, max: 10 }
+      } as any;
+
+      if (preferredSpecies && preferredSpecies.includes('CIFA-Amrit Catla') && !preferredSpecies.includes('Catla catla')) {
+        const idx = finalSpecies.findIndex(s => s.scientific_name === 'Catla catla');
+        if (idx !== -1) finalSpecies.splice(idx, 1);
+      }
+      finalSpecies.push(catlaImproved);
+    }
+
+    return finalSpecies;
   }
 
   private static determineOptimalSystem(
@@ -553,11 +615,15 @@ export class EconomicsSimulatorService {
       const estRevenue = speciesYield * avgPrice;
 
       // Calculate specific OPEX for this species (Feed cost varies by species FCR)
-      // Rs 60/kg default reflects specialist pelleted feed; most species require
-      // 28–32% protein diets that cost Rs 55–80/kg at the farm gate in India.
       const feedPrice = templateDefaults?.feedPriceInrPerKg ?? 60;
       const feedCost = speciesYield * avgFcr * feedPrice;
-      const totalOpexMatch = opexMinusFeed + feedCost;
+
+      // Shorter crop duration savings:
+      const systemCultureMonths = model.culture_period_months?.max || 12;
+      const speciesCultureMonths = s.culture_period_months?.max || 12;
+      const scaledOpexMinusFeed = opexMinusFeed * (speciesCultureMonths / systemCultureMonths);
+
+      const totalOpexMatch = scaledOpexMinusFeed + feedCost;
       const netProfit = estRevenue - totalOpexMatch - effectiveCapex;
       const totalInvest = effectiveCapex + totalOpexMatch;
       const bcr = totalInvest > 0 ? (estRevenue / totalInvest) : 0;
@@ -592,6 +658,25 @@ export class EconomicsSimulatorService {
       else if (bcr > 1.8) score += 10;
       else if (bcr < 1.0) score -= 25;
 
+      // 5. Genetically Improved Bonus
+      if (s.scientific_name === 'AhR Jayanti Rohu' || s.scientific_name === 'CIFA-Amrit Catla') {
+        score += 15;
+      }
+
+      const compatibilityReasons = [
+        `FCR: ${avgFcr.toFixed(2)} (${avgFcr < 1.5 ? 'Very Efficient' : 'Standard'})`,
+        `BCR: ${bcr.toFixed(2)}:1`,
+        `Est. Survival: ${survivalPercent}%`
+      ];
+
+      if (s.scientific_name === 'AhR Jayanti Rohu') {
+        compatibilityReasons.push("Disease resistant: 58% higher survival under bacterial challenge");
+        compatibilityReasons.push("Faster growth: Reaches market weight in 10-14 months (saves 2 months of feed)");
+      } else if (s.scientific_name === 'CIFA-Amrit Catla') {
+        compatibilityReasons.push("Faster growth: Reaches 1.5-2.5 kg in 10-12 months (20-30% faster)");
+        compatibilityReasons.push("Higher value: smaller head & deeper body means more meat and 10% price premium");
+      }
+
       return {
         speciesId: s.scientific_name,
         commonName: s.common_names?.en || 'Unknown',
@@ -602,11 +687,7 @@ export class EconomicsSimulatorService {
         netProfitInr: Math.round(netProfit),
         benefitCostRatio: Math.round(bcr * 100) / 100,
         fcr: avgFcr,
-        compatibilityReasons: [
-          `FCR: ${avgFcr.toFixed(2)} (${avgFcr < 1.5 ? 'Very Efficient' : 'Standard'})`,
-          `BCR: ${bcr.toFixed(2)}:1`,
-          `Est. Survival: ${survivalPercent}%`
-        ]
+        compatibilityReasons
       };
     }).sort((a, b) => b.compatibilityScore - a.compatibilityScore);
   }

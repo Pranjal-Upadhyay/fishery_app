@@ -246,6 +246,7 @@ export default function MarketListingsScreen() {
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                style={{ flexGrow: 0 }}
                 contentContainerStyle={styles.filterRow}
             >
                 {STAGE_FILTERS.map(f => (

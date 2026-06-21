@@ -108,6 +108,13 @@ export default function CropCycleScreen() {
     const [saving, setSaving] = useState(false);
     const [calendarFor, setCalendarFor] = useState<'start' | 'end' | null>(null);
 
+    const expectedHarvestDate = React.useMemo(() => {
+        if (!form.start_date) return null;
+        const d = new Date(form.start_date);
+        d.setDate(d.getDate() + 300);
+        return d.toISOString().slice(0, 10);
+    }, [form.start_date]);
+
     const load = useCallback(async () => {
         try {
             const data = await cropCycleService.list({ pondId });
@@ -200,19 +207,48 @@ export default function CropCycleScreen() {
             remarks: form.remarks.trim() || null,
         };
 
-        setSaving(true);
-        try {
-            if (editingId) {
-                await cropCycleService.update(editingId, payload);
-            } else {
-                await cropCycleService.create(payload);
+        const proceedSave = async () => {
+            setSaving(true);
+            try {
+                if (editingId) {
+                    await cropCycleService.update(editingId, payload);
+                } else {
+                    await cropCycleService.create(payload);
+                }
+                setFormOpen(false);
+                await load();
+            } catch (e: any) {
+                Alert.alert('Failed', e?.response?.data?.error ?? 'Could not save cycle.');
+            } finally {
+                setSaving(false);
             }
-            setFormOpen(false);
-            await load();
-        } catch (e: any) {
-            Alert.alert('Failed', e?.response?.data?.error ?? 'Could not save cycle.');
-        } finally {
-            setSaving(false);
+        };
+
+        if (form.status === 'HARVESTED') {
+            const totalInputCosts = num(form.feed_formulated_cost) + num(form.feed_homemade_cost) +
+                num(form.probiotic_cost) + num(form.medicine_cost) +
+                num(form.electricity_cost) + num(form.labour_hired_cost) +
+                num(form.labour_family_cost) + num(form.other_cost);
+            const revenue = num(form.revenue_inr);
+            const bcr = totalInputCosts > 0 ? (revenue / totalInputCosts) : (revenue > 0 ? 99.9 : 0);
+
+            let feedback = '';
+            if (bcr > 1.0) {
+                feedback = `Benefit-Cost Ratio (BCR): ${bcr.toFixed(2)}\n\nCongratulations! You made a profit. You earned ₹${bcr.toFixed(2)} for every ₹1 spent.`;
+            } else {
+                feedback = `Benefit-Cost Ratio (BCR): ${bcr.toFixed(2)}\n\nThis cycle did not break even. Check the Pitfalls guide in the Learning Center to see how to improve feed and survival.`;
+            }
+
+            Alert.alert(
+                'Harvest Summary',
+                feedback,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Confirm & Save', onPress: () => void proceedSave() }
+                ]
+            );
+        } else {
+            await proceedSave();
         }
     };
 
@@ -257,7 +293,7 @@ export default function CropCycleScreen() {
                 }
             />
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filterRow}>
                 {(['ongoing', 'harvested', 'all'] as StatusTab[]).map(t => {
                     const count = cycles.filter(c => {
                         if (t === 'ongoing') return c.status === 'ONGOING';
@@ -391,6 +427,12 @@ export default function CropCycleScreen() {
                                         </TouchableOpacity>
                                     </View>
                                 </View>
+
+                                {expectedHarvestDate && !form.end_date && (
+                                    <Text style={{ fontSize: 12, color: theme.colors.textMuted, marginTop: 8, fontWeight: '600' }}>
+                                        💡 Expected Harvest: {formatDateLabel(expectedHarvestDate)} (10 months)
+                                    </Text>
+                                )}
 
                                 <View style={{ height: 10 }} />
                                 <Label>Status</Label>

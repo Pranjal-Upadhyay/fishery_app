@@ -25,10 +25,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
+import { useAuth } from '../AuthContext';
 import ScreenHeader from '../components/ScreenHeader';
 import {
     marketplaceService,
     MarketplaceListing,
+    MarketplaceOrder,
     LogisticsPreference,
 } from '../services/apiService';
 
@@ -57,10 +59,13 @@ export default function ListingDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { listingId } = route.params;
+    const { currentUser } = useAuth();
 
     const [listing, setListing] = useState<MarketplaceListing | null>(null);
     const [loading, setLoading] = useState(true);
     const [placing, setPlacing] = useState(false);
+    const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
+    const [loadingOrders, setLoadingOrders] = useState(false);
 
     const [quantity, setQuantity] = useState('');
     const [logistics, setLogistics] = useState<LogisticsPreference>('PICKUP');
@@ -75,12 +80,24 @@ export default function ListingDetailScreen() {
             // Default logistics preference based on what's offered
             if (data.delivery_available && !data.pickup_available) setLogistics('DELIVERY');
             else setLogistics('PICKUP');
+
+            if (currentUser && data.operator_id === currentUser.id) {
+                setLoadingOrders(true);
+                try {
+                    const allOrders = await marketplaceService.getMyOrders();
+                    setOrders(allOrders.filter((o) => o.listing_id === listingId));
+                } catch (err) {
+                    console.error('Error loading listing orders:', err);
+                } finally {
+                    setLoadingOrders(false);
+                }
+            }
         } catch {
             Alert.alert('Error', 'Could not load listing. Please try again.');
         } finally {
             setLoading(false);
         }
-    }, [listingId]);
+    }, [listingId, currentUser]);
 
     useFocusEffect(useCallback(() => { void load(); }, [load]));
 
@@ -200,9 +217,27 @@ export default function ListingDetailScreen() {
     }
 
     const stageColor = STAGE_COLOR[listing.stage] ?? theme.colors.primary;
+    const isOwner = Boolean(currentUser && listing && listing.operator_id === currentUser.id);
+    const isSoldOut = listing.status === 'AVAILABLE' && listing.quantity_available === 0;
     const isPurchasable = listing.status === 'AVAILABLE' && listing.quantity_available > 0;
     const isInterestable = listing.status === 'UPCOMING';
-    const canOrder = isPurchasable || isInterestable;
+    const canOrder = (isPurchasable || isInterestable) && !isOwner;
+
+    let badgeText = STATUS_LABEL[listing.status] ?? listing.status;
+    let badgeStyle = styles.statusBadgeClosed;
+
+    if (listing.status === 'AVAILABLE') {
+        if (listing.quantity_available > 0) {
+            badgeText = 'AVAILABLE NOW';
+            badgeStyle = styles.statusBadgeAvailable;
+        } else {
+            badgeText = 'SOLD OUT';
+            badgeStyle = styles.statusBadgeClosed;
+        }
+    } else if (listing.status === 'UPCOMING') {
+        badgeText = 'COMING SOON';
+        badgeStyle = styles.statusBadgeUpcoming;
+    }
 
     const locText = [
         listing.panchayat_snapshot,
@@ -232,12 +267,8 @@ export default function ListingDetailScreen() {
                                 {listing.stage.toUpperCase()}
                             </Text>
                         </View>
-                        <View style={[
-                            styles.statusBadge,
-                            isPurchasable ? styles.statusBadgeAvailable :
-                                isInterestable ? styles.statusBadgeUpcoming : styles.statusBadgeClosed,
-                        ]}>
-                            <Text style={styles.statusBadgeText}>{STATUS_LABEL[listing.status] ?? listing.status}</Text>
+                        <View style={[styles.statusBadge, badgeStyle]}>
+                            <Text style={styles.statusBadgeText}>{badgeText}</Text>
                         </View>
                     </View>
 
@@ -297,7 +328,7 @@ export default function ListingDetailScreen() {
                                 <Text style={styles.hatcheryLoc}>{locText}</Text>
                                 <Text style={styles.operatorLine}>Operator: {listing.operator_name}</Text>
                             </View>
-                            {contactNumber && (
+                            {contactNumber && !isOwner && (
                                 <TouchableOpacity
                                     style={styles.callBtn}
                                     onPress={() => Linking.openURL(`tel:${contactNumber}`)}
@@ -352,16 +383,98 @@ export default function ListingDetailScreen() {
                     </View>
 
                     {/* Payment disclaimer */}
-                    <View style={styles.disclaimerCard}>
-                        <Ionicons name="information-circle-outline" size={18} color={theme.colors.primary} />
-                        <Text style={styles.disclaimerText}>
-                            Payment is made <Text style={{ fontWeight: '800' }}>directly to the hatchery</Text> via UPI or bank transfer
-                            after they accept your order. You then mark as Paid in My Orders.
-                        </Text>
-                    </View>
+                    {!isOwner && (
+                        <View style={styles.disclaimerCard}>
+                            <Ionicons name="information-circle-outline" size={18} color={theme.colors.primary} />
+                            <Text style={styles.disclaimerText}>
+                                Payment is made <Text style={{ fontWeight: '800' }}>directly to the hatchery</Text> via UPI or bank transfer
+                                after they accept your order. You then mark as Paid in My Orders.
+                            </Text>
+                        </View>
+                    )}
 
-                    {/* Order form */}
-                    {canOrder ? (
+                    {/* Order form / Owner summary */}
+                    {isOwner ? (
+                        <View style={styles.ownerPanel}>
+                            <Text style={styles.ownerPanelTitle}>HATCHERY SALES SUMMARY</Text>
+                            <View style={styles.ownerStatsGrid}>
+                                <View style={styles.ownerStatCard}>
+                                    <Text style={styles.ownerStatVal}>{listing.total_quantity.toLocaleString('en-IN')}</Text>
+                                    <Text style={styles.ownerStatLabel}>Total Created</Text>
+                                </View>
+                                <View style={styles.ownerStatCard}>
+                                    <Text style={[styles.ownerStatVal, { color: theme.colors.primary }]}>
+                                        {listing.confirmed_quantity.toLocaleString('en-IN')}
+                                    </Text>
+                                    <Text style={styles.ownerStatLabel}>Sold / Confirmed</Text>
+                                </View>
+                                <View style={styles.ownerStatCard}>
+                                    <Text style={[styles.ownerStatVal, { color: '#f59e0b' }]}>
+                                        {listing.reserved_quantity.toLocaleString('en-IN')}
+                                    </Text>
+                                    <Text style={styles.ownerStatLabel}>Reserved</Text>
+                                </View>
+                                <View style={styles.ownerStatCard}>
+                                    <Text style={[styles.ownerStatVal, { color: listing.quantity_available > 0 ? '#22c55e' : theme.colors.textMuted }]}>
+                                        {listing.quantity_available.toLocaleString('en-IN')}
+                                    </Text>
+                                    <Text style={styles.ownerStatLabel}>Remaining Available</Text>
+                                </View>
+                            </View>
+
+                            <View style={[styles.ownerRevenueBlock, { backgroundColor: theme.colors.primary + '15' }]}>
+                                <Ionicons name="cash-outline" size={20} color={theme.colors.primary} />
+                                <Text style={styles.ownerRevenueText}>
+                                    Estimated Revenue:{' '}
+                                    <Text style={{ fontWeight: '800', color: theme.colors.primary }}>
+                                        ₹{(listing.confirmed_quantity * parseFloat(listing.price_per_piece)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </Text>
+                                </Text>
+                            </View>
+
+                            <View style={{ marginTop: 12, gap: 10 }}>
+                                <Text style={styles.buyerSectionTitle}>Buyer Details & Payment Status</Text>
+                                {loadingOrders ? (
+                                    <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 10 }} />
+                                ) : orders.length === 0 ? (
+                                    <Text style={styles.noOrdersText}>No orders placed on this listing yet.</Text>
+                                ) : (
+                                    orders.map((order) => {
+                                        const isPaid = order.status === 'HATCHERY_CONFIRMED' || order.status === 'FULFILLED' || order.status === 'FARMER_PAID';
+                                        return (
+                                            <View key={order.id} style={styles.buyerCard}>
+                                                <View style={{ flex: 1, gap: 2 }}>
+                                                    <Text style={styles.buyerName}>{order.farmer_name || 'Farmer'}</Text>
+                                                    <Text style={styles.buyerPhone}>Phone: {order.farmer_phone || 'N/A'}</Text>
+                                                    <Text style={styles.buyerQty}>
+                                                        Qty: {order.quantity_ordered.toLocaleString('en-IN')} pcs
+                                                    </Text>
+                                                    <Text style={styles.buyerAmount}>
+                                                        Amount: ₹{parseFloat(order.total_amount).toLocaleString('en-IN')}
+                                                    </Text>
+                                                </View>
+                                                <View style={[
+                                                    styles.paymentBadge,
+                                                    isPaid ? styles.paymentBadgePaid : styles.paymentBadgePending
+                                                ]}>
+                                                    <Text style={[
+                                                        styles.paymentBadgeText,
+                                                        { color: isPaid ? '#22c55e' : '#f59e0b' }
+                                                    ]}>
+                                                        {order.status === 'HATCHERY_CONFIRMED' || order.status === 'FULFILLED'
+                                                            ? 'PAID & CONFIRMED'
+                                                            : order.status === 'FARMER_PAID'
+                                                            ? 'PAID (PENDING REVIEW)'
+                                                            : 'PENDING'}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    })
+                                )}
+                            </View>
+                        </View>
+                    ) : canOrder ? (
                         <View style={styles.section}>
                             <Text style={styles.sectionLabel}>{isInterestable ? 'EXPRESS INTEREST' : 'PLACE YOUR ORDER'}</Text>
 
@@ -488,7 +601,7 @@ export default function ListingDetailScreen() {
                         <View style={styles.unavailableCard}>
                             <Ionicons name="alert-circle-outline" size={32} color={theme.colors.textMuted} />
                             <Text style={styles.unavailableText}>
-                                This listing is {listing.status.toLowerCase()} and is not accepting new orders.
+                                This listing is {isSoldOut ? 'sold out' : listing.status.toLowerCase()} and is not accepting new orders.
                             </Text>
                         </View>
                     )}
@@ -721,5 +834,115 @@ const getStyles = (theme: any) => {
             borderColor: c.border,
         },
         unavailableText: { fontSize: 14, color: c.textSecondary, textAlign: 'center' },
+        ownerPanel: {
+            backgroundColor: c.surface,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: c.border,
+            padding: 16,
+            gap: 16,
+        },
+        ownerPanelTitle: {
+            fontSize: 14,
+            fontWeight: '800',
+            color: c.textPrimary,
+            letterSpacing: 1,
+        },
+        ownerStatsGrid: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 10,
+        },
+        ownerStatCard: {
+            flex: 1,
+            minWidth: '45%',
+            backgroundColor: c.background,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: c.border,
+            padding: 12,
+            alignItems: 'center',
+            gap: 4,
+        },
+        ownerStatVal: {
+            fontSize: 16,
+            fontWeight: '800',
+            color: c.textPrimary,
+        },
+        ownerStatLabel: {
+            fontSize: 11,
+            color: c.textMuted,
+            fontWeight: '700',
+            textAlign: 'center',
+        },
+        ownerRevenueBlock: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            borderRadius: 12,
+            padding: 14,
+        },
+        ownerRevenueText: {
+            fontSize: 14,
+            color: c.textSecondary,
+        },
+        buyerSectionTitle: {
+            fontSize: 13,
+            fontWeight: '800',
+            color: c.textSecondary,
+            marginTop: 8,
+        },
+        noOrdersText: {
+            fontSize: 13,
+            color: c.textMuted,
+            fontStyle: 'italic',
+        },
+        buyerCard: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: c.background,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: c.border,
+            padding: 12,
+            gap: 10,
+        },
+        buyerName: {
+            fontSize: 14,
+            fontWeight: '700',
+            color: c.textPrimary,
+        },
+        buyerPhone: {
+            fontSize: 12,
+            color: c.textSecondary,
+        },
+        buyerQty: {
+            fontSize: 12,
+            color: c.textSecondary,
+            fontWeight: '600',
+        },
+        buyerAmount: {
+            fontSize: 12,
+            color: c.textSecondary,
+            fontWeight: '600',
+        },
+        paymentBadge: {
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 8,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        paymentBadgePaid: {
+            backgroundColor: '#22c55e15',
+        },
+        paymentBadgePending: {
+            backgroundColor: '#f59e0b15',
+        },
+        paymentBadgeText: {
+            fontSize: 10,
+            fontWeight: '800',
+        },
     });
 };

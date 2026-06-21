@@ -37,6 +37,7 @@ interface BatchData {
   batch: any;
   logs: any[];
   benchmarks: any[];
+  listing?: any;
 }
 
 export default function BatchDetailScreen() {
@@ -208,15 +209,17 @@ export default function BatchDetailScreen() {
                       </View>
                     )}
                   </View>
-                  {benchmark && !isFuture && (
-                    <Text style={styles.timelineMeta}>
-                      {benchmark.typical_days > 0 ? `~${benchmark.typical_days} days` : benchmark.description}
-                    </Text>
-                  )}
-                  {benchmark && isFuture && (
-                    <Text style={[styles.timelineMeta, { color: theme.colors.textMuted }]}>
-                      {benchmark.min_days}–{benchmark.max_days} days
-                    </Text>
+                  {benchmark && (
+                    <View style={{ marginTop: 4 }}>
+                      <Text style={[styles.timelineMeta, isFuture && { color: theme.colors.textMuted }]}>
+                        Duration: {stage === 'spawning' ? '12–18 hours' : stage === 'hatching' ? '0–1 day' : `${benchmark.min_days}–${benchmark.max_days} days`}
+                      </Text>
+                      {benchmark.description && (
+                        <Text style={[styles.timelineDesc, isFuture && { color: theme.colors.textMuted }]}>
+                          {benchmark.description}
+                        </Text>
+                      )}
+                    </View>
                   )}
                 </View>
               </View>
@@ -254,13 +257,23 @@ export default function BatchDetailScreen() {
           )}
 
           {batch.current_stage === 'fingerling_ready' && (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSell]}
-              onPress={() => navigation.navigate('CreateListing', { batchId })}
-            >
-              <Ionicons name="storefront-outline" size={20} color={theme.colors.textInverse} />
-              <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>List to Market</Text>
-            </TouchableOpacity>
+            data?.listing ? (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: theme.colors.border }]}
+                onPress={() => navigation.navigate('ManageListings')}
+              >
+                <Ionicons name="storefront-outline" size={20} color={theme.colors.primary} />
+                <Text style={[styles.actionBtnText, { color: theme.colors.primary }]}>Check Market Data</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnSell]}
+                onPress={() => navigation.navigate('CreateListing', { batchId })}
+              >
+                <Ionicons name="storefront-outline" size={20} color={theme.colors.textInverse} />
+                <Text style={[styles.actionBtnText, { color: theme.colors.textInverse }]}>List to Market</Text>
+              </TouchableOpacity>
+            )
           )}
         </View>
 
@@ -369,6 +382,7 @@ const getStyles = (theme: any) => {
     timelineHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
     timelineStageName: { fontSize: 14, fontWeight: '700', color: c.textPrimary },
     timelineMeta: { fontSize: 12, color: c.textSecondary },
+    timelineDesc: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     currentBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
     currentBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
     actionsCard: {

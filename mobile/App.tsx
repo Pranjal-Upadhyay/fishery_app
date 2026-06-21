@@ -56,6 +56,7 @@ import FingerlingSalesScreen from './src/screens/FingerlingSalesScreen';
 import HatcheryMarketplaceScreen from './src/screens/HatcheryMarketplaceScreen';
 import StockFingerlingsFromMarketScreen from './src/screens/StockFingerlingsFromMarketScreen';
 import HatcheryROIScreen from './src/screens/HatcheryROIScreen';
+import HatcheryLearningScreen from './src/screens/LearningCenterScreen';
 import MarketListingsScreen from './src/screens/MarketListingsScreen';
 import ListingDetailScreen from './src/screens/ListingDetailScreen';
 import MyOrdersScreen from './src/screens/MyOrdersScreen';
@@ -145,6 +146,8 @@ export type HatcheryRootStackParamList = {
   ManageListings: undefined;
   CreateListing: undefined;
   IncomingOrders: { listingId?: string };
+  HatcheryLearning: undefined;
+  ListingDetail: { listingId: string };
 };
 
 export type HatcheryTabParamList = {
@@ -479,6 +482,8 @@ function HatcheryNavigator() {
         <HatcheryStack.Screen name="ManageListings" component={ManageListingsScreen} options={{ headerShown: false }} />
         <HatcheryStack.Screen name="CreateListing" component={CreateListingScreen} options={{ headerShown: false }} />
         <HatcheryStack.Screen name="IncomingOrders" component={IncomingOrdersScreen} options={{ headerShown: false }} />
+        <HatcheryStack.Screen name="HatcheryLearning" component={HatcheryLearningScreen} options={{ headerShown: false }} />
+        <HatcheryStack.Screen name="ListingDetail" component={ListingDetailScreen} options={{ headerShown: false }} />
       </HatcheryStack.Navigator>
     </NavigationContainer>
   );
