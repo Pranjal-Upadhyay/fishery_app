@@ -4,7 +4,7 @@
  *
  * Security posture:
  *   - Separate JWT secret from farmer/doctor auth (cannot be forged from those).
- *   - bcrypt(cost=12) password hashing — already enforced when seeding.
+ *   - bcrypt(cost=10) password hashing — already enforced when seeding.
  *   - Account lockout: 5 consecutive failed attempts → 30-minute hard lock.
  *   - Audit trail records every successful AND failed authentication, with IP
  *     and user agent. Outcome column makes failures cheap to query.
@@ -44,14 +44,14 @@ const loginSchema = z.object({
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 30;
 
-// Real bcrypt(cost=12) hash used when the email doesn't exist. Keeps
+// Real bcrypt(cost=10) hash used when the email doesn't exist. Keeps
 // per-request timing flat so an attacker can't probe valid emails by
 // latency. Must be a VALID bcrypt hash — a bogus string makes
 // bcrypt.compare return immediately, defeating the purpose. The plaintext
 // behind this hash is intentionally one nobody will ever try to log in
 // with; it's never used as a credential.
 const DUMMY_HASH =
-  '$2b$12$wEyMOABL2DexM5A0gHrJru7znqryN0WCza6thNzp2ldyyHE6b0kLu';
+  '$2b$10$9bF5j81aA5ENeLMoy.uZJOaAvmYt.KBE4cx4Mi.1owDW3us0davUi';
 
 // ── DB row shape ─────────────────────────────────────────────────────────────
 
