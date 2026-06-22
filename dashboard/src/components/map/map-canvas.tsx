@@ -449,7 +449,7 @@ export function MapCanvas({ ponds, selectedPondId, onSelectPond, showHeatmap, se
 
       {/* Map Legend — bottom-left, absolute overlay */}
       <div className="pointer-events-auto absolute bottom-8 left-4 z-10">
-        <GlassCard className="p-3.5 space-y-2.5 text-xs w-[240px] border-glass-border/30 shadow-glow">
+        <GlassCard variant="strong" className="p-3.5 space-y-2.5 text-xs w-[240px] border-glass-border/30 shadow-glow">
           <div className="font-bold text-ink-primary uppercase tracking-wider text-[10px] border-b border-glass-border/30 pb-1.5 flex items-center gap-1.5">
             <MapPin className="h-3 w-3 text-teal-400" />
             Atlas Legend

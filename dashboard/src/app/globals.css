@@ -62,18 +62,19 @@
   --aurora-teal-2: rgba(57, 212, 173, 0.10);
   --aurora-floor:  rgba(7, 21, 28, 0.85);
 
-  /* Glass — frosted white on dark */
-  --glass:           rgba(255, 255, 255, 0.06);
-  --glass-strong:    rgba(255, 255, 255, 0.10);
-  --glass-subtle:    rgba(255, 255, 255, 0.03);
-  --glass-border:    rgba(255, 255, 255, 0.10);
-  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  /* Glass — frosted white on dark. Bumped opacity so overlays on the map
+     have enough backing to keep text readable against bright satellite tiles. */
+  --glass:           rgba(15, 18, 25, 0.72);
+  --glass-strong:    rgba(10, 13, 20, 0.88);
+  --glass-subtle:    rgba(15, 18, 25, 0.50);
+  --glass-border:    rgba(255, 255, 255, 0.12);
+  --glass-border-strong: rgba(255, 255, 255, 0.20);
 
-  /* Ink — text */
-  --ink-primary:   rgba(248, 250, 252, 0.95);
-  --ink-secondary: rgba(226, 232, 240, 0.70);
-  --ink-muted:     rgba(148, 163, 184, 0.55);
-  --ink-faint:     rgba(148, 163, 184, 0.30);
+  /* Ink — boosted so text is clearly readable over semi-transparent dark glass */
+  --ink-primary:   rgba(248, 250, 252, 0.97);
+  --ink-secondary: rgba(226, 232, 240, 0.85);
+  --ink-muted:     rgba(180, 196, 214, 0.70);
+  --ink-faint:     rgba(148, 163, 184, 0.40);
 
   /* Noise grain opacity */
   --grain-opacity: 0.6;

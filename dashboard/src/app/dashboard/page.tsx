@@ -275,7 +275,7 @@ export default function DashboardHome() {
       {/* Right-docked filter / live-view drawer — floats above the map */}
       <aside className="pointer-events-none absolute right-4 top-4 z-10 w-[340px] max-h-[90vh] overflow-y-auto space-y-4">
         {/* Live Counters */}
-        <GlassCard className="pointer-events-auto p-5">
+        <GlassCard variant="strong" className="pointer-events-auto p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.20em] text-teal-400 flex items-center gap-1.5">
@@ -344,7 +344,7 @@ export default function DashboardHome() {
         </GlassCard>
 
         {/* Filters Panel */}
-        <GlassCard className="pointer-events-auto p-5 space-y-4">
+        <GlassCard variant="strong" className="pointer-events-auto p-5 space-y-4">
           <div className="flex items-center gap-2 text-xs font-bold text-teal-400 uppercase tracking-wider">
             <Filter className="h-3.5 w-3.5" />
             Atlas Filters
