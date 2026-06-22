@@ -11,7 +11,7 @@ import {
 /**
  * Theme management.
  *
- * - Default is 'dark' (matches the dashboard's primary visual identity).
+ * - Default is 'light' (matches the dashboard's primary visual identity).
  * - Persisted to localStorage so a reload keeps the user's choice.
  * - The class is applied to <html> by a tiny inline script in <head> (see
  *   ThemeScript) BEFORE React hydrates, which prevents a flash of the wrong
@@ -37,15 +37,15 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // SSR renders with default 'dark'; the pre-hydration script may have
-  // already swapped to 'light' before React mounts. We resync on mount.
-  const [theme, setThemeState] = useState<Theme>('dark');
+  // SSR renders with default 'light'; the pre-hydration script may have
+  // already swapped to 'dark' before React mounts. We resync on mount.
+  const [theme, setThemeState] = useState<Theme>('light');
 
   useEffect(() => {
     const stored = (typeof window !== 'undefined'
       ? (window.localStorage.getItem(STORAGE_KEY) as Theme | null)
       : null);
-    const initial: Theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+    const initial: Theme = stored === 'light' || stored === 'dark' ? stored : 'light';
     setThemeState(initial);
     applyTheme(initial);
   }, []);
@@ -83,11 +83,11 @@ export const themeBootstrapScript = `
 (function() {
   try {
     var stored = window.localStorage.getItem('${STORAGE_KEY}');
-    var theme = (stored === 'light' || stored === 'dark') ? stored : 'dark';
+    var theme = (stored === 'light' || stored === 'dark') ? stored : 'light';
     document.documentElement.classList.remove(theme === 'dark' ? 'light' : 'dark');
     document.documentElement.classList.add(theme);
   } catch (e) {
-    document.documentElement.classList.add('dark');
+    document.documentElement.classList.add('light');
   }
 })();
 `;

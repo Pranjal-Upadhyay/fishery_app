@@ -11,41 +11,7 @@
    while keeping the teal brand and severity palette intact.
    ───────────────────────────────────────────────────────────────────────── */
 
-:root, .dark {
-  /* Canvas — pure-ish black with a hint of warmth so OLED doesn't tear */
-  --canvas-950: #020203;
-  --canvas-900: #050507;
-  --canvas-800: #0a0a0c;
-  --canvas-700: #131316;
-
-  /* Aurora gradient stops — the radial washes you see behind everything */
-  --grad-start: #050507;
-  --grad-mid:   #0a0d12;
-  --grad-end:   #050507;
-  --aurora-teal:   rgba(14, 155, 124, 0.18);
-  --aurora-teal-2: rgba(57, 212, 173, 0.10);
-  --aurora-floor:  rgba(7, 21, 28, 0.85);
-
-  /* Glass — frosted white on dark */
-  --glass:           rgba(255, 255, 255, 0.06);
-  --glass-strong:    rgba(255, 255, 255, 0.10);
-  --glass-subtle:    rgba(255, 255, 255, 0.03);
-  --glass-border:    rgba(255, 255, 255, 0.10);
-  --glass-border-strong: rgba(255, 255, 255, 0.18);
-
-  /* Ink — text */
-  --ink-primary:   rgba(248, 250, 252, 0.95);
-  --ink-secondary: rgba(226, 232, 240, 0.70);
-  --ink-muted:     rgba(148, 163, 184, 0.55);
-  --ink-faint:     rgba(148, 163, 184, 0.30);
-
-  /* Noise grain opacity */
-  --grain-opacity: 0.6;
-
-  color-scheme: dark;
-}
-
-.light {
+:root, .light {
   /* Canvas — warm off-white paper. Slightly desaturated so brand teal pops. */
   --canvas-950: #faf9f6;
   --canvas-900: #f5f2eb;
@@ -79,6 +45,40 @@
   --grain-opacity: 0.18;
 
   color-scheme: light;
+}
+
+.dark {
+  /* Canvas — pure-ish black with a hint of warmth so OLED doesn't tear */
+  --canvas-950: #020203;
+  --canvas-900: #050507;
+  --canvas-800: #0a0a0c;
+  --canvas-700: #131316;
+
+  /* Aurora gradient stops — the radial washes you see behind everything */
+  --grad-start: #050507;
+  --grad-mid:   #0a0d12;
+  --grad-end:   #050507;
+  --aurora-teal:   rgba(14, 155, 124, 0.18);
+  --aurora-teal-2: rgba(57, 212, 173, 0.10);
+  --aurora-floor:  rgba(7, 21, 28, 0.85);
+
+  /* Glass — frosted white on dark */
+  --glass:           rgba(255, 255, 255, 0.06);
+  --glass-strong:    rgba(255, 255, 255, 0.10);
+  --glass-subtle:    rgba(255, 255, 255, 0.03);
+  --glass-border:    rgba(255, 255, 255, 0.10);
+  --glass-border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Ink — text */
+  --ink-primary:   rgba(248, 250, 252, 0.95);
+  --ink-secondary: rgba(226, 232, 240, 0.70);
+  --ink-muted:     rgba(148, 163, 184, 0.55);
+  --ink-faint:     rgba(148, 163, 184, 0.30);
+
+  /* Noise grain opacity */
+  --grain-opacity: 0.6;
+
+  color-scheme: dark;
 }
 
 /* In light mode the glass shadow needs to be darker and stronger
