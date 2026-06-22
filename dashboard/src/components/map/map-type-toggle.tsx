@@ -45,7 +45,7 @@ export function MapTypeToggle({
             className={cn(
               'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] transition-colors',
               active
-                ? 'bg-teal-500/25 text-teal-200 ring-1 ring-teal-400/40'
+                ? 'bg-teal-500/30 text-teal-700 dark:text-teal-200 ring-1 ring-teal-500/50 dark:ring-teal-400/40'
                 : 'text-ink-secondary hover:bg-glass hover:text-ink-primary',
             )}
           >
