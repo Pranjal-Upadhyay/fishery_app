@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${libre.variable} ${jetbrains.variable} dark`}
+      className={`${libre.variable} ${jetbrains.variable} light`}
       suppressHydrationWarning
     >
       <head>
