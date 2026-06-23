@@ -48,6 +48,7 @@ export default function StageLogScreen() {
   const [ammonia, setAmmonia] = useState('');
   const [feedKg, setFeedKg] = useState('');
   const [fingerlingCount, setFingerlingCount] = useState('');
+  const [actualFingerlingCount, setActualFingerlingCount] = useState('');
   const [avgWeight, setAvgWeight] = useState('');
   const [observations, setObservations] = useState('');
   const [saving, setSaving] = useState(false);
@@ -77,6 +78,7 @@ export default function StageLogScreen() {
         ammonia_ppm: ammonia ? parseFloat(ammonia) : undefined,
         feed_given_kg: feedKg ? parseFloat(feedKg) : undefined,
         estimated_fingerling_count: fingerlingCount ? parseInt(fingerlingCount, 10) : undefined,
+        actual_fingerling_count: actualFingerlingCount ? parseInt(actualFingerlingCount, 10) : undefined,
         avg_fingerling_weight_g: avgWeight ? parseFloat(avgWeight) : undefined,
         observations: observations.trim() || undefined,
       });
@@ -140,7 +142,11 @@ export default function StageLogScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Fingerling Readiness</Text>
-            <FormField label="Estimated Fingerlings" value={fingerlingCount} onChangeText={setFingerlingCount} icon="fish-outline" keyboardType="numeric" theme={theme} />
+            {(currentStage === 'fingerling_ready' || currentStage === 'sold') ? (
+              <FormField label="Actual Fingerling Count" value={actualFingerlingCount} onChangeText={setActualFingerlingCount} icon="checkbox-outline" keyboardType="numeric" theme={theme} />
+            ) : (
+              <FormField label="Estimated Fingerlings" value={fingerlingCount} onChangeText={setFingerlingCount} icon="fish-outline" keyboardType="numeric" theme={theme} />
+            )}
             <FormField label="Average Weight g" value={avgWeight} onChangeText={setAvgWeight} icon="scale-outline" keyboardType="decimal-pad" theme={theme} />
           </View>
 

@@ -103,6 +103,7 @@ const stageLogSchema = z.object({
   estimated_fry_count: z.number().int().nonnegative().optional(),
   estimated_fingerling_count: z.number().int().nonnegative().optional(),
   avg_fingerling_weight_g: z.number().nonnegative().optional(),
+  actual_fingerling_count: z.number().int().nonnegative().optional(),
 });
 
 const fingerlingSaleSchema = z.object({
@@ -762,19 +763,21 @@ router.post('/batches/:batchId/logs', requireAuth, async (req, res, next) => {
     ]);
 
     // Also update batch counts if provided
-    if (data.estimated_fry_count !== undefined || data.estimated_fingerling_count !== undefined || data.avg_fingerling_weight_g !== undefined) {
+    if (data.estimated_fry_count !== undefined || data.estimated_fingerling_count !== undefined || data.avg_fingerling_weight_g !== undefined || data.actual_fingerling_count !== undefined) {
       await query(`
         UPDATE hatchery_batches
         SET
           estimated_fry_count = COALESCE($1, estimated_fry_count),
           estimated_fingerling_count = COALESCE($2, estimated_fingerling_count),
           avg_fingerling_weight_g = COALESCE($3, avg_fingerling_weight_g),
+          actual_fingerling_count = COALESCE($4, actual_fingerling_count),
           updated_at = NOW()
-        WHERE id = $4
+        WHERE id = $5
       `, [
         data.estimated_fry_count ?? null,
         data.estimated_fingerling_count ?? null,
         data.avg_fingerling_weight_g ?? null,
+        data.actual_fingerling_count ?? null,
         batchId,
       ]);
     }

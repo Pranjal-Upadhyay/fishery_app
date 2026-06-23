@@ -139,23 +139,50 @@ export default function BatchDetailScreen() {
           </Text>
         </View>
 
+        {batch.actual_fingerling_count ? (
+          <View style={[styles.stageBanner, { borderColor: theme.colors.success + '44', backgroundColor: theme.colors.success + '11' }]}>
+            <View style={[styles.stageBannerDot, { backgroundColor: theme.colors.success }]} />
+            <Text style={[styles.stageBannerText, { color: theme.colors.success }]}>
+              Actual Yield: {parseInt(batch.actual_fingerling_count).toLocaleString('en-IN')} fingerlings ({batch.actual_survival_rate_pct}% actual survival)
+            </Text>
+          </View>
+        ) : null}
+
         {/* Key metrics */}
         <View style={styles.metricsRow}>
-          {(batch.estimated_fingerling_count ?? 0) > 0 && (
+          {(batch.actual_fingerling_count ?? 0) > 0 ? (
             <MetricCard
-              label="Fingerlings"
-              value={parseInt(batch.estimated_fingerling_count).toLocaleString('en-IN')}
-              icon="fish-outline"
+              label="Actual Yield"
+              value={parseInt(batch.actual_fingerling_count).toLocaleString('en-IN')}
+              icon="checkmark-done-circle-outline"
               theme={theme}
             />
+          ) : (
+            (batch.estimated_fingerling_count ?? 0) > 0 && (
+              <MetricCard
+                label="Fingerlings"
+                value={parseInt(batch.estimated_fingerling_count).toLocaleString('en-IN')}
+                icon="fish-outline"
+                theme={theme}
+              />
+            )
           )}
-          {(batch.avg_fingerling_weight_g ?? 0) > 0 && (
+          {batch.actual_survival_rate_pct !== null && batch.actual_survival_rate_pct !== undefined ? (
             <MetricCard
-              label="Avg Weight"
-              value={`${parseFloat(batch.avg_fingerling_weight_g).toFixed(1)}g`}
-              icon="scale-outline"
+              label="Actual Survival"
+              value={`${parseFloat(batch.actual_survival_rate_pct).toFixed(1)}%`}
+              icon="analytics-outline"
               theme={theme}
             />
+          ) : (
+            (batch.avg_fingerling_weight_g ?? 0) > 0 && (
+              <MetricCard
+                label="Avg Weight"
+                value={`${parseFloat(batch.avg_fingerling_weight_g).toFixed(1)}g`}
+                icon="scale-outline"
+                theme={theme}
+              />
+            )
           )}
           {(batch.broodstock_total_kg ?? 0) > 0 && (
             <MetricCard

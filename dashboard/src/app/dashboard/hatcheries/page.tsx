@@ -99,6 +99,8 @@ export default function HatcheriesPage() {
   const [searchTerm, setSearchTerm]         = useState('');
   const [selectedStage, setSelectedStage]   = useState<string>('all');
   const [activeHatchModal, setActiveHatchModal] = useState<HatchModal>(null);
+  const [selectedBatchDetail, setSelectedBatchDetail] = useState<Batch | null>(null);
+  const [selectedHatcheryDetail, setSelectedHatcheryDetail] = useState<HatcheryInfo | null>(null);
 
   // Filter logic
   const filteredBatches = BATCH_DATA.filter((batch) => {
@@ -266,7 +268,9 @@ export default function HatcheriesPage() {
                   </tr>
                 ) : (
                   filteredBatches.map((batch) => (
-                    <tr key={batch.id} className="border-b border-glass-border/30 last:border-0 hover:bg-glass-subtle transition-colors">
+                    <tr key={batch.id} 
+                        onClick={() => setSelectedBatchDetail(batch)}
+                        className="border-b border-glass-border/30 last:border-0 hover:bg-glass-subtle transition-colors cursor-pointer">
                       <td className="py-3">
                         <div className="font-semibold text-ink-primary flex items-center gap-1.5">
                           {batch.batchNumber}
@@ -393,7 +397,12 @@ export default function HatcheriesPage() {
           {activeHatchModal === 'hatcheries' && (
             <div className="overflow-y-auto space-y-3 flex-1 pr-1">
               {HATCHERIES_DIRECTORY.map((h) => (
-                <div key={h.id} className="p-4 rounded-xl border border-glass-border bg-canvas-950/30 space-y-2">
+                <div key={h.id} 
+                     onClick={() => {
+                       setSelectedHatcheryDetail(h);
+                       setActiveHatchModal(null);
+                     }}
+                     className="p-4 rounded-xl border border-glass-border bg-canvas-950/30 space-y-2 cursor-pointer hover:border-teal-500/40 hover:bg-teal-500/5 transition-all">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2">
                       <Waves className="h-4 w-4 text-teal-400 shrink-0" />
@@ -498,10 +507,27 @@ export default function HatcheriesPage() {
 
               <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Contributing Batches</div>
               {BATCH_DATA.filter((b) => b.stage === 'Fingerling Ready' || b.stage === 'Rearing').map((batch) => (
-                <div key={batch.id} className="p-3 rounded-lg border border-glass-border bg-canvas-950/30 flex justify-between items-center text-xs">
+                <div key={batch.id} 
+                     onClick={() => {
+                       setSelectedBatchDetail(batch);
+                       setActiveHatchModal(null);
+                     }}
+                     className="p-3 rounded-lg border border-glass-border bg-canvas-950/30 flex justify-between items-center text-xs cursor-pointer hover:border-teal-500/40 hover:bg-teal-500/5 transition-all">
                   <div>
                     <div className="font-mono font-bold text-teal-400">{batch.batchNumber}</div>
-                    <div className="text-ink-muted">{batch.hatcheryName} · {batch.stage}</div>
+                    <div className="text-ink-muted">
+                      <span className="hover:underline text-indigo-400 font-semibold cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const h = HATCHERIES_DIRECTORY.find(h => h.name === batch.hatcheryName);
+                              if (h) {
+                                setSelectedHatcheryDetail(h);
+                                setActiveHatchModal(null);
+                              }
+                            }}>
+                        {batch.hatcheryName}
+                      </span> · {batch.stage}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="font-mono font-bold text-ink-primary">{batch.estimatedCount.toLocaleString()} pcs</div>
@@ -531,8 +557,8 @@ export default function HatcheriesPage() {
                   <strong className="text-amber-400">This is a computed field — not manually entered by any user.</strong><br />
                   It is calculated as: <code className="mx-1 px-1 py-0.5 rounded bg-canvas-950/60 text-teal-300 text-[10px]">Total Demand − Total Available Supply</code><br /><br />
                   <strong>Demand</strong> = Registered farmers × avg pond area × govt. recommended stocking density
-                  (25,000 fingerlings/ha for IMC species). District targets are published each monsoon season by
-                  the Bihar State Fisheries Department and uploaded by the admin.<br /><br />
+                  (read dynamically per species from the knowledge base, e.g. 20,000/ha for Rohu, 10,000/ha for Catla).
+                  District-level override targets can be uploaded by the admin.<br /><br />
                   <strong>Supply</strong> = Sum of estimatedCount from all near-ready hatchery batches.
                 </div>
               </div>
@@ -568,9 +594,9 @@ export default function HatcheriesPage() {
               </div>
 
               <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-ink-secondary">
-                💡 <strong className="text-amber-400">Admin action required:</strong> Upload the Bihar Fisheries Department's
-                annual stocking target CSV under Settings → District Seed Demand to keep this number live and accurate.
-                Until then, this figure uses a calculated estimate based on registered farmer pond areas.
+                💡 <strong className="text-amber-400">Admin action:</strong> Stocking densities are read
+                automatically from the species database. Upload the Bihar Fisheries Department's
+                annual stocking override CSV under Settings → District Seed Demand to override defaults.
               </div>
             </div>
           )}
@@ -578,6 +604,247 @@ export default function HatcheriesPage() {
         </GlassCard>
       </div>
       )}
+
+      {/* Batch Detail Modal */}
+      {selectedBatchDetail && (() => {
+        const batch = selectedBatchDetail;
+        const hatchery = HATCHERIES_DIRECTORY.find(h => h.name === batch.hatcheryName);
+        
+        // Mock stage details for progress/timeline
+        const stagesInfo = [
+          { name: 'Spawning', date: 'Mon, Jun 01', entry: '500,000 eggs', exit: '410,000 spawn', survival: '82.0%' },
+          { name: 'Hatching', date: 'Tue, Jun 02', entry: '410,000 spawn', exit: '390,000 fry', survival: '95.1%' },
+          { name: 'Yolk Absorption', date: 'Thu, Jun 04', entry: '390,000 fry', exit: '380,000 fry', survival: '97.4%' },
+          { name: 'Nursery', date: 'Sun, Jun 07', entry: '380,000 fry', exit: '310,000 advanced fry', survival: '81.5%' },
+          { name: 'Rearing', date: 'Sat, Jun 27', entry: '310,000 advanced fry', exit: '250,000 fingerlings', survival: '80.6%' },
+          { name: 'Fingerling Ready', date: 'Sun, Jul 12', entry: '250,000 fingerlings', exit: '242,500 pcs', survival: '97.0%' },
+        ];
+
+        const stagesList = ['Spawning','Hatching','Yolk Absorption','Nursery','Rearing','Fingerling Ready'];
+        const currentStageIdx = stagesList.findIndex(s => s.toLowerCase() === batch.stage.toLowerCase());
+        
+        // Calculate actual overall survival if batch is completed
+        const isCompleted = batch.stage === 'Fingerling Ready';
+        const actualCount = isCompleted ? 242500 : null;
+        const actualSurvival = isCompleted ? '48.5%' : null;
+        const estimatedSurvival = '50.0%';
+
+        return (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4"
+               onClick={(e) => { if (e.target === e.currentTarget) setSelectedBatchDetail(null); }}>
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedBatchDetail(null)} />
+            <GlassCard className="relative z-10 w-full max-w-xl p-6 flex flex-col gap-4 shadow-glow border-sky-500/30 max-h-[90vh] overflow-y-auto">
+              
+              {/* Header */}
+              <div className="flex justify-between items-start border-b border-glass-border/40 pb-3 shrink-0">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400">Batch Timeline Tracking</div>
+                  <h2 className="text-lg font-mono font-bold text-ink-primary mt-1 flex items-center gap-2">
+                    {batch.batchNumber}
+                    <span className="text-xs font-sans font-semibold px-2 py-0.5 rounded bg-teal-500/10 text-teal-400">
+                      {batch.variant}
+                    </span>
+                  </h2>
+                  <div className="text-xs text-ink-muted mt-0.5">Species: {batch.species}</div>
+                </div>
+                <button onClick={() => setSelectedBatchDetail(null)}
+                  className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Hatchery Owner info */}
+              <div className="p-3.5 rounded-xl border border-glass-border bg-canvas-950/20 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Hatchery &amp; Operator Details</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">Hatchery</span>
+                    <span className="font-semibold text-sky-400 hover:underline cursor-pointer"
+                          onClick={() => {
+                            if (hatchery) {
+                              setSelectedHatcheryDetail(hatchery);
+                              setSelectedBatchDetail(null);
+                            }
+                          }}>
+                      {batch.hatcheryName}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">License Number</span>
+                    <span className="font-mono text-ink-primary">{hatchery?.licenseNo ?? 'BH-HAT-0XX'}</span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">Operator / Owner</span>
+                    <span className="text-ink-primary font-medium">{hatchery?.owner ?? 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">Contact</span>
+                    <a href={`tel:${hatchery?.phone}`} className="text-sky-400 font-mono hover:underline flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> {hatchery?.phone ?? 'N/A'}
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Comparison summary */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg border border-glass-border bg-canvas-950/40">
+                  <span className="text-[9px] font-semibold text-ink-muted uppercase block">Estimated Count</span>
+                  <div className="text-base font-mono font-bold text-ink-primary mt-1">{batch.estimatedCount.toLocaleString()} pcs</div>
+                  <span className="text-[10px] text-ink-muted font-mono mt-0.5 block">Est. Survival: {estimatedSurvival}</span>
+                </div>
+                <div className={`p-3 rounded-lg border ${isCompleted ? 'border-teal-500/20 bg-teal-500/5' : 'border-glass-border bg-canvas-950/20'}`}>
+                  <span className="text-[9px] font-semibold text-ink-muted uppercase block">Actual Yield</span>
+                  <div className="text-base font-mono font-bold text-ink-primary mt-1">
+                    {actualCount ? `${actualCount.toLocaleString()} pcs` : 'TBD (In Progress)'}
+                  </div>
+                  <span className="text-[10px] text-ink-muted font-mono mt-0.5 block">
+                    {actualSurvival ? `Actual Survival: ${actualSurvival}` : `Expected: ${batch.expectedReadyDate}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Timeline list */}
+              <div className="space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Lifecycle Stage Logs</div>
+                <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-glass-strong">
+                  {stagesInfo.map((s, i) => {
+                    const isPassed = i <= currentStageIdx;
+                    const isCurrentStage = i === currentStageIdx;
+                    return (
+                      <div key={s.name} className="flex gap-4 items-start pl-8 relative">
+                        <div className={`absolute left-1.5 top-1.5 w-3.5 h-3.5 rounded-full border-2 ${
+                          isCurrentStage ? 'bg-sky-400 border-sky-400 scale-110 animate-pulse' :
+                          isPassed ? 'bg-teal-500 border-teal-500' :
+                          'bg-canvas-950 border-glass-border'
+                        }`} />
+                        <div className="flex-1 flex justify-between items-baseline">
+                          <div>
+                            <div className={`text-xs font-semibold ${isPassed ? 'text-ink-primary' : 'text-ink-muted'}`}>
+                              {s.name}
+                            </div>
+                            {isPassed && (
+                              <div className="text-[10px] text-ink-muted font-mono mt-0.5">
+                                Entry: {s.entry} · Exit: {s.exit}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-mono text-ink-muted">{s.date}</span>
+                            {isPassed && (
+                              <span className="text-[10px] font-mono text-teal-400 font-bold block">
+                                Survival: {s.survival}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </GlassCard>
+          </div>
+        );
+      })()}
+
+      {/* Hatchery Profile Modal */}
+      {selectedHatcheryDetail && (() => {
+        const h = selectedHatcheryDetail;
+        const hatcheryBatches = BATCH_DATA.filter(b => b.hatcheryName === h.name);
+
+        return (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4"
+               onClick={(e) => { if (e.target === e.currentTarget) setSelectedHatcheryDetail(null); }}>
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedHatcheryDetail(null)} />
+            <GlassCard className="relative z-10 w-full max-w-xl p-6 flex flex-col gap-4 shadow-glow border-teal-500/30 max-h-[90vh] overflow-y-auto">
+              
+              {/* Header */}
+              <div className="flex justify-between items-start border-b border-glass-border/40 pb-3 shrink-0">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Registered Hatchery Profile</div>
+                  <h2 className="text-lg font-bold text-ink-primary mt-1 flex items-center gap-2">
+                    {h.name}
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                      h.status === 'Active' ? 'bg-teal-500/10 text-teal-400' : 'bg-amber-500/10 text-amber-400'
+                    }`}>
+                      {h.status}
+                    </span>
+                  </h2>
+                </div>
+                <button onClick={() => setSelectedHatcheryDetail(null)}
+                  className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Profile Details Grid */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-lg border border-glass-border bg-canvas-950/20">
+                  <span className="text-ink-muted text-[10px] block">Owner/Operator</span>
+                  <span className="font-semibold text-ink-primary mt-0.5 block">{h.owner}</span>
+                </div>
+                <div className="p-3 rounded-lg border border-glass-border bg-canvas-950/20">
+                  <span className="text-ink-muted text-[10px] block">License Number</span>
+                  <span className="font-mono font-semibold text-ink-primary mt-0.5 block">{h.licenseNo}</span>
+                </div>
+                <div className="p-3 rounded-lg border border-glass-border bg-canvas-950/20">
+                  <span className="text-ink-muted text-[10px] block">Geographic Location</span>
+                  <span className="font-semibold text-ink-primary mt-0.5 block">{h.district} District, {h.block} Block</span>
+                </div>
+                <div className="p-3 rounded-lg border border-glass-border bg-canvas-950/20">
+                  <span className="text-ink-muted text-[10px] block">Capacity</span>
+                  <span className="font-semibold text-teal-400 mt-0.5 block">{h.capacity}</span>
+                </div>
+              </div>
+
+              {/* Contact section */}
+              <div className="flex justify-between items-center p-3 rounded-lg border border-glass-border bg-canvas-950/40 text-xs">
+                <div>
+                  <span className="text-ink-muted text-[10px] block">Contact Number</span>
+                  <a href={`tel:${h.phone}`} className="font-mono font-semibold text-sky-400 hover:underline flex items-center gap-1 mt-0.5">
+                    <Phone className="h-3 w-3" /> {h.phone}
+                  </a>
+                </div>
+                <div className="text-right">
+                  <span className="text-ink-muted text-[10px] block">Active Batches</span>
+                  <span className="font-bold text-ink-primary mt-0.5 block">{h.activeBatches} Batches</span>
+                </div>
+              </div>
+
+              {/* Active Batches */}
+              <div className="space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Active Production Batches</div>
+                {hatcheryBatches.length === 0 ? (
+                  <div className="text-xs text-ink-muted italic py-2">No active batches in progress.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {hatcheryBatches.map(b => (
+                      <div key={b.id} 
+                           onClick={() => {
+                             setSelectedBatchDetail(b);
+                             setSelectedHatcheryDetail(null);
+                           }}
+                           className="p-3 rounded-lg border border-glass-border bg-canvas-950/20 flex justify-between items-center text-xs cursor-pointer hover:border-teal-500/40 transition-colors">
+                        <div>
+                          <div className="font-mono font-bold text-teal-400">{b.batchNumber}</div>
+                          <div className="text-ink-muted">{b.species} ({b.variant}) · {b.stage}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-mono font-bold text-ink-primary">{b.estimatedCount.toLocaleString()} pcs</div>
+                          <div className="text-ink-muted">Ready: {b.expectedReadyDate}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </GlassCard>
+          </div>
+        );
+      })()}
     </div>
   );
 }
