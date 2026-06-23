@@ -13,6 +13,7 @@ import {
   Users,
   Settings2,
   Waves,
+  Store,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -32,6 +33,7 @@ const NAV: NavItem[] = [
   { href: '/dashboard/doctors',     label: 'Doctors',       icon: Stethoscope },
   { href: '/dashboard/hatcheries',  label: 'Hatcheries',    icon: Waves },
   { href: '/dashboard/farmers',     label: 'Farmers',       icon: Users },
+  { href: '/dashboard/marketplace',  label: 'Marketplace',   icon: Store },
 ];
 
 export function Sidebar() {
