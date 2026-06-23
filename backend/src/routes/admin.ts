@@ -439,4 +439,91 @@ router.get('/atlas-items', requireAdmin, async (req, res, next) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/admin/marketplace/listings
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/marketplace/listings', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT 
+        fl.id,
+        fl.hatchery_id,
+        fl.batch_id,
+        fl.stage,
+        fl.species_name,
+        fl.species_variant,
+        fl.description,
+        fl.total_quantity,
+        fl.quantity_available,
+        fl.reserved_quantity,
+        fl.confirmed_quantity,
+        fl.min_order_qty,
+        fl.price_per_piece,
+        fl.bulk_price_per_piece,
+        fl.bulk_price_threshold,
+        fl.expected_ready_date,
+        fl.last_available_date,
+        fl.status,
+        fl.pickup_available,
+        fl.delivery_available,
+        h.name AS hatchery_name,
+        h.district AS hatchery_district
+      FROM fingerling_listings fl
+      JOIN hatcheries h ON h.id = fl.hatchery_id
+      ORDER BY fl.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/admin/marketplace/orders
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/marketplace/orders', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT 
+        fo.id,
+        fo.listing_id,
+        fo.farmer_id,
+        fo.farmer_uid,
+        fo.quantity_ordered,
+        fo.price_per_piece,
+        fo.total_amount,
+        fo.status,
+        fo.order_type,
+        fo.farmer_notes,
+        fo.delivery_address,
+        fo.payment_screenshot_url,
+        fo.rejection_reason,
+        fo.dispute_reason,
+        fo.dispute_description,
+        fo.disputed_at,
+        fo.dispute_resolved_at,
+        fo.created_at,
+        fo.accepted_at,
+        fo.rejected_at,
+        fo.fulfilled_at,
+        fo.cancelled_at,
+        u.name AS farmer_name,
+        u.phone_number AS farmer_phone,
+        fl.species_name,
+        fl.species_variant,
+        fl.stage,
+        h.name AS hatchery_name,
+        h.contact_number AS hatchery_phone
+      FROM fingerling_orders fo
+      JOIN users u ON u.id = fo.farmer_id
+      JOIN fingerling_listings fl ON fl.id = fo.listing_id
+      JOIN hatcheries h ON h.id = fl.hatchery_id
+      ORDER BY fo.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export { router as adminRouter };
