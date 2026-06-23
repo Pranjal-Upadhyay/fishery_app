@@ -12,6 +12,13 @@ import {
   Layers,
   Search,
   CheckCircle,
+  X,
+  MapPin,
+  Phone,
+  User,
+  Filter,
+  Info,
+  Sprout,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 
@@ -42,7 +49,30 @@ interface Sale {
   date: string;
 }
 
+interface HatcheryInfo {
+  id: string;
+  name: string;
+  licenseNo: string;
+  owner: string;
+  phone: string;
+  district: string;
+  block: string;
+  capacity: string;
+  activeBatches: number;
+  status: 'Active' | 'Seasonal Pause' | 'Inspection Pending';
+}
+
 // Mock Data
+const HATCHERIES_DIRECTORY: HatcheryInfo[] = [
+  { id: 'h1', name: 'Patna Central Hatchery',   licenseNo: 'BH-HAT-001', owner: 'Bihar State Fisheries Corp',   phone: '9876543000', district: 'Patna',      block: 'Phulwari',  capacity: '10M fry/season',  activeBatches: 2, status: 'Active'             },
+  { id: 'h2', name: 'Mithila Matsya Hatchery',   licenseNo: 'BH-HAT-002', owner: 'Mithila Aqua Pvt. Ltd.',     phone: '9988770011', district: 'Madhubani', block: 'Benipatti', capacity: '8M fry/season',   activeBatches: 1, status: 'Active'             },
+  { id: 'h3', name: 'Gaya Fishery Seed',          licenseNo: 'BH-HAT-003', owner: 'Gaya District Co-op',        phone: '9122330055', district: 'Gaya',       block: 'Sherghati', capacity: '6M fry/season',   activeBatches: 1, status: 'Active'             },
+  { id: 'h4', name: 'Kosi River Hatchery',        licenseNo: 'BH-HAT-004', owner: 'Kosi Agri Ventures',         phone: '9512349876', district: 'Supaul',     block: 'Triveniganj', capacity: '12M fry/season', activeBatches: 1, status: 'Active'           },
+  { id: 'h5', name: 'Muzaffarpur Seed Centre',    licenseNo: 'BH-HAT-005', owner: 'J.P. Fisheries Pvt. Ltd.',   phone: '9002154000', district: 'Muzaffarpur',block: 'Kanti',     capacity: '5M fry/season',   activeBatches: 0, status: 'Seasonal Pause'    },
+  { id: 'h6', name: 'Bhagalpur Fingerling Farm',  licenseNo: 'BH-HAT-006', owner: 'Bhagalpur Fish Seed Co.',   phone: '9654329977', district: 'Bhagalpur',  block: 'Sabour',    capacity: '7M fry/season',   activeBatches: 0, status: 'Inspection Pending'},
+];
+
+type HatchModal = 'hatcheries' | 'batches' | 'seedYield' | 'demandDeficit' | null;
 const BATCH_DATA: Batch[] = [
   { id: '1', batchNumber: 'HB-2026-001', hatcheryName: 'Patna Central Hatchery', species: 'Rohu', variant: 'Jayanti Rohu', stage: 'Rearing', daysInStage: 45, broodstockM: 50, broodstockF: 50, expectedReadyDate: '2026-06-25', estimatedCount: 250000 },
   { id: '2', batchNumber: 'HB-2026-002', hatcheryName: 'Mithila Matsya Hatchery', species: 'Katla', variant: 'Amrita Katla', stage: 'Fingerling Ready', daysInStage: 75, broodstockM: 40, broodstockF: 40, expectedReadyDate: '2026-06-08', estimatedCount: 180000 },
@@ -66,8 +96,9 @@ const SALES_DATA: Sale[] = [
 ];
 
 export default function HatcheriesPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStage, setSelectedStage] = useState<string>('all');
+  const [searchTerm, setSearchTerm]         = useState('');
+  const [selectedStage, setSelectedStage]   = useState<string>('all');
+  const [activeHatchModal, setActiveHatchModal] = useState<HatchModal>(null);
 
   // Filter logic
   const filteredBatches = BATCH_DATA.filter((batch) => {
@@ -90,45 +121,53 @@ export default function HatcheriesPage() {
         <h1 className="text-2xl font-bold text-ink-primary">Hatcheries Tracking</h1>
       </div>
 
-      {/* Overview Bento Grid */}
+      {/* Overview Bento Grid — all clickable */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-teal-500/10 text-teal-400">
+        <GlassCard className="p-4 flex items-center gap-3 cursor-pointer hover:border-teal-500/40 hover:bg-teal-500/5 transition-all group"
+          onClick={() => setActiveHatchModal('hatcheries')}>
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-teal-500/10 text-teal-400 group-hover:bg-teal-500/20 transition-colors">
             <Waves className="h-5 w-5" />
           </span>
           <div>
             <div className="text-2xl font-mono font-bold text-ink-primary">12</div>
             <div className="text-xs text-ink-muted">Active Hatcheries</div>
+            <div className="text-[10px] text-teal-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">View directory ↗</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500/10 text-sky-400">
+        <GlassCard className="p-4 flex items-center gap-3 cursor-pointer hover:border-sky-500/40 hover:bg-sky-500/5 transition-all group"
+          onClick={() => setActiveHatchModal('batches')}>
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500/10 text-sky-400 group-hover:bg-sky-500/20 transition-colors">
             <Layers className="h-5 w-5" />
           </span>
           <div>
             <div className="text-2xl font-mono font-bold text-ink-primary">42</div>
             <div className="text-xs text-ink-muted">Active Batches</div>
+            <div className="text-[10px] text-sky-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">View all batches ↗</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-400">
+        <GlassCard className="p-4 flex items-center gap-3 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all group"
+          onClick={() => setActiveHatchModal('seedYield')}>
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20 transition-colors">
             <Package className="h-5 w-5" />
           </span>
           <div>
             <div className="text-2xl font-mono font-bold text-ink-primary">1.8M</div>
             <div className="text-xs text-ink-muted">Available Seed Yield</div>
+            <div className="text-[10px] text-indigo-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">How is this calculated? ↗</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-amber-500/10 text-amber-400">
+        <GlassCard className="p-4 flex items-center gap-3 cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all group"
+          onClick={() => setActiveHatchModal('demandDeficit')}>
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20 transition-colors">
             <AlertCircle className="h-5 w-5" />
           </span>
           <div>
             <div className="text-2xl font-mono font-bold text-ink-primary">4.9M</div>
             <div className="text-xs text-ink-muted">Statewide Demand Deficit</div>
+            <div className="text-[10px] text-amber-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">District breakdown ↗</div>
           </div>
         </GlassCard>
       </div>
@@ -325,6 +364,220 @@ export default function HatcheriesPage() {
           </table>
         </div>
       </GlassCard>
+
+      {/* ── Hatcheries KPI Modals ────────────────────────────── */}
+      {activeHatchModal && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+           onClick={(e) => { if (e.target === e.currentTarget) setActiveHatchModal(null); }}>
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveHatchModal(null)} />
+        <GlassCard className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[88vh] overflow-hidden">
+
+          {/* Modal header */}
+          <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Hatcheries Dashboard</div>
+              <h2 className="text-lg font-bold text-ink-primary mt-1">
+                {activeHatchModal === 'hatcheries'    && 'Registered Hatchery Directory'}
+                {activeHatchModal === 'batches'       && 'All Active Batches — Full Pipeline'}
+                {activeHatchModal === 'seedYield'     && 'Available Seed Yield — How It\'s Calculated'}
+                {activeHatchModal === 'demandDeficit' && 'Statewide Demand Deficit — District Breakdown'}
+              </h2>
+            </div>
+            <button onClick={() => setActiveHatchModal(null)}
+              className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* ── Hatchery Directory ── */}
+          {activeHatchModal === 'hatcheries' && (
+            <div className="overflow-y-auto space-y-3 flex-1 pr-1">
+              {HATCHERIES_DIRECTORY.map((h) => (
+                <div key={h.id} className="p-4 rounded-xl border border-glass-border bg-canvas-950/30 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                      <Waves className="h-4 w-4 text-teal-400 shrink-0" />
+                      <div>
+                        <div className="font-bold text-ink-primary">{h.name}</div>
+                        <div className="text-xs text-ink-secondary">{h.owner}</div>
+                      </div>
+                    </div>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                      h.status === 'Active'             ? 'bg-teal-500/10 text-teal-400' :
+                      h.status === 'Seasonal Pause'     ? 'bg-amber-500/10 text-amber-400' :
+                                                          'bg-rose-500/10 text-rose-400'}`}>{h.status}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-[10px]">
+                    <div className="p-2 rounded bg-canvas-950/40 border border-glass-border">
+                      <div className="text-ink-muted">License</div>
+                      <div className="font-mono font-bold text-ink-primary">{h.licenseNo}</div>
+                    </div>
+                    <div className="p-2 rounded bg-canvas-950/40 border border-glass-border">
+                      <div className="text-ink-muted">Location</div>
+                      <div className="font-semibold text-ink-primary">{h.district}, {h.block}</div>
+                    </div>
+                    <div className="p-2 rounded bg-canvas-950/40 border border-glass-border">
+                      <div className="text-ink-muted">Capacity</div>
+                      <div className="font-semibold text-teal-400">{h.capacity}</div>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px]">
+                    <a href={`tel:${h.phone}`} className="flex items-center gap-1 text-sky-400 hover:underline font-mono">
+                      <Phone className="h-3 w-3" />{h.phone}
+                    </a>
+                    <span className="text-ink-muted">{h.activeBatches} active batch{h.activeBatches !== 1 ? 'es' : ''}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Active Batches ── */}
+          {activeHatchModal === 'batches' && (
+            <div className="overflow-y-auto flex-1 pr-1">
+              <div className="text-xs text-ink-muted mb-3 p-3 rounded-lg border border-sky-500/20 bg-sky-500/5">
+                📦 Batches progress through 6 stages: Spawning → Hatching → Yolk Absorption → Nursery → Rearing → Fingerling Ready. Data is entered by hatchery operators through the MatsyaMitra app.
+              </div>
+              <div className="space-y-3">
+                {BATCH_DATA.map((batch) => {
+                  const stages = ['Spawning','Hatching','Yolk Absorption','Nursery','Rearing','Fingerling Ready'];
+                  const idx = stages.indexOf(batch.stage);
+                  return (
+                    <div key={batch.id} className="p-4 rounded-xl border border-glass-border bg-canvas-950/30 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-mono font-bold text-teal-400">{batch.batchNumber}</div>
+                          <div className="text-xs text-ink-secondary">{batch.hatcheryName}</div>
+                        </div>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          batch.variant === 'Jayanti Rohu' ? 'bg-teal-500/10 text-teal-400' :
+                          batch.variant === 'Amrita Katla' ? 'bg-sky-500/10 text-sky-400' :
+                                                              'bg-glass-strong text-ink-muted'}`}>{batch.variant}</span>
+                      </div>
+                      {/* Stage progress bar */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] text-ink-muted">
+                          <span>{batch.stage}</span>
+                          <span className="font-mono">{batch.daysInStage}d in stage</span>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {stages.map((s, i) => (
+                            <div key={s} className={`h-1.5 flex-1 rounded-full ${
+                              i < idx   ? 'bg-teal-500' :
+                              i === idx ? 'bg-sky-400 animate-pulse' :
+                                          'bg-glass-strong'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-ink-muted font-mono">
+                        <span>Est. {batch.estimatedCount.toLocaleString()} pcs</span>
+                        <span>Ready: {batch.expectedReadyDate}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Seed Yield Explanation ── */}
+          {activeHatchModal === 'seedYield' && (
+            <div className="space-y-4 overflow-y-auto flex-1">
+              <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-2">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-bold text-ink-primary">Available Seed Yield</span>
+                  <span className="text-3xl font-mono font-bold text-indigo-400">1.8M pcs</span>
+                </div>
+                <div className="text-xs text-ink-muted">
+                  This number is <strong className="text-indigo-400">automatically calculated</strong> — it is the sum of
+                  <code className="mx-1 px-1 py-0.5 rounded bg-canvas-950/60 text-teal-300 text-[10px]">estimatedCount</code>
+                  for all batches currently at <strong>Fingerling Ready</strong> or
+                  <strong> Rearing</strong> stage within 30 days of their expected ready date.
+                </div>
+              </div>
+
+              <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Contributing Batches</div>
+              {BATCH_DATA.filter((b) => b.stage === 'Fingerling Ready' || b.stage === 'Rearing').map((batch) => (
+                <div key={batch.id} className="p-3 rounded-lg border border-glass-border bg-canvas-950/30 flex justify-between items-center text-xs">
+                  <div>
+                    <div className="font-mono font-bold text-teal-400">{batch.batchNumber}</div>
+                    <div className="text-ink-muted">{batch.hatcheryName} · {batch.stage}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono font-bold text-ink-primary">{batch.estimatedCount.toLocaleString()} pcs</div>
+                    <div className="text-ink-muted">Ready: {batch.expectedReadyDate}</div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 text-xs text-ink-secondary space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-teal-400">How hatcheries enter this data</div>
+                <div>Hatchery operators log in to the MatsyaMitra app with a <strong className="text-teal-400">Hatchery</strong> account type. They create batches by entering:
+                  broodstock count, spawn date, species &amp; variant, and update the stage as the batch progresses.
+                  The estimated fingerling count is entered when the batch reaches the Rearing stage based on observed spawn survival.</div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Demand Deficit Explanation ── */}
+          {activeHatchModal === 'demandDeficit' && (
+            <div className="space-y-4 overflow-y-auto flex-1">
+              <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-3">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-bold text-ink-primary">Statewide Demand Deficit</span>
+                  <span className="text-3xl font-mono font-bold text-amber-400">4.9M pcs</span>
+                </div>
+                <div className="text-xs text-ink-muted leading-relaxed">
+                  <strong className="text-amber-400">This is a computed field — not manually entered by any user.</strong><br />
+                  It is calculated as: <code className="mx-1 px-1 py-0.5 rounded bg-canvas-950/60 text-teal-300 text-[10px]">Total Demand − Total Available Supply</code><br /><br />
+                  <strong>Demand</strong> = Registered farmers × avg pond area × govt. recommended stocking density
+                  (25,000 fingerlings/ha for IMC species). District targets are published each monsoon season by
+                  the Bihar State Fisheries Department and uploaded by the admin.<br /><br />
+                  <strong>Supply</strong> = Sum of estimatedCount from all near-ready hatchery batches.
+                </div>
+              </div>
+
+              <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">District-wise Demand vs. Supply</div>
+              <div className="space-y-3">
+                {GAP_DATA.map((row) => {
+                  const supplyNum  = parseFloat(row.supply);
+                  const demandNum  = parseFloat(row.demand);
+                  const supplyPct  = Math.min((supplyNum / demandNum) * 100, 100);
+                  return (
+                    <div key={row.district} className="p-3 rounded-xl border border-glass-border bg-canvas-950/30 space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-ink-primary">{row.district}</span>
+                        <span className={`font-mono font-bold ${
+                          row.severity === 'high' ? 'text-rose-400' :
+                          row.severity === 'low'  ? 'text-amber-400' : 'text-teal-400'}`}>
+                          {row.gap} {row.status}
+                        </span>
+                      </div>
+                      <div className="w-full bg-glass-strong h-2 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${
+                          row.status === 'Deficit' ? 'bg-gradient-to-r from-rose-500 to-amber-400' : 'bg-gradient-to-r from-teal-500 to-sky-400'
+                        }`} style={{ width: `${supplyPct}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-ink-muted font-mono">
+                        <span>Supply: <strong className="text-ink-secondary">{row.supply}</strong></span>
+                        <span>Demand: <strong className="text-ink-secondary">{row.demand}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-ink-secondary">
+                💡 <strong className="text-amber-400">Admin action required:</strong> Upload the Bihar Fisheries Department's
+                annual stocking target CSV under Settings → District Seed Demand to keep this number live and accurate.
+                Until then, this figure uses a calculated estimate based on registered farmer pond areas.
+              </div>
+            </div>
+          )}
+
+        </GlassCard>
+      </div>
+      )}
     </div>
   );
 }
