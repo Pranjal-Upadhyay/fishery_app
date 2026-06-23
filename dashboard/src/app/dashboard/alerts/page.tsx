@@ -9,6 +9,12 @@ import {
   CheckCircle,
   Clock,
   ShieldAlert,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  MapPin,
+  Smartphone,
+  Navigation,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 
@@ -22,16 +28,70 @@ interface AlertItem {
   farmerName: string;
   phone: string;
   location: string;
+  coords: string;
   time: string;
   resolved: boolean;
+  recommendation: string;
 }
 
 // Mock Data
 const MOCK_ALERTS: AlertItem[] = [
-  { id: '1', type: 'Water Parameter', severity: 'critical', title: 'Critical Dissolved Oxygen Deficit', description: 'DO level measured at 2.4 mg/L (Minimum threshold: 3.5 mg/L). Fish starvation risk high.', farmerName: 'Hari Har Paswan', phone: '9512345678', location: 'Gaya, Sherghati block', time: '10 mins ago', resolved: false },
-  { id: '2', type: 'Disease Outbreak', severity: 'critical', title: 'EUS Disease Symptoms Detected', description: 'Red spot lesions reported on standard Rohu crop. Gill discoloration observed.', farmerName: 'Ramesh Prasad Singh', phone: '9845012345', location: 'Patna, Phulwari Sharif block', time: '1 hr ago', resolved: false },
-  { id: '3', type: 'Water Parameter', severity: 'warning', title: 'High Ammonia Concentration', description: 'Ammonia level measured at 0.08 ppm (Borderline threshold: 0.05 ppm).', farmerName: 'Sanjay Kumar Yadav', phone: '9744123456', location: 'Madhubani, Benipatti block', time: '2 hrs ago', resolved: false },
-  { id: '4', type: 'Water Parameter', severity: 'warning', title: 'pH Alkaline Spike', description: 'pH level spiked to 9.2 (Normal range: 6.5 - 8.5). Algal bloom suspected.', farmerName: 'Gopal Dev Prasad', phone: '9602481357', location: 'Patna, Mokama block', time: '1 day ago', resolved: true },
+  {
+    id: '1',
+    type: 'Water Parameter',
+    severity: 'critical',
+    title: 'Critical Dissolved Oxygen Deficit',
+    description: 'DO level measured at 2.4 mg/L (Minimum threshold: 3.5 mg/L). Fish starvation risk high.',
+    farmerName: 'Hari Har Paswan',
+    phone: '9512345678',
+    location: 'Gaya, Sherghati block',
+    coords: '24.7801° N, 84.9902° E',
+    time: '10 mins ago',
+    resolved: false,
+    recommendation: 'Start paddle aerator immediately. Add agricultural lime (CaO) at 200 kg/ha. Check for algal bloom at surface. Re-measure DO in 2 hours.',
+  },
+  {
+    id: '2',
+    type: 'Disease Outbreak',
+    severity: 'critical',
+    title: 'EUS Disease Symptoms Detected',
+    description: 'Red spot lesions reported on standard Rohu crop. Gill discoloration observed.',
+    farmerName: 'Ramesh Prasad Singh',
+    phone: '9845012345',
+    location: 'Patna, Phulwari Sharif block',
+    coords: '25.5800° N, 85.1200° E',
+    time: '1 hr ago',
+    resolved: false,
+    recommendation: 'Isolate affected fish immediately. Apply Potassium Permanganate (KMnO₄) bath at 2–4 ppm for 30 mins. Contact veterinary authority for official outbreak reporting.',
+  },
+  {
+    id: '3',
+    type: 'Water Parameter',
+    severity: 'warning',
+    title: 'High Ammonia Concentration',
+    description: 'Ammonia level measured at 0.08 ppm (Borderline threshold: 0.05 ppm).',
+    farmerName: 'Sanjay Kumar Yadav',
+    phone: '9744123456',
+    location: 'Madhubani, Benipatti block',
+    coords: '26.3650° N, 86.0850° E',
+    time: '2 hrs ago',
+    resolved: false,
+    recommendation: 'Reduce feed by 30% for 48 hours. Apply zeolite at 500 kg/ha. Improve water exchange. Avoid overfeeding. Aerate heavily at dawn and dusk.',
+  },
+  {
+    id: '4',
+    type: 'Water Parameter',
+    severity: 'warning',
+    title: 'pH Alkaline Spike',
+    description: 'pH level spiked to 9.2 (Normal range: 6.5 - 8.5). Algal bloom suspected.',
+    farmerName: 'Gopal Dev Prasad',
+    phone: '9602481357',
+    location: 'Patna, Mokama block',
+    coords: '25.4020° N, 85.9070° E',
+    time: '1 day ago',
+    resolved: true,
+    recommendation: 'Remove surface algae manually. Apply alum (aluminum sulfate) at 15–20 ppm to flocculate algae. Shade 30% of pond surface if possible.',
+  },
 ];
 
 const MOCK_DOCTORS = [
@@ -43,6 +103,8 @@ export default function AlertsPage() {
   const [alerts, setAlerts] = useState<AlertItem[]>(MOCK_ALERTS);
   const [dispatchTarget, setDispatchTarget] = useState<AlertItem | null>(null);
   const [selectedDocId, setSelectedDocId] = useState('');
+  const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
+  const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
 
   const handleSendSms = (alertId: string) => {
     setAlerts((prev) =>
@@ -68,6 +130,14 @@ export default function AlertsPage() {
     setSelectedDocId('');
   };
 
+  const handleAppNotification = (alertItem: AlertItem) => {
+    setNotifiedIds((prev) => new Set([...prev, alertItem.id]));
+    alert(
+      `📱 Push notification sent to ${alertItem.farmerName}'s MatsyaMitra app:\n\n` +
+      `"⚠️ ${alertItem.title}\n${alertItem.recommendation}"`
+    );
+  };
+
   return (
     <div className="flex flex-col gap-6 p-6 h-full overflow-y-auto">
       {/* Header */}
@@ -87,68 +157,137 @@ export default function AlertsPage() {
           </h2>
 
           <div className="space-y-4">
-            {alerts.filter(a => !a.resolved).map((alertItem) => (
-              <GlassCard
-                key={alertItem.id}
-                className={`p-5 border transition-all ${
-                  alertItem.severity === 'critical'
-                    ? 'border-rose-500/30 bg-rose-500/5'
-                    : 'border-amber-500/30 bg-amber-500/5'
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <span className={`grid h-8 w-8 place-items-center rounded-lg ${
-                      alertItem.severity === 'critical'
-                        ? 'bg-rose-500/15 text-rose-400'
-                        : 'bg-amber-500/15 text-amber-400'
-                    }`}>
-                      <AlertTriangle className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
-                        {alertItem.type}
-                      </span>
-                      <h3 className="text-sm font-bold text-ink-primary mt-0.5">{alertItem.title}</h3>
+            {alerts.filter(a => !a.resolved).map((alertItem) => {
+              const isExpanded = expandedAlertId === alertItem.id;
+              const isNotified = notifiedIds.has(alertItem.id);
+
+              return (
+                <GlassCard
+                  key={alertItem.id}
+                  className={`border transition-all ${
+                    alertItem.severity === 'critical'
+                      ? 'border-rose-500/30 bg-rose-500/5'
+                      : 'border-amber-500/30 bg-amber-500/5'
+                  }`}
+                >
+                  {/* Card header — always visible */}
+                  <div
+                    className="p-5 cursor-pointer select-none"
+                    onClick={() => setExpandedAlertId(isExpanded ? null : alertItem.id)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <span className={`grid h-8 w-8 place-items-center rounded-lg ${
+                          alertItem.severity === 'critical'
+                            ? 'bg-rose-500/15 text-rose-400'
+                            : 'bg-amber-500/15 text-amber-400'
+                        }`}>
+                          <AlertTriangle className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                            {alertItem.type}
+                          </span>
+                          <h3 className="text-sm font-bold text-ink-primary mt-0.5">{alertItem.title}</h3>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-ink-muted flex items-center gap-1 font-mono">
+                          <Clock className="h-3 w-3" />
+                          {alertItem.time}
+                        </span>
+                        {isExpanded
+                          ? <ChevronUp className="h-4 w-4 text-ink-muted" />
+                          : <ChevronDown className="h-4 w-4 text-ink-muted" />
+                        }
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-ink-secondary mt-3 leading-relaxed">
+                      {alertItem.description}
+                    </p>
+
+                    <div className="mt-3 text-xs">
+                      <span className="font-semibold text-ink-primary">{alertItem.farmerName}</span>
+                      <span className="text-ink-muted"> in {alertItem.location}</span>
                     </div>
                   </div>
-                  <span className="text-xs text-ink-muted flex items-center gap-1 font-mono">
-                    <Clock className="h-3 w-3" />
-                    {alertItem.time}
-                  </span>
-                </div>
 
-                <p className="text-xs text-ink-secondary mt-3 leading-relaxed">
-                  {alertItem.description}
-                </p>
+                  {/* Expanded detail panel */}
+                  {isExpanded && (
+                    <div className="px-5 pb-5 border-t border-glass-border/30 pt-4 space-y-4">
+                      {/* Contact & Location */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="p-3 rounded-lg border border-glass-border bg-canvas-950/30 space-y-2 text-xs">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-teal-400">Contact</div>
+                          <a
+                            href={`tel:${alertItem.phone}`}
+                            className="flex items-center gap-2 text-ink-secondary hover:text-teal-400 transition-colors"
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                            <span className="font-mono">{alertItem.phone}</span>
+                          </a>
+                          <div className="flex items-center gap-2 text-ink-secondary">
+                            <MapPin className="h-3.5 w-3.5" />
+                            <span>{alertItem.location}</span>
+                          </div>
+                        </div>
 
-                <div className="mt-4 flex flex-wrap justify-between items-center gap-3 pt-3 border-t border-glass-border/30">
-                  <div className="text-xs">
-                    <span className="font-semibold text-ink-primary">{alertItem.farmerName}</span>
-                    <span className="text-ink-muted"> in {alertItem.location}</span>
-                  </div>
+                        <div className="p-3 rounded-lg border border-glass-border bg-canvas-950/30 space-y-2 text-xs">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-teal-400">GPS Location</div>
+                          <div className="flex items-center gap-2 text-ink-secondary font-mono">
+                            <Navigation className="h-3.5 w-3.5" />
+                            <span>{alertItem.coords}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleSendSms(alertItem.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 text-xs font-semibold hover:bg-teal-500/20 transition-colors"
-                    >
-                      <Send className="h-3 w-3" />
-                      Send SMS Guidance
-                    </button>
-                    {alertItem.type === 'Disease Outbreak' && (
-                      <button
-                        onClick={() => setDispatchTarget(alertItem)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 text-xs font-semibold hover:bg-sky-500/20 transition-colors"
-                      >
-                        <UserCheck className="h-3 w-3" />
-                        Dispatch Specialist Vet
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </GlassCard>
-            ))}
+                      {/* Recommendation */}
+                      <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1.5">
+                          Recommended Corrective Action
+                        </div>
+                        <p className="text-ink-secondary leading-relaxed">{alertItem.recommendation}</p>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                          onClick={() => handleSendSms(alertItem.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 text-xs font-semibold hover:bg-teal-500/20 transition-colors"
+                        >
+                          <Send className="h-3 w-3" />
+                          Send SMS Guidance
+                        </button>
+
+                        <button
+                          onClick={() => handleAppNotification(alertItem)}
+                          disabled={isNotified}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors border ${
+                            isNotified
+                              ? 'bg-teal-500/5 text-teal-400/50 border-teal-500/10 pointer-events-none'
+                              : 'bg-purple-500/10 text-purple-300 border-purple-500/20 hover:bg-purple-500/20'
+                          }`}
+                        >
+                          <Smartphone className="h-3 w-3" />
+                          {isNotified ? 'App Notified ✓' : 'Send App Notification'}
+                        </button>
+
+                        {alertItem.type === 'Disease Outbreak' && (
+                          <button
+                            onClick={() => setDispatchTarget(alertItem)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 text-xs font-semibold hover:bg-sky-500/20 transition-colors"
+                          >
+                            <UserCheck className="h-3 w-3" />
+                            Dispatch Specialist Vet
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </GlassCard>
+              );
+            })}
 
             {alerts.filter(a => !a.resolved).length === 0 && (
               <div className="p-8 text-center border border-glass-border rounded-xl bg-canvas-900/50 text-teal-400 font-semibold flex items-center justify-center gap-2">
@@ -159,7 +298,7 @@ export default function AlertsPage() {
           </div>
         </div>
 
-        {/* Right side: resolved alerts and Dispatch modal placeholder */}
+        {/* Right side */}
         <div className="flex flex-col gap-6">
           {dispatchTarget && (
             <GlassCard className="p-5 border border-sky-500/30 bg-sky-500/5 space-y-4">

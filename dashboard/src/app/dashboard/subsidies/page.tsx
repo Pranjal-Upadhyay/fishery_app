@@ -10,6 +10,10 @@ import {
   Layers,
   Percent,
   Loader2,
+  X,
+  PieChart,
+  Users,
+  BarChart2,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { api } from '@/lib/api';
@@ -48,10 +52,188 @@ const BASE_TARGETS = [
   { label: 'ST Caste Allocation (₹5.0 Cr)', current: 3.2, target: 5.0, caste: 'ST' },
 ];
 
+// ── Static breakdown data for modals ────────────────────────────
+const SCHEME_BREAKDOWN = [
+  { scheme: 'TMVSY', district: 'Patna',      allocated: '₹8.2 Cr',  disbursed: '₹5.1 Cr' },
+  { scheme: 'TMVSY', district: 'Gaya',       allocated: '₹6.5 Cr',  disbursed: '₹4.2 Cr' },
+  { scheme: 'TMVSY', district: 'Madhubani',  allocated: '₹7.1 Cr',  disbursed: '₹4.8 Cr' },
+  { scheme: 'JKSY',  district: 'Patna',      allocated: '₹4.0 Cr',  disbursed: '₹2.9 Cr' },
+  { scheme: 'JKSY',  district: 'Muzaffarpur',allocated: '₹3.5 Cr',  disbursed: '₹2.1 Cr' },
+  { scheme: 'MPVY',  district: 'Darbhanga',  allocated: '₹5.2 Cr',  disbursed: '₹3.4 Cr' },
+  { scheme: 'MPVY',  district: 'Bhagalpur',  allocated: '₹4.1 Cr',  disbursed: '₹2.6 Cr' },
+];
+
+const CASTE_BREAKDOWN = [
+  { caste: 'General', beneficiaries: 320, disbursed: '₹9.8 Cr',  target: '₹12.0 Cr', pct: 81 },
+  { caste: 'EBC',     beneficiaries: 480, disbursed: '₹11.2 Cr', target: '₹15.0 Cr', pct: 74 },
+  { caste: 'SC',      beneficiaries: 290, disbursed: '₹8.5 Cr',  target: '₹10.5 Cr', pct: 80 },
+  { caste: 'ST',      beneficiaries: 95,  disbursed: '₹3.2 Cr',  target: '₹5.0 Cr',  pct: 64 },
+];
+
+const PENDING_DLC_LIST = [
+  { appNum: 'TMVSY/24-25/001', farmer: 'Lallan Yadav',         district: 'Madhubani', scheme: 'TMVSY', amount: '₹7.07L', waitDays: 14 },
+  { appNum: 'JKSY/24-25/008',  farmer: 'Devendra Kumar Ojha',  district: 'Gaya',      scheme: 'JKSY',  amount: '₹4.34L', waitDays: 8  },
+  { appNum: 'MPVY/24-25/012',  farmer: 'Binod Kumar Sah',      district: 'Muzaffarpur',scheme: 'MPVY', amount: '₹7.87L', waitDays: 21 },
+  { appNum: 'TMVSY/24-25/019', farmer: 'Shyam Kishore Mandal', district: 'Bhagalpur', scheme: 'TMVSY', amount: '₹7.07L', waitDays: 3  },
+];
+
+type ModalType = 'budget' | 'disbursed' | 'dlc' | 'rate' | null;
+
+// ── Breakdown Modal ──────────────────────────────────────────────
+function BreakdownModal({ type, onClose, stats, apps }: {
+  type: ModalType;
+  onClose: () => void;
+  stats: StatsData | null;
+  apps: Application[];
+}) {
+  if (!type) return null;
+
+  const titles: Record<Exclude<ModalType, null>, string> = {
+    budget:    'Total Budget Allocated — Scheme & District Breakdown',
+    disbursed: 'Total DBT Disbursed — Social Category Breakdown',
+    dlc:       'Pending DLC Approvals — Application Queue',
+    rate:      'Budget Utilization — Allocated vs. Disbursed',
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <GlassCard className="relative z-10 w-full max-w-2xl p-6 shadow-glow border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
+        {/* Header */}
+        <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Financial Detail</div>
+            <h2 className="text-lg font-bold text-ink-primary mt-1">{titles[type]}</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Budget breakdown */}
+        {type === 'budget' && (
+          <div className="space-y-3">
+            <div className="text-xs text-ink-muted">Total allocated across all schemes and districts for FY 2024-25. All values in Crore Rupees (₹ Cr).</div>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="text-ink-muted font-bold text-[10px] uppercase tracking-wider border-b border-glass-border">
+                  <th className="py-2 text-left">Scheme</th>
+                  <th className="py-2 text-left">District</th>
+                  <th className="py-2 text-right">Allocated</th>
+                  <th className="py-2 text-right">Disbursed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SCHEME_BREAKDOWN.map((row, i) => (
+                  <tr key={i} className="border-b border-glass-border/30 last:border-0 hover:bg-glass-subtle transition-colors">
+                    <td className="py-2.5"><span className="font-mono text-[10px] font-bold bg-teal-500/10 text-teal-400 px-1.5 py-0.5 rounded">{row.scheme}</span></td>
+                    <td className="py-2.5 text-ink-secondary">{row.district}</td>
+                    <td className="py-2.5 text-right font-mono font-bold text-ink-primary">{row.allocated}</td>
+                    <td className="py-2.5 text-right font-mono text-teal-400">{row.disbursed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="text-right text-xs font-bold text-ink-primary border-t border-glass-border pt-2 font-mono">
+              Grand Total Allocated: <span className="text-teal-400">{stats?.totalBudget ?? '₹38.6 Cr'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* DBT by caste */}
+        {type === 'disbursed' && (
+          <div className="space-y-4">
+            <div className="text-xs text-ink-muted">Direct Benefit Transfers categorised by social reservation group (as per Bihar State Fisheries policy).</div>
+            {CASTE_BREAKDOWN.map((row) => (
+              <div key={row.caste} className="p-4 rounded-xl border border-glass-border bg-canvas-950/40 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="text-sm font-bold text-ink-primary">{row.caste} Category</span>
+                    <div className="text-[10px] text-ink-muted mt-0.5">{row.beneficiaries} beneficiaries</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-sm font-bold text-teal-400">{row.disbursed}</div>
+                    <div className="text-[10px] text-ink-muted">of {row.target}</div>
+                  </div>
+                </div>
+                <div className="w-full bg-glass-strong h-1.5 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-teal-500 to-sky-400 rounded-full" style={{ width: `${row.pct}%` }} />
+                </div>
+                <div className="text-right text-[10px] font-mono text-teal-400 font-bold">{row.pct}% utilized</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pending DLC */}
+        {type === 'dlc' && (
+          <div className="space-y-3">
+            <div className="text-xs text-ink-muted">Applications currently awaiting District Level Committee (DLC) review and approval before subsidy disbursement.</div>
+            <div className="space-y-2.5">
+              {PENDING_DLC_LIST.map((app) => (
+                <div key={app.appNum} className="p-3 rounded-xl border border-glass-border bg-canvas-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="font-mono text-xs font-bold text-ink-primary">{app.appNum}</div>
+                    <div className="text-xs text-ink-secondary mt-0.5">{app.farmer} · {app.district}</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm font-bold text-teal-400">{app.amount}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      app.waitDays > 14 ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'
+                    }`}>
+                      {app.waitDays}d waiting
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-center text-xs font-semibold text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
+              {PENDING_DLC_LIST.length} applications pending DLC approval · Total value: ₹27.35L
+            </div>
+          </div>
+        )}
+
+        {/* Utilization rate */}
+        {type === 'rate' && (
+          <div className="space-y-4">
+            <div className="text-xs text-ink-muted">Budget utilization compares approved allocated fund targets against actual disbursements processed through the DBT system.</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl border border-glass-border bg-canvas-950/40 text-center space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Total Allocated</div>
+                <div className="text-2xl font-mono font-bold text-ink-primary">{stats?.totalBudget ?? '₹38.6 Cr'}</div>
+                <div className="text-[10px] text-ink-muted">FY 2024-25 budget</div>
+              </div>
+              <div className="p-4 rounded-xl border border-glass-border bg-canvas-950/40 text-center space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Total Disbursed</div>
+                <div className="text-2xl font-mono font-bold text-teal-400">{stats?.totalDisbursed ?? '₹27.1 Cr'}</div>
+                <div className="text-[10px] text-ink-muted">via DBT transfers</div>
+              </div>
+            </div>
+            <div className="p-4 rounded-xl border border-teal-500/20 bg-teal-500/5 space-y-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-sm font-bold text-ink-primary">Overall Utilization</span>
+                <span className="text-2xl font-mono font-bold text-teal-400">{stats?.utilizationRate ?? '70.2%'}</span>
+              </div>
+              <div className="w-full bg-glass-strong h-3 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-teal-500 to-sky-400 rounded-full transition-all"
+                  style={{ width: stats?.utilizationRate ?? '70.2%' }}
+                />
+              </div>
+              <div className="text-xs text-ink-muted">Remaining unspent budget: ₹11.5 Cr — to be disbursed against pending DLC applications and upcoming milestones.</div>
+            </div>
+          </div>
+        )}
+      </GlassCard>
+    </div>
+  );
+}
+
 export default function SubsidiesPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeModal, setActiveModal] = useState<ModalType>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -121,45 +303,61 @@ export default function SubsidiesPage() {
         </div>
       ) : (
         <>
-          {/* Financial Counters */}
+          {/* Financial Counters — clickable to open breakdown modals */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <GlassCard className="p-4 flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-teal-500/10 text-teal-400">
+            <GlassCard
+              className="p-4 flex items-center gap-3 cursor-pointer hover:border-teal-500/40 hover:bg-teal-500/5 transition-all group"
+              onClick={() => setActiveModal('budget')}
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-teal-500/10 text-teal-400 group-hover:bg-teal-500/20 transition-colors">
                 <DollarSign className="h-5 w-5" />
               </span>
               <div>
                 <div className="text-2xl font-mono font-bold text-ink-primary">{stats.totalBudget}</div>
                 <div className="text-xs text-ink-muted">Total Budget Allocated</div>
+                <div className="text-[10px] text-teal-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click to see breakdown ↗</div>
               </div>
             </GlassCard>
 
-            <GlassCard className="p-4 flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500/10 text-sky-400">
+            <GlassCard
+              className="p-4 flex items-center gap-3 cursor-pointer hover:border-sky-500/40 hover:bg-sky-500/5 transition-all group"
+              onClick={() => setActiveModal('disbursed')}
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500/10 text-sky-400 group-hover:bg-sky-500/20 transition-colors">
                 <CreditCard className="h-5 w-5" />
               </span>
               <div>
                 <div className="text-2xl font-mono font-bold text-ink-primary">{stats.totalDisbursed}</div>
                 <div className="text-xs text-ink-muted">Total DBT Disbursed</div>
+                <div className="text-[10px] text-sky-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click to see breakdown ↗</div>
               </div>
             </GlassCard>
 
-            <GlassCard className="p-4 flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-400">
+            <GlassCard
+              className="p-4 flex items-center gap-3 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all group"
+              onClick={() => setActiveModal('dlc')}
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20 transition-colors">
                 <Layers className="h-5 w-5" />
               </span>
               <div>
                 <div className="text-2xl font-mono font-bold text-ink-primary">{stats.pendingDlc}</div>
                 <div className="text-xs text-ink-muted">Pending DLC Approvals</div>
+                <div className="text-[10px] text-indigo-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click to view queue ↗</div>
               </div>
             </GlassCard>
 
-            <GlassCard className="p-4 flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-purple-500/10 text-purple-400">
+            <GlassCard
+              className="p-4 flex items-center gap-3 cursor-pointer hover:border-purple-500/40 hover:bg-purple-500/5 transition-all group"
+              onClick={() => setActiveModal('rate')}
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-purple-500/10 text-purple-400 group-hover:bg-purple-500/20 transition-colors">
                 <Percent className="h-5 w-5" />
               </span>
               <div>
                 <div className="text-2xl font-mono font-bold text-ink-primary">{stats.utilizationRate}</div>
                 <div className="text-xs text-ink-muted">Budget Utilization Rate</div>
+                <div className="text-[10px] text-purple-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click to see analysis ↗</div>
               </div>
             </GlassCard>
           </div>
@@ -312,6 +510,16 @@ export default function SubsidiesPage() {
             </GlassCard>
           </div>
         </>
+      )}
+
+      {/* Breakdown Modal */}
+      {activeModal && (
+        <BreakdownModal
+          type={activeModal}
+          onClose={() => setActiveModal(null)}
+          stats={stats}
+          apps={apps}
+        />
       )}
     </div>
   );

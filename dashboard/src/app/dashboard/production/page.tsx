@@ -265,10 +265,13 @@ const MOCK_SPOTLIGHTS: FarmerSpotlight[] = [
 ];
 
 
+type ProductionModalType = 'yield' | 'fcr' | 'survival' | 'jayanti' | null;
+
 export default function ProductionPage() {
   const [selectedFarmer, setSelectedFarmer] = useState<FarmerSpotlight | null>(null);
   const [hoveredMonthIndex, setHoveredMonthIndex] = useState<number | null>(null);
   const [modalTab, setModalTab] = useState<'overview' | 'feed' | 'energy'>('overview');
+  const [activeProductionModal, setActiveProductionModal] = useState<ProductionModalType>(null);
 
   const handleOpenSpotlightByDistrict = (district: string) => {
     const spotlight = MOCK_SPOTLIGHTS.find((s) => s.district.toLowerCase() === district.toLowerCase());
@@ -296,45 +299,61 @@ export default function ProductionPage() {
         <h1 className="text-2xl font-bold text-ink-primary">Aquaculture Production & Harvests</h1>
       </div>
 
-      {/* Yield Statistics Bento Grid */}
+      {/* Yield Statistics Bento Grid — all cards are clickable */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-teal-500/10 text-teal-400">
+        <GlassCard
+          className="p-4 flex items-center gap-3 cursor-pointer hover:border-teal-500/40 hover:bg-teal-500/5 transition-all group"
+          onClick={() => setActiveProductionModal('yield')}
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-teal-500/10 text-teal-400 group-hover:bg-teal-500/20 transition-colors">
             <Sprout className="h-5 w-5" />
           </span>
           <div>
             <div className="text-2xl font-mono font-bold text-ink-primary">14.1k T</div>
             <div className="text-xs text-ink-muted">Total Yield Harvested</div>
+            <div className="text-[10px] text-teal-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click for species breakdown ↗</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500/10 text-sky-400">
+        <GlassCard
+          className="p-4 flex items-center gap-3 cursor-pointer hover:border-sky-500/40 hover:bg-sky-500/5 transition-all group"
+          onClick={() => setActiveProductionModal('fcr')}
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500/10 text-sky-400 group-hover:bg-sky-500/20 transition-colors">
             <TrendingUp className="h-5 w-5" />
           </span>
           <div>
             <div className="text-2xl font-mono font-bold text-ink-primary">1.49</div>
             <div className="text-xs text-ink-muted">Avg Feed Conversion (FCR)</div>
+            <div className="text-[10px] text-sky-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click to understand FCR ↗</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-400">
+        <GlassCard
+          className="p-4 flex items-center gap-3 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all group"
+          onClick={() => setActiveProductionModal('survival')}
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20 transition-colors">
             <Percent className="h-5 w-5" />
           </span>
           <div>
             <div className="text-2xl font-mono font-bold text-ink-primary">77.8%</div>
             <div className="text-xs text-ink-muted">Average Survival Rate</div>
+            <div className="text-[10px] text-indigo-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click for pond breakdown ↗</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-purple-500/10 text-purple-400">
+        <GlassCard
+          className="p-4 flex items-center gap-3 cursor-pointer hover:border-purple-500/40 hover:bg-purple-500/5 transition-all group"
+          onClick={() => setActiveProductionModal('jayanti')}
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-purple-500/10 text-purple-400 group-hover:bg-purple-500/20 transition-colors">
             <Activity className="h-5 w-5" />
           </span>
           <div>
-            <div className="text-2xl font-mono font-bold text-ink-primary">18%</div>
+            <div className="text-2xl font-mono font-bold text-ink-primary">+18%</div>
             <div className="text-xs text-ink-muted">Jayanti Rohu Yield Increase</div>
+            <div className="text-[10px] text-purple-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Click to see analysis ↗</div>
           </div>
         </GlassCard>
       </div>
@@ -917,6 +936,177 @@ export default function ProductionPage() {
                       </span>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── Production KPI Detail Modals ─────────────────────── */}
+      {activeProductionModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setActiveProductionModal(null); }}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveProductionModal(null)} />
+          <GlassCard className="relative z-10 w-full max-w-xl p-6 shadow-glow border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
+            {/* Header */}
+            <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Production Analytics</div>
+                <h2 className="text-lg font-bold text-ink-primary mt-1">
+                  {activeProductionModal === 'yield' && 'Total Yield — Species Breakdown'}
+                  {activeProductionModal === 'fcr' && 'Feed Conversion Ratio (FCR) Explained'}
+                  {activeProductionModal === 'survival' && 'Survival Rate — Pond-Level Breakdown'}
+                  {activeProductionModal === 'jayanti' && 'Jayanti Rohu +18% Advantage Analysis'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setActiveProductionModal(null)}
+                className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Yield breakdown */}
+            {activeProductionModal === 'yield' && (
+              <div className="space-y-4">
+                <div className="text-xs text-ink-muted">Total harvested yield across all farmer-cycles for FY 2024-25, broken down by species cultivated.</div>
+                {[
+                  { species: 'Jayanti Rohu (Improved)', yield: '6,200 T', pct: 44, color: 'from-teal-500 to-sky-400', badge: 'bg-teal-500/10 text-teal-400' },
+                  { species: 'Standard Rohu', yield: '3,800 T', pct: 27, color: 'from-sky-500 to-indigo-400', badge: 'bg-sky-500/10 text-sky-400' },
+                  { species: 'Amrita Katla', yield: '2,400 T', pct: 17, color: 'from-indigo-500 to-purple-400', badge: 'bg-indigo-500/10 text-indigo-400' },
+                  { species: 'Standard Katla', yield: '1,100 T', pct: 8, color: 'from-purple-500 to-fuchsia-400', badge: 'bg-purple-500/10 text-purple-400' },
+                  { species: 'Other (Silver Carp, etc.)', yield: '600 T', pct: 4, color: 'from-slate-500 to-slate-400', badge: 'bg-slate-500/10 text-slate-400' },
+                ].map((row) => (
+                  <div key={row.species} className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${row.badge}`}>{row.pct}%</span>
+                        <span className="text-ink-primary font-semibold">{row.species}</span>
+                      </div>
+                      <span className="font-mono font-bold text-teal-400">{row.yield}</span>
+                    </div>
+                    <div className="w-full bg-glass-strong h-2 rounded-full overflow-hidden">
+                      <div className={`h-full bg-gradient-to-r ${row.color} rounded-full`} style={{ width: `${row.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+                <div className="text-right text-xs font-bold text-ink-primary border-t border-glass-border pt-3 font-mono">
+                  Grand Total: <span className="text-teal-400">14,100 T (FY 2024-25)</span>
+                </div>
+              </div>
+            )}
+
+            {/* FCR explanation */}
+            {activeProductionModal === 'fcr' && (
+              <div className="space-y-4">
+                <div className="text-xs text-ink-muted">Feed Conversion Ratio (FCR) = Total Feed Given (kg) ÷ Total Fish Weight Gained (kg). Lower FCR = better feed efficiency = lower production cost.</div>
+                <div className="p-4 rounded-xl border border-sky-500/20 bg-sky-500/5 space-y-2">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-bold text-ink-primary">Fleet Average FCR</span>
+                    <span className="text-3xl font-mono font-bold text-sky-400">1.49</span>
+                  </div>
+                  <div className="text-xs text-ink-muted">Meaning: 1.49 kg of feed is used to produce 1 kg of fish. Industry target is 1.4–1.6 for IMC species.</div>
+                </div>
+                {[
+                  { pond: 'Pond B - Growout (Jayanti Rohu)', farmer: 'Sanjay Kumar Yadav', fcr: 1.42, rating: '⭐ Excellent', color: 'text-teal-400' },
+                  { pond: 'Main Growout (Amrita Katla)', farmer: 'Vikram Sen Verma', fcr: 1.58, rating: 'Good', color: 'text-sky-400' },
+                  { pond: 'Chaur Plot 4 (Jayanti Rohu)', farmer: 'Rajendra Kumar Mahto', fcr: 1.45, rating: '⭐ Excellent', color: 'text-teal-400' },
+                  { pond: 'Nursery Pond 2 (Std Katla)', farmer: 'Amit Kumar Chaudhary', fcr: 1.62, rating: 'Acceptable', color: 'text-amber-400' },
+                ].map((row, i) => (
+                  <div key={i} className="p-3 rounded-lg border border-glass-border bg-canvas-950/40 flex justify-between items-center text-xs">
+                    <div>
+                      <div className="font-semibold text-ink-primary">{row.pond}</div>
+                      <div className="text-ink-muted">{row.farmer}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-lg font-mono font-bold ${row.color}`}>{row.fcr}</div>
+                      <div className={`text-[10px] ${row.color}`}>{row.rating}</div>
+                    </div>
+                  </div>
+                ))}
+                <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-ink-secondary">
+                  💡 <strong className="text-amber-400">Improving FCR:</strong> Use high-quality floating pellet feed (2.5–3mm), feed 2–3 times daily in small portions, and maintain DO above 5 mg/L for better feed assimilation.
+                </div>
+              </div>
+            )}
+
+            {/* Survival rate breakdown */}
+            {activeProductionModal === 'survival' && (
+              <div className="space-y-4">
+                <div className="text-xs text-ink-muted">Survival Rate = (Fish Count at Harvest ÷ Fish Count at Stocking) × 100. Higher survival rates reduce cost-per-kg significantly.</div>
+                {HARVEST_LOGS.map((log) => {
+                  const ratingColor = log.survivalPct >= 82 ? 'text-teal-400' : log.survivalPct >= 75 ? 'text-sky-400' : 'text-amber-400';
+                  const barColor = log.survivalPct >= 82 ? 'from-teal-500 to-sky-400' : log.survivalPct >= 75 ? 'from-sky-500 to-indigo-400' : 'from-amber-500 to-orange-400';
+                  return (
+                    <div key={log.id} className="p-3 rounded-xl border border-glass-border bg-canvas-950/40 space-y-2">
+                      <div className="flex justify-between items-start text-xs">
+                        <div>
+                          <div className="font-semibold text-ink-primary">{log.pondName}</div>
+                          <div className="text-ink-muted">{log.farmerName} · {log.species}</div>
+                        </div>
+                        <span className={`text-xl font-mono font-bold ${ratingColor}`}>{log.survivalPct}%</span>
+                      </div>
+                      <div className="w-full bg-glass-strong h-1.5 rounded-full overflow-hidden">
+                        <div className={`h-full bg-gradient-to-r ${barColor} rounded-full`} style={{ width: `${log.survivalPct}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-ink-muted font-mono">
+                        <span>Duration: {log.durationMonths} months</span>
+                        <span>Yield: {log.totalYieldKg.toLocaleString()} kg</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 text-xs text-ink-secondary">
+                  💡 <strong className="text-teal-400">Improving Survival:</strong> Procure certified seed from registered hatcheries. Maintain DO above 4 mg/L. Use prophylactic lime treatment. Monitor for EUS/fungal disease signs weekly.
+                </div>
+              </div>
+            )}
+
+            {/* Jayanti Rohu advantage */}
+            {activeProductionModal === 'jayanti' && (
+              <div className="space-y-4">
+                <div className="text-xs text-ink-muted">
+                  Jayanti Rohu is a selectively bred strain of <em>Labeo rohita</em> developed by CIFA (Central Institute of Freshwater Aquaculture), Bhubaneswar, through 6 generations of genetic selection.
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center text-xs">
+                  <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5">
+                    <div className="text-[10px] text-ink-muted uppercase">Yield Advantage</div>
+                    <div className="text-2xl font-mono font-bold text-teal-400 mt-1">+18%</div>
+                    <div className="text-[10px] text-ink-muted">vs Standard Rohu</div>
+                  </div>
+                  <div className="p-3 rounded-lg border border-sky-500/20 bg-sky-500/5">
+                    <div className="text-[10px] text-ink-muted uppercase">FCR Improvement</div>
+                    <div className="text-2xl font-mono font-bold text-sky-400 mt-1">−0.08</div>
+                    <div className="text-[10px] text-ink-muted">Lower = better</div>
+                  </div>
+                  <div className="p-3 rounded-lg border border-purple-500/20 bg-purple-500/5">
+                    <div className="text-[10px] text-ink-muted uppercase">Growth Speed</div>
+                    <div className="text-2xl font-mono font-bold text-purple-400 mt-1">+46%</div>
+                    <div className="text-[10px] text-ink-muted">faster at Month 3</div>
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  {[
+                    { trait: 'Growth Rate', jayanti: '950 g in 6 months', standard: '650 g in 6 months', winner: true },
+                    { trait: 'Feed Efficiency (FCR)', jayanti: '1.40–1.45', standard: '1.48–1.55', winner: true },
+                    { trait: 'Disease Tolerance', jayanti: 'Higher (selective breeding)', standard: 'Standard', winner: true },
+                    { trait: 'Survival Rate', jayanti: '82–86%', standard: '72–78%', winner: true },
+                    { trait: 'Seed Availability', jayanti: 'From registered CIFA hatcheries', standard: 'Widely available', winner: false },
+                    { trait: 'Seed Cost', jayanti: '₹2.50–3.00 per fry', standard: '₹1.00–1.50 per fry', winner: false },
+                  ].map((row, i) => (
+                    <div key={i} className="flex items-center gap-3 text-xs p-2.5 rounded-lg border border-glass-border bg-canvas-950/30">
+                      <div className="w-32 text-ink-muted shrink-0">{row.trait}</div>
+                      <div className={`flex-1 font-semibold ${row.winner ? 'text-teal-400' : 'text-amber-400'}`}>{row.jayanti}</div>
+                      <div className="flex-1 text-ink-secondary">{row.standard}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 text-xs text-ink-secondary">
+                  💡 <strong className="text-teal-400">Recommendation:</strong> Encourage all IMC grow-out farmers to switch to Jayanti Rohu from CIFA-certified hatcheries under the MPVY scheme (60% subsidy on seed cost).
                 </div>
               </div>
             )}
