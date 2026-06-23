@@ -23,6 +23,7 @@ import {
     ScrollView,
     Linking,
     Modal,
+    TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -84,6 +85,7 @@ export default function IncomingOrdersScreen() {
     // Dispute modal state
     const [disputeOrder, setDisputeOrder] = useState<MarketplaceOrder | null>(null);
     const [disputeReason, setDisputeReason] = useState<DisputeReason>('PAYMENT_NOT_RECEIVED');
+    const [disputeDescription, setDisputeDescription] = useState('');
 
     const load = useCallback(async () => {
         try {
@@ -163,12 +165,13 @@ export default function IncomingOrdersScreen() {
     const openDispute = (o: MarketplaceOrder) => {
         setDisputeOrder(o);
         setDisputeReason('PAYMENT_NOT_RECEIVED');
+        setDisputeDescription('');
     };
 
     const submitDispute = async () => {
         if (!disputeOrder) return;
         try {
-            await marketplaceService.raiseDispute(disputeOrder.id, disputeReason);
+            await marketplaceService.raiseDispute(disputeOrder.id, disputeReason, disputeDescription.trim() || undefined);
             setDisputeOrder(null);
             await load();
             Alert.alert('Dispute Raised', 'The platform operator will resolve this.');
@@ -378,6 +381,32 @@ export default function IncomingOrdersScreen() {
                                 )}
                             </TouchableOpacity>
                         ))}
+
+                        <Text style={[styles.modalSub, { marginTop: 12, textAlign: 'left', alignSelf: 'stretch', marginBottom: 4, fontWeight: '700' }]}>
+                            Details about the dispute:
+                        </Text>
+                        <TextInput
+                            placeholder="Describe the issue (e.g. quantity discrepancy, fish mortality)..."
+                            placeholderTextColor={theme.colors.textMuted}
+                            value={disputeDescription}
+                            onChangeText={setDisputeDescription}
+                            multiline
+                            numberOfLines={3}
+                            style={{
+                                height: 80,
+                                borderColor: theme.colors.border,
+                                borderWidth: 1,
+                                borderRadius: 12,
+                                backgroundColor: theme.colors.surface,
+                                padding: 12,
+                                fontSize: 13,
+                                color: theme.colors.textPrimary,
+                                textAlignVertical: 'top',
+                                marginBottom: 10,
+                                alignSelf: 'stretch',
+                            }}
+                        />
+
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={[styles.modalBtn, styles.modalBtnSecondary]} onPress={() => setDisputeOrder(null)}>
                                 <Text style={styles.modalBtnTextSecondary}>Cancel</Text>

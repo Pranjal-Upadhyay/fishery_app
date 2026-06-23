@@ -327,6 +327,7 @@ export default function MarketplacePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedDispute, setSelectedDispute] = useState<Order | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Fetch from backend, with graceful fallback to mock data
   useEffect(() => {
@@ -773,10 +774,24 @@ export default function MarketplacePage() {
                       filteredOrders.map(o => (
                         <tr key={o.id} className="hover:bg-glass-subtle transition-colors group">
                           <td className="py-3 pl-2">
-                            <span className="font-mono text-teal-400 font-semibold uppercase hover:underline cursor-pointer">
+                            <span 
+                              title="Click to copy full Transaction Reference"
+                              onClick={() => {
+                                navigator.clipboard.writeText(o.id);
+                                setCopiedId(o.id);
+                                setTimeout(() => setCopiedId(null), 2000);
+                              }}
+                              className="font-mono text-teal-400 font-semibold uppercase hover:underline cursor-pointer select-all"
+                            >
                               {o.id.length > 15 ? o.id.substring(0, 15) + '...' : o.id}
                             </span>
-                            <div className="text-[9px] text-ink-muted">System Generated</div>
+                            <div className="text-[9px] text-ink-muted transition-colors">
+                              {copiedId === o.id ? (
+                                <span className="text-teal-400 font-semibold">✓ Copied!</span>
+                              ) : (
+                                'System Generated'
+                              )}
+                            </div>
                           </td>
                           <td className="py-3">
                             <div className="font-bold text-ink-primary">{o.farmer_name}</div>
