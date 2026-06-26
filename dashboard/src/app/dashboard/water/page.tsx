@@ -15,8 +15,51 @@ import {
   MapPin,
   Send,
   FlaskConical,
+  Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+
+// CSV Export helper
+function exportWaterQualityToCSV(logs: WaterLog[]) {
+  const headers = [
+    'Pond Name',
+    'Farmer Name',
+    'District',
+    'Phone',
+    'Species',
+    'pH',
+    'Dissolved Oxygen (mg/L)',
+    'Ammonia (ppm)',
+    'Temperature (°C)',
+    'Logged At',
+    'Status',
+  ];
+
+  const rows = logs.map((l) => [
+    `"${l.pondName}"`,
+    l.farmerName,
+    l.district,
+    l.phone,
+    l.species,
+    l.ph,
+    l.doLevel,
+    l.ammonia,
+    l.temp,
+    l.loggedAt,
+    l.status.charAt(0).toUpperCase() + l.status.slice(1),
+  ]);
+
+  const csvContent = [headers, ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `water_quality_export_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 // Types
 interface WaterLog {
@@ -154,11 +197,20 @@ export default function WaterQualityPage() {
   return (
     <div className="flex flex-col gap-6 p-6 h-full overflow-y-auto">
       {/* Header */}
-      <div>
-        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-400">
-          Biological Safety
+      <div className="flex justify-between items-start">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-400">
+            Biological Safety
+          </div>
+          <h1 className="text-2xl font-bold text-ink-primary">Water Quality Analytics</h1>
         </div>
-        <h1 className="text-2xl font-bold text-ink-primary">Water Quality Analytics</h1>
+        <button
+          onClick={() => exportWaterQualityToCSV(MOCK_LOGS)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/20 text-xs font-semibold hover:bg-teal-500/20 transition-colors mt-1"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export to CSV
+        </button>
       </div>
 
       {/* Parameter Summary Bento Grid — clickable */}

@@ -17,8 +17,26 @@ import {
   ExternalLink,
   Zap,
   Package,
+  Download,
+  BarChart2,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+
+// CSV Export helpers
+function exportLeaderboardToCSV(leaderboard: typeof LEADERBOARD) {
+  const headers = ['Rank', 'District', 'Total Yield (Tons)', 'Avg FCR', 'Compliance (%)'];
+  const rows = leaderboard.map((l) => [l.rank, l.district, l.yieldTons, l.avgFcr, l.compliancePct]);
+  const csvContent = [headers, ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `district_yield_leaderboard_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 // Types
 interface HarvestLog {
@@ -265,7 +283,7 @@ const MOCK_SPOTLIGHTS: FarmerSpotlight[] = [
 ];
 
 
-type ProductionModalType = 'yield' | 'fcr' | 'survival' | 'jayanti' | null;
+type ProductionModalType = 'yield' | 'yieldDetail' | 'fcr' | 'survival' | 'jayanti' | null;
 
 export default function ProductionPage() {
   const [selectedFarmer, setSelectedFarmer] = useState<FarmerSpotlight | null>(null);
@@ -303,7 +321,7 @@ export default function ProductionPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <GlassCard
           className="p-4 flex items-center gap-3 cursor-pointer hover:border-teal-500/40 hover:bg-teal-500/5 transition-all group"
-          onClick={() => setActiveProductionModal('yield')}
+          onClick={() => setActiveProductionModal('yieldDetail')}
         >
           <span className="grid h-10 w-10 place-items-center rounded-lg bg-teal-500/10 text-teal-400 group-hover:bg-teal-500/20 transition-colors">
             <Sprout className="h-5 w-5" />
@@ -548,14 +566,24 @@ export default function ProductionPage() {
 
         {/* Center: District Yield Leaderboard */}
         <GlassCard className="p-5 xl:col-span-1 flex flex-col gap-4">
-          <div>
-            <h3 className="text-sm font-bold text-ink-primary flex items-center gap-2">
-              <Award className="h-4 w-4 text-teal-400" />
-              District Yield Leaderboard
-            </h3>
-            <span className="text-[10px] text-ink-muted mt-1 block">
-              Click on a district to inspect the top-performing farmer spotlight.
-            </span>
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-sm font-bold text-ink-primary flex items-center gap-2">
+                <Award className="h-4 w-4 text-teal-400" />
+                District Yield Leaderboard
+              </h3>
+              <span className="text-[10px] text-ink-muted mt-1 block">
+                Click on a district to inspect the top-performing farmer spotlight.
+              </span>
+            </div>
+            <button
+              onClick={() => exportLeaderboardToCSV(LEADERBOARD)}
+              title="Export to CSV"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 text-[10px] font-semibold hover:bg-teal-500/20 transition-colors shrink-0"
+            >
+              <Download className="h-3 w-3" />
+              CSV
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-3.5">
@@ -957,6 +985,7 @@ export default function ProductionPage() {
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Production Analytics</div>
                 <h2 className="text-lg font-bold text-ink-primary mt-1">
                   {activeProductionModal === 'yield' && 'Total Yield — Species Breakdown'}
+                  {activeProductionModal === 'yieldDetail' && 'Total Yield Harvested — Detailed Breakdown'}
                   {activeProductionModal === 'fcr' && 'Feed Conversion Ratio (FCR) Explained'}
                   {activeProductionModal === 'survival' && 'Survival Rate — Pond-Level Breakdown'}
                   {activeProductionModal === 'jayanti' && 'Jayanti Rohu +18% Advantage Analysis'}
@@ -970,7 +999,96 @@ export default function ProductionPage() {
               </button>
             </div>
 
-            {/* Yield breakdown */}
+            {/* Yield detail breakdown */}
+            {activeProductionModal === 'yieldDetail' && (
+              <div className="space-y-5">
+                <div className="text-xs text-ink-muted">Total harvested yield across all registered farmer-cycles for FY 2024-25. Broken down by species, district, and compared to the previous year.</div>
+
+                {/* KPI strip */}
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  {[
+                    { label: 'Total Yield', value: '14,100 T', color: 'text-teal-400', sub: 'FY 2024-25' },
+                    { label: 'YoY Growth', value: '+12.4%', color: 'text-sky-400', sub: 'vs FY 2023-24' },
+                    { label: 'Active Cycles', value: '420', color: 'text-indigo-400', sub: 'farmers enrolled' },
+                  ].map((kpi) => (
+                    <div key={kpi.label} className="p-3 rounded-xl border border-glass-border bg-canvas-950/40">
+                      <div className="text-[10px] text-ink-muted uppercase tracking-wider">{kpi.label}</div>
+                      <div className={`text-xl font-mono font-bold mt-1 ${kpi.color}`}>{kpi.value}</div>
+                      <div className="text-[9px] text-ink-muted mt-0.5">{kpi.sub}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Species breakdown bars */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-teal-400">Species Contribution</h4>
+                  {[
+                    { species: 'Jayanti Rohu (Improved)', yield: 6200, pct: 44, color: 'from-teal-500 to-sky-400', badge: 'bg-teal-500/10 text-teal-400' },
+                    { species: 'Standard Rohu', yield: 3800, pct: 27, color: 'from-sky-500 to-indigo-400', badge: 'bg-sky-500/10 text-sky-400' },
+                    { species: 'Amrita Katla', yield: 2400, pct: 17, color: 'from-indigo-500 to-purple-400', badge: 'bg-indigo-500/10 text-indigo-400' },
+                    { species: 'Standard Katla', yield: 1100, pct: 8, color: 'from-purple-500 to-fuchsia-400', badge: 'bg-purple-500/10 text-purple-400' },
+                    { species: 'Other (Silver Carp, etc.)', yield: 600, pct: 4, color: 'from-slate-500 to-slate-400', badge: 'bg-slate-500/10 text-slate-400' },
+                  ].map((row) => (
+                    <div key={row.species} className="space-y-1">
+                      <div className="flex justify-between items-center text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${row.badge}`}>{row.pct}%</span>
+                          <span className="text-ink-primary font-semibold">{row.species}</span>
+                        </div>
+                        <span className="font-mono font-bold text-teal-400">{row.yield.toLocaleString()} T</span>
+                      </div>
+                      <div className="w-full bg-glass-strong h-2 rounded-full overflow-hidden">
+                        <div className={`h-full bg-gradient-to-r ${row.color} rounded-full transition-all`} style={{ width: `${row.pct}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* District-wise breakdown table */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-teal-400 flex items-center gap-1.5">
+                    <BarChart2 className="h-3 w-3" />
+                    District-wise Yield vs Previous Year
+                  </h4>
+                  <div className="rounded-xl border border-glass-border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-[10px] uppercase tracking-wider text-ink-muted border-b border-glass-border bg-canvas-950/60">
+                          <th className="text-left p-3 font-bold">District</th>
+                          <th className="text-right p-3 font-bold">FY 24-25</th>
+                          <th className="text-right p-3 font-bold">FY 23-24</th>
+                          <th className="text-right p-3 font-bold">Change</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { district: 'Madhubani', fy25: 4250, fy24: 3740, change: +13.6 },
+                          { district: 'Patna', fy25: 3890, fy24: 3520, change: +10.5 },
+                          { district: 'Darbhanga', fy25: 3120, fy24: 2800, change: +11.4 },
+                          { district: 'Gaya', fy25: 2840, fy24: 2640, change: +7.6 },
+                          { district: 'Muzaffarpur', fy25: 0, fy24: 0, change: 0, note: 'New enrollment FY25' },
+                        ].map((row, i) => (
+                          <tr key={i} className="border-b border-glass-border/30 last:border-0 hover:bg-glass/30 transition-colors">
+                            <td className="p-3 font-semibold text-ink-primary">{row.district}</td>
+                            <td className="p-3 text-right font-mono font-bold text-teal-400">{row.fy25 > 0 ? `${row.fy25.toLocaleString()} T` : row.note ?? '—'}</td>
+                            <td className="p-3 text-right font-mono text-ink-secondary">{row.fy24 > 0 ? `${row.fy24.toLocaleString()} T` : '—'}</td>
+                            <td className={`p-3 text-right font-mono font-bold ${row.change > 0 ? 'text-teal-400' : row.change < 0 ? 'text-rose-400' : 'text-ink-muted'}`}>
+                              {row.change !== 0 ? `${row.change > 0 ? '+' : ''}${row.change}%` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="text-right text-xs font-bold text-ink-primary border-t border-glass-border pt-3 font-mono">
+                  Grand Total: <span className="text-teal-400">14,100 T (FY 2024-25)</span>
+                </div>
+              </div>
+            )}
+
+            {/* Legacy species breakdown (accessible via stat cards) */}
             {activeProductionModal === 'yield' && (
               <div className="space-y-4">
                 <div className="text-xs text-ink-muted">Total harvested yield across all farmer-cycles for FY 2024-25, broken down by species cultivated.</div>

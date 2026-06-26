@@ -176,14 +176,30 @@ function BiharBorders() {
 
     const loadBorders = async () => {
       try {
-        if (!stateGeoJsonCache) {
-          const res = await fetch('/data/bihar_state.geojson');
-          stateGeoJsonCache = await res.json();
-        }
+        const fetchState = async () => {
+          if (!stateGeoJsonCache) {
+            const res = await fetch('/data/bihar_state.geojson');
+            stateGeoJsonCache = await res.json();
+          }
+          return stateGeoJsonCache;
+        };
+
+        const fetchDistricts = async () => {
+          if (!districtsGeoJsonCache) {
+            const res = await fetch('/data/bihar_districts.geojson');
+            districtsGeoJsonCache = await res.json();
+          }
+          return districtsGeoJsonCache;
+        };
+
+        const [stateData, districtsData] = await Promise.all([
+          fetchState(),
+          fetchDistricts(),
+        ]);
 
         if (!active) return;
 
-        const stateFeatures = map.data.addGeoJson(stateGeoJsonCache);
+        const stateFeatures = map.data.addGeoJson(stateData);
         stateFeatures.forEach((feature) => {
           addedFeatures.push(feature);
           map.data.overrideStyle(feature, {
@@ -196,14 +212,7 @@ function BiharBorders() {
           });
         });
 
-        if (!districtsGeoJsonCache) {
-          const res = await fetch('/data/bihar_districts.geojson');
-          districtsGeoJsonCache = await res.json();
-        }
-
-        if (!active) return;
-
-        const districtFeatures = map.data.addGeoJson(districtsGeoJsonCache);
+        const districtFeatures = map.data.addGeoJson(districtsData);
         districtFeatures.forEach((feature) => {
           addedFeatures.push(feature);
           map.data.overrideStyle(feature, {

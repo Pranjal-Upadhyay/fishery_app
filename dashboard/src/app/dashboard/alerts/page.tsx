@@ -15,8 +15,53 @@ import {
   MapPin,
   Smartphone,
   Navigation,
+  Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+
+// CSV Export helper
+function exportAlertsToCSV(alerts: AlertItem[]) {
+  const headers = [
+    'Alert ID',
+    'Alert Type',
+    'Severity',
+    'Title',
+    'Farmer Name',
+    'Phone',
+    'Location',
+    'GPS Coordinates',
+    'Date & Time',
+    'Status',
+    'Description',
+    'Recommendation',
+  ];
+
+  const rows = alerts.map((a) => [
+    a.id,
+    a.type,
+    a.severity === 'critical' ? 'Critical' : 'Warning',
+    a.title,
+    a.farmerName,
+    a.phone,
+    a.location,
+    a.coords,
+    a.time,
+    a.resolved ? 'Resolved' : 'Active',
+    `"${a.description.replace(/"/g, '""')}"`,
+    `"${a.recommendation.replace(/"/g, '""')}"`,
+  ]);
+
+  const csvContent = [headers, ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `alerts_export_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 // Types
 interface AlertItem {
@@ -141,11 +186,20 @@ export default function AlertsPage() {
   return (
     <div className="flex flex-col gap-6 p-6 h-full overflow-y-auto">
       {/* Header */}
-      <div>
-        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-400">
-          Emergency Desk
+      <div className="flex justify-between items-start">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-400">
+            Emergency Desk
+          </div>
+          <h1 className="text-2xl font-bold text-ink-primary">Outbreaks & Alerts Management</h1>
         </div>
-        <h1 className="text-2xl font-bold text-ink-primary">Outbreaks & Alerts Management</h1>
+        <button
+          onClick={() => exportAlertsToCSV(alerts)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/20 text-xs font-semibold hover:bg-teal-500/20 transition-colors mt-1"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export CSV
+        </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
