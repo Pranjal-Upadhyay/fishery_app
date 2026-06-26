@@ -255,6 +255,211 @@ function FarmerProfileDrawer({ farmer, onClose }: { farmer: Farmer; onClose: () 
   );
 }
 
+interface FunnelStageDetailModalProps {
+  stage: string;
+  onClose: () => void;
+  onFarmerClick: (farmer: Farmer) => void;
+}
+
+function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDetailModalProps) {
+  const farmersList = MOCK_FARMERS.filter((f) => f.stage === stage);
+  const stuckCount = farmersList.filter((f) => f.daysStuck > 30).length;
+
+  const stageDescriptions: Record<string, string> = {
+    'Registered': 'These farmers have signed up on the app using their mobile number. Profile details like Aadhaar, bank details, and experience are pending.',
+    'Profile Complete': 'These farmers have completed their profiles (personal info, experience details). They are ready to add ponds.',
+    'First Pond Added': 'These farmers have registered at least one pond in the app, mapping its area, type, and system.',
+    'Active Cycle': 'These farmers have initialized a stocking cycle for their ponds, tracking input and harvest metrics.',
+    'Water Logging': 'These farmers actively log water parameters (pH, DO, temperature, ammonia) at least once weekly.',
+  };
+
+  const stageKpis: Record<string, { label: string; value: string; color: string }[]> = {
+    'Registered': [
+      { label: 'Total Registered', value: '1,240', color: 'text-teal-400' },
+      { label: 'Conversion Rate', value: '100%', color: 'text-sky-400' },
+      { label: 'Stuck >30 Days', value: `${stuckCount} farmers`, color: 'text-rose-400' },
+    ],
+    'Profile Complete': [
+      { label: 'Profiles Completed', value: '980', color: 'text-sky-400' },
+      { label: 'Funnel Progress', value: '79%', color: 'text-indigo-400' },
+      { label: 'Avg Experience', value: '5.8 Years', color: 'text-teal-400' },
+    ],
+    'First Pond Added': [
+      { label: 'Ponds Registered', value: '640', color: 'text-indigo-400' },
+      { label: 'Funnel Progress', value: '51%', color: 'text-teal-400' },
+      { label: 'Avg Pond Area', value: '1.24 Ha', color: 'text-sky-400' },
+    ],
+    'Active Cycle': [
+      { label: 'Active Cycles', value: '420', color: 'text-purple-400' },
+      { label: 'Funnel Progress', value: '33%', color: 'text-sky-400' },
+      { label: 'Avg Stock Density', value: '15,000/ha', color: 'text-teal-400' },
+    ],
+    'Water Logging': [
+      { label: 'Active Logging', value: '180', color: 'text-fuchsia-400' },
+      { label: 'Funnel Progress', value: '14%', color: 'text-teal-400' },
+      { label: 'Alert Trigger Rate', value: '4.8%', color: 'text-rose-400' },
+    ],
+  };
+
+  const exportStageCSV = () => {
+    const escapeCSV = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    let headers: string[] = [];
+    let rows: string[][] = [];
+
+    if (stage === 'Registered') {
+      headers = ['Farmer Name', 'Phone', 'District', 'Block', 'Days Stuck'];
+      rows = farmersList.map((f) => [f.name, f.phone, f.district, f.block, `${f.daysStuck} days`]);
+    } else if (stage === 'Profile Complete') {
+      headers = ['Farmer Name', 'Phone', 'District', 'Block', 'Experience Level', 'Primary Species', 'Days Stuck'];
+      rows = farmersList.map((f) => [
+        f.name,
+        f.phone,
+        f.district,
+        f.block,
+        f.ponds && f.ponds.length > 0 ? 'Experienced' : 'Beginner',
+        f.ponds && f.ponds.length > 0 ? f.ponds[0].species : 'Not specified',
+        `${f.daysStuck} days`,
+      ]);
+    } else if (stage === 'First Pond Added') {
+      headers = ['Farmer Name', 'Phone', 'District', 'Block', 'Pond Name', 'Pond Type', 'Area (Ha)', 'Water Source', 'Days Stuck'];
+      farmersList.forEach((f) => {
+        if (f.ponds && f.ponds.length > 0) {
+          f.ponds.forEach((p) => {
+            rows.push([f.name, f.phone, f.district, f.block, p.name, p.type, String(p.areaHa), p.waterSource, `${f.daysStuck} days`]);
+          });
+        } else {
+          rows.push([f.name, f.phone, f.district, f.block, 'No pond registered', '', '', '', `${f.daysStuck} days`]);
+        }
+      });
+    } else if (stage === 'Active Cycle') {
+      headers = ['Farmer Name', 'Phone', 'District', 'Block', 'Active Pond Name', 'Stocked Species', 'Stocking Density', 'Stocking Date', 'Days Stuck'];
+      farmersList.forEach((f) => {
+        if (f.ponds && f.ponds.length > 0) {
+          f.ponds.forEach((p) => {
+            rows.push([f.name, f.phone, f.district, f.block, p.name, p.species, p.type === 'Nursery' ? '20,000 fry/ha' : '12,000 fingerlings/ha', '2026-04-10', `${f.daysStuck} days`]);
+          });
+        } else {
+          rows.push([f.name, f.phone, f.district, f.block, '', '', '', '', `${f.daysStuck} days`]);
+        }
+      });
+    } else if (stage === 'Water Logging') {
+      headers = ['Farmer Name', 'Phone', 'District', 'Block', 'Pond Name', 'Last Logged Date', 'Last pH', 'Last DO (mg/L)', 'Status', 'Days Stuck'];
+      farmersList.forEach((f) => {
+        if (f.ponds && f.ponds.length > 0) {
+          f.ponds.forEach((p) => {
+            rows.push([f.name, f.phone, f.district, f.block, p.name, '2026-06-25 10:30', '7.6', '5.2', 'Safe', `${f.daysStuck} days`]);
+          });
+        } else {
+          rows.push([f.name, f.phone, f.district, f.block, '', '', '', '', 'No Logs', `${f.daysStuck} days`]);
+        }
+      });
+    }
+
+    const escapedRows = rows.map((r) => r.map(escapeCSV));
+    const csvContent = [headers.map(escapeCSV), ...escapedRows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `matsyamitra_funnel_stage_${stage.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
+         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <GlassCard className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[85vh] overflow-hidden">
+        {/* Header */}
+        <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Onboarding Funnel Breakdown</div>
+            <h2 className="text-lg font-bold text-ink-primary mt-1">{stage} — Stage Analysis</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={exportStageCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+              <Download className="h-3.5 w-3.5" /> Export Stage CSV
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Description */}
+        <div className="text-xs text-ink-muted leading-relaxed shrink-0">
+          {stageDescriptions[stage] || ''}
+        </div>
+
+        {/* KPI metrics */}
+        <div className="grid grid-cols-3 gap-3 text-center shrink-0">
+          {(stageKpis[stage] || []).map((kpi) => (
+            <div key={kpi.label} className="p-3 rounded-xl border border-glass-border bg-canvas-950/40">
+              <div className="text-[10px] text-ink-muted uppercase tracking-wider">{kpi.label}</div>
+              <div className={`text-lg font-mono font-bold mt-1 ${kpi.color}`}>{kpi.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Farmers Table */}
+        <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted shrink-0">Farmers in this Stage ({farmersList.length})</div>
+          <div className="flex-1 overflow-y-auto border border-glass-border rounded-xl">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-ink-muted border-b border-glass-border bg-canvas-950/60 sticky top-0">
+                  <th className="p-3">Farmer</th>
+                  <th className="p-3">Block / District</th>
+                  <th className="p-3 text-right">Stuck</th>
+                  <th className="p-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {farmersList.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-4 text-center text-ink-muted italic">No farmers currently in this stage.</td>
+                  </tr>
+                ) : (
+                  farmersList.map((f) => (
+                    <tr key={f.id} className="border-b border-glass-border/30 last:border-0 hover:bg-glass/30 transition-colors">
+                      <td className="p-3">
+                        <div className="font-bold text-ink-primary">{f.name}</div>
+                        <div className="text-[10px] text-ink-muted font-mono">{f.phone}</div>
+                      </td>
+                      <td className="p-3 text-ink-secondary">{f.block}, {f.district}</td>
+                      <td className={`p-3 text-right font-mono font-bold ${f.daysStuck > 30 ? 'text-severity-warning' : 'text-ink-muted'}`}>
+                        {f.daysStuck}d
+                      </td>
+                      <td className="p-3 text-right">
+                        <button onClick={() => { onClose(); setTimeout(() => onFarmerClick(f), 50); }}
+                          className="px-2 py-1 text-[10px] font-bold rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 hover:bg-teal-500/20 transition-colors font-sans">
+                          Profile ↗
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </GlassCard>
+    </div>
+  );
+}
+
 // ── Inner page that uses useSearchParams ───────────────────────────
 function FarmersPageInner() {
   const searchParams = useSearchParams();
@@ -264,6 +469,7 @@ function FarmersPageInner() {
   const [selectedStage, setSelectedStage] = useState<string>('all');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
+  const [selectedFunnelStage, setSelectedFunnelStage] = useState<string | null>(null);
 
   // Auto-open the profile if a matching farmer is found from the URL search
   useEffect(() => {
@@ -341,12 +547,16 @@ function FarmersPageInner() {
         <h2 className="text-base font-bold text-ink-primary mb-6">Onboarding Funnel</h2>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {FUNNEL_DATA.map((stage, idx) => (
-            <div key={stage.name} className="relative flex flex-col justify-between p-4 rounded-xl border border-glass-border bg-gradient-to-b from-canvas-900/50 to-canvas-950/50 shadow-glass">
+            <div
+              key={stage.name}
+              onClick={() => setSelectedFunnelStage(stage.name)}
+              className="relative flex flex-col justify-between p-4 rounded-xl border border-glass-border bg-gradient-to-b from-canvas-900/50 to-canvas-950/50 shadow-glass cursor-pointer hover:border-teal-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all group select-none"
+            >
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted group-hover:text-teal-400 transition-colors">
                   Stage {idx + 1}
                 </span>
-                <h3 className="text-sm font-bold text-ink-primary mt-1">{stage.name}</h3>
+                <h3 className="text-sm font-bold text-ink-primary mt-1 group-hover:text-teal-300 transition-colors">{stage.name}</h3>
               </div>
               <div className="mt-8 flex items-baseline justify-between">
                 <div className="text-2xl font-mono font-bold text-ink-primary">{stage.count}</div>
@@ -523,6 +733,15 @@ function FarmersPageInner() {
       {/* Farmer Profile Drawer */}
       {selectedFarmer && (
         <FarmerProfileDrawer farmer={selectedFarmer} onClose={() => setSelectedFarmer(null)} />
+      )}
+
+      {/* Funnel Stage Detail Modal */}
+      {selectedFunnelStage && (
+        <FunnelStageDetailModal
+          stage={selectedFunnelStage}
+          onClose={() => setSelectedFunnelStage(null)}
+          onFarmerClick={(farmer) => setSelectedFarmer(farmer)}
+        />
       )}
     </div>
   );
