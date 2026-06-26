@@ -151,17 +151,31 @@ const PENDING_DIAGNOSTICS: PendingDiagnostic[] = [
 
 function exportDoctorsCSV() {
   const headers = ['License No', 'Name', 'Specialty', 'District', 'Block', 'Phone', 'Email', 'Registered On', 'Prescriptions Filed', 'Status'];
+  
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const rows = DOCTORS.map((d) => [
     d.licenseNo, d.name, d.specialty, d.district, d.block,
     d.phone, d.email, d.registeredOn, d.prescriptionsCount, d.status,
-  ]);
-  const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  ].map(escapeCSV));
+
+  const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.setAttribute('href', encodeURI(csv));
-  link.setAttribute('download', `matsyamitra_doctors_${new Date().toISOString().split('T')[0]}.csv`);
+  link.href = url;
+  link.download = `matsyamitra_doctors_${new Date().toISOString().split('T')[0]}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function gmapsLink(coords: string) {

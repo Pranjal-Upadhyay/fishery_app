@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 
-// CSV Export helper
 function exportAlertsToCSV(alerts: AlertItem[]) {
   const headers = [
     'Alert ID',
@@ -36,6 +35,15 @@ function exportAlertsToCSV(alerts: AlertItem[]) {
     'Recommendation',
   ];
 
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const rows = alerts.map((a) => [
     a.id,
     a.type,
@@ -47,11 +55,11 @@ function exportAlertsToCSV(alerts: AlertItem[]) {
     a.coords,
     a.time,
     a.resolved ? 'Resolved' : 'Active',
-    `"${a.description.replace(/"/g, '""')}"`,
-    `"${a.recommendation.replace(/"/g, '""')}"`,
-  ]);
+    a.description,
+    a.recommendation,
+  ].map(escapeCSV));
 
-  const csvContent = [headers, ...rows].map((r) => r.join(',')).join('\n');
+  const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

@@ -291,17 +291,30 @@ function FarmersPageInner() {
   // CSV Export logic
   const handleExport = () => {
     const headers = ['Name', 'Phone', 'District', 'Block', 'Current Stage', 'Days Stuck'];
-    const rows = filteredFarmers.map((f) => [f.name, f.phone, f.district, f.block, f.stage, f.daysStuck]);
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    
+    const escapeCSV = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = filteredFarmers.map((f) => [
+      f.name, f.phone, f.district, f.block, f.stage, f.daysStuck
+    ].map(escapeCSV));
+
+    const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `matsyamitra_farmers_funnel_${new Date().toISOString().split('T')[0]}.csv`);
+    link.href = url;
+    link.download = `matsyamitra_farmers_funnel_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
