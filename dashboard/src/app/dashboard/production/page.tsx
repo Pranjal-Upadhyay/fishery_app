@@ -48,6 +48,51 @@ function exportLeaderboardToCSV(leaderboard: typeof LEADERBOARD) {
   URL.revokeObjectURL(url);
 }
 
+function exportDetailedYieldCSV() {
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const speciesRows = [
+    ['Yield Breakdown by Species', '', ''],
+    ['Species', 'Yield (Tons)', 'Percentage (%)'],
+    ['Jayanti Rohu (Improved)', '6200', '44%'],
+    ['Standard Rohu', '3800', '27%'],
+    ['Amrita Katla', '2400', '17%'],
+    ['Standard Katla', '1100', '8%'],
+    ['Other (Silver Carp, etc.)', '600', '4%'],
+    ['Total Species Yield', '14100', '100%'],
+  ].map((r) => r.map(escapeCSV));
+
+  const districtRows = [
+    [],
+    ['District YoY Yield vs Previous Year', '', '', ''],
+    ['District', 'FY 24-25 (Tons)', 'FY 23-24 (Tons)', 'YoY Change (%)'],
+    ['Madhubani', '4250', '3740', '+13.6%'],
+    ['Patna', '3890', '3520', '+10.5%'],
+    ['Darbhanga', '3120', '2800', '+11.4%'],
+    ['Gaya', '2840', '2640', '+7.6%'],
+    ['Muzaffarpur', '0', '0', 'New enrollment FY25'],
+    ['Total District Yield', '14100', '12700', '+11.0%'],
+  ].map((r) => r.map(escapeCSV));
+
+  const csvContent = [...speciesRows, ...districtRows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `total_yield_harvested_breakdown_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // Types
 interface HarvestLog {
   id: string;
@@ -1001,12 +1046,22 @@ export default function ProductionPage() {
                   {activeProductionModal === 'jayanti' && 'Jayanti Rohu +18% Advantage Analysis'}
                 </h2>
               </div>
-              <button
-                onClick={() => setActiveProductionModal(null)}
-                className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {activeProductionModal === 'yieldDetail' && (
+                  <button
+                    onClick={exportDetailedYieldCSV}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Export CSV
+                  </button>
+                )}
+                <button
+                  onClick={() => setActiveProductionModal(null)}
+                  className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {/* Yield detail breakdown */}

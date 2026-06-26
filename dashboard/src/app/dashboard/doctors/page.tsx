@@ -178,6 +178,102 @@ function exportDoctorsCSV() {
   URL.revokeObjectURL(url);
 }
 
+function exportOnFieldDoctorsCSV() {
+  const headers = ['Doctor ID', 'Name', 'Specialty', 'District', 'Block', 'Phone', 'Email', 'License No', 'Current Location', 'Last Ping'];
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = DOCTORS.filter((d) => d.status === 'On Field Visit').map((d) => [
+    d.id,
+    d.name,
+    d.specialty,
+    d.district,
+    d.block,
+    d.phone,
+    d.email,
+    d.licenseNo,
+    d.currentLocation || '',
+    d.lastPing || '',
+  ].map(escapeCSV));
+
+  const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `matsyamitra_doctors_on_field_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportPrescriptionsCSV() {
+  const headers = [
+    'Prescription ID',
+    'Reference No',
+    'Farmer Name',
+    'Farmer Phone',
+    'Pond Name',
+    'District',
+    'GPS Coordinates',
+    'Disease Diagnosed',
+    'Symptoms',
+    'Treatment Prescribed',
+    'Medicines Prescribed',
+    'Prescribed By',
+    'Doctor Phone',
+    'Visit Date',
+    'Follow-up Date',
+    'Status',
+  ];
+
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = PRESCRIPTIONS.map((rx) => [
+    rx.id,
+    rx.refNo,
+    rx.farmerName,
+    rx.farmerPhone,
+    rx.pondName,
+    rx.district,
+    rx.gpsCoords,
+    rx.disease,
+    rx.symptoms,
+    rx.treatment,
+    rx.medicines.join('; '),
+    rx.prescribedBy,
+    rx.doctorPhone,
+    rx.visitDate,
+    rx.followUpDate,
+    rx.status,
+  ].map(escapeCSV));
+
+  const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `matsyamitra_prescriptions_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function gmapsLink(coords: string) {
   // "25.5800° N, 85.1200° E" → "25.5800,85.1200"
   const clean = coords.replace(/°\s*[NSEW]/g, '').replace(/\s/g, '');
@@ -403,6 +499,18 @@ function KpiModal({ type, onClose, onDoctorClick, onRxClick, assignedIds, onAssi
           <div className="flex items-center gap-2">
             {type === 'registered' && (
               <button onClick={exportDoctorsCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                <Download className="h-3.5 w-3.5" /> Export CSV
+              </button>
+            )}
+            {type === 'onField' && (
+              <button onClick={exportOnFieldDoctorsCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                <Download className="h-3.5 w-3.5" /> Export CSV
+              </button>
+            )}
+            {type === 'prescriptions' && (
+              <button onClick={exportPrescriptionsCSV}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
                 <Download className="h-3.5 w-3.5" /> Export CSV
               </button>

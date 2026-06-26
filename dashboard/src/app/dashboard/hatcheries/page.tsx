@@ -19,6 +19,7 @@ import {
   Filter,
   Info,
   Sprout,
+  Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 
@@ -94,6 +95,118 @@ const SALES_DATA: Sale[] = [
   { id: '2', txnRef: 'TXN-17809-B2F', buyerName: 'Lallan Yadav', buyerPhone: '9547821690', species: 'Amrita Katla', quantity: '35,000 pcs', totalAmount: '₹49,000', status: 'pending', date: '2026-06-07' },
   { id: '3', txnRef: 'TXN-17810-C3X', buyerName: 'Binod Kumar Sah', buyerPhone: '9888123477', species: 'Standard Rohu', quantity: '20,000 pcs', totalAmount: '₹20,000', status: 'delivered', date: '2026-06-03' },
 ];
+
+// CSV Export helpers
+function exportHatcheriesCSV() {
+  const headers = ['Hatchery ID', 'Name', 'License No', 'Owner', 'Phone', 'District', 'Block', 'Capacity', 'Active Batches', 'Status'];
+  
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = HATCHERIES_DIRECTORY.map((h) => [
+    h.id,
+    h.name,
+    h.licenseNo,
+    h.owner,
+    h.phone,
+    h.district,
+    h.block,
+    h.capacity,
+    h.activeBatches,
+    h.status,
+  ].map(escapeCSV));
+
+  const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `matsyamitra_hatcheries_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportBatchesCSV() {
+  const headers = ['Batch ID', 'Batch Number', 'Hatchery Name', 'Species', 'Variant', 'Stage', 'Days In Stage', 'Broodstock Male', 'Broodstock Female', 'Estimated Count', 'Expected Ready Date'];
+
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = BATCH_DATA.map((b) => [
+    b.id,
+    b.batchNumber,
+    b.hatcheryName,
+    b.species,
+    b.variant,
+    b.stage,
+    b.daysInStage,
+    b.broodstockM,
+    b.broodstockF,
+    b.estimatedCount,
+    b.expectedReadyDate,
+  ].map(escapeCSV));
+
+  const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `matsyamitra_active_batches_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportAvailableSeedYieldCSV() {
+  const headers = ['Batch Number', 'Hatchery Name', 'Species', 'Variant', 'Stage', 'Estimated Count', 'Expected Ready Date'];
+
+  const escapeCSV = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const contributingBatches = BATCH_DATA.filter((b) => b.stage === 'Fingerling Ready' || b.stage === 'Rearing');
+
+  const rows = contributingBatches.map((b) => [
+    b.batchNumber,
+    b.hatcheryName,
+    b.species,
+    b.variant,
+    b.stage,
+    b.estimatedCount,
+    b.expectedReadyDate,
+  ].map(escapeCSV));
+
+  const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `matsyamitra_available_seed_yield_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export default function HatcheriesPage() {
   const [searchTerm, setSearchTerm]         = useState('');
@@ -387,10 +500,30 @@ export default function HatcheriesPage() {
                 {activeHatchModal === 'demandDeficit' && 'Statewide Demand Deficit — District Breakdown'}
               </h2>
             </div>
-            <button onClick={() => setActiveHatchModal(null)}
-              className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {activeHatchModal === 'hatcheries' && (
+                <button onClick={exportHatcheriesCSV}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </button>
+              )}
+              {activeHatchModal === 'batches' && (
+                <button onClick={exportBatchesCSV}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </button>
+              )}
+              {activeHatchModal === 'seedYield' && (
+                <button onClick={exportAvailableSeedYieldCSV}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </button>
+              )}
+              <button onClick={() => setActiveHatchModal(null)}
+                className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {/* ── Hatchery Directory ── */}
