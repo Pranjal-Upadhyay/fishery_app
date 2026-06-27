@@ -380,7 +380,7 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDe
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <GlassCard className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[85vh] overflow-hidden">
+      <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[85vh] overflow-hidden">
         {/* Header */}
         <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
           <div>
@@ -389,7 +389,7 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDe
           </div>
           <div className="flex items-center gap-2">
             <button onClick={exportStageCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200">
               <Download className="h-3.5 w-3.5" /> Export Stage CSV
             </button>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
@@ -535,7 +535,7 @@ function FarmersPageInner() {
         </div>
         <button
           onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/30 transition-all hover:bg-teal-500/20 active:scale-95"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/30 transition-all hover:bg-white hover:text-slate-950 hover:border-white active:scale-95 duration-200"
         >
           <Download className="h-4 w-4" />
           Export CSV

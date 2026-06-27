@@ -487,7 +487,7 @@ export default function HatcheriesPage() {
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
            onClick={(e) => { if (e.target === e.currentTarget) setActiveHatchModal(null); }}>
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveHatchModal(null)} />
-        <GlassCard className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[88vh] overflow-hidden">
+        <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[88vh] overflow-hidden">
 
           {/* Modal header */}
           <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
@@ -503,19 +503,19 @@ export default function HatcheriesPage() {
             <div className="flex items-center gap-2 shrink-0">
               {activeHatchModal === 'hatcheries' && (
                 <button onClick={exportHatcheriesCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200">
                   <Download className="h-3.5 w-3.5" /> Export CSV
                 </button>
               )}
               {activeHatchModal === 'batches' && (
                 <button onClick={exportBatchesCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200">
                   <Download className="h-3.5 w-3.5" /> Export CSV
                 </button>
               )}
               {activeHatchModal === 'seedYield' && (
                 <button onClick={exportAvailableSeedYieldCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200">
                   <Download className="h-3.5 w-3.5" /> Export CSV
                 </button>
               )}

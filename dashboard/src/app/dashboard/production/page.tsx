@@ -634,7 +634,7 @@ export default function ProductionPage() {
             <button
               onClick={() => exportLeaderboardToCSV(LEADERBOARD)}
               title="Export to CSV"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 text-[10px] font-semibold hover:bg-teal-500/20 transition-colors shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 text-[10px] font-semibold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shrink-0"
             >
               <Download className="h-3 w-3" />
               CSV
@@ -1033,7 +1033,7 @@ export default function ProductionPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setActiveProductionModal(null); }}
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveProductionModal(null)} />
-          <GlassCard className="relative z-10 w-full max-w-xl p-6 shadow-glow border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
+          <GlassCard variant="solid" className="relative z-10 w-full max-w-xl p-6 shadow-glow border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
             {/* Header */}
             <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
               <div>
@@ -1050,7 +1050,7 @@ export default function ProductionPage() {
                 {activeProductionModal === 'yieldDetail' && (
                   <button
                     onClick={exportDetailedYieldCSV}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200"
                   >
                     <Download className="h-3.5 w-3.5" /> Export CSV
                   </button>

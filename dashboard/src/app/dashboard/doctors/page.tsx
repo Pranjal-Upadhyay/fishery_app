@@ -499,19 +499,19 @@ function KpiModal({ type, onClose, onDoctorClick, onRxClick, assignedIds, onAssi
           <div className="flex items-center gap-2">
             {type === 'registered' && (
               <button onClick={exportDoctorsCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200">
                 <Download className="h-3.5 w-3.5" /> Export CSV
               </button>
             )}
             {type === 'onField' && (
               <button onClick={exportOnFieldDoctorsCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200">
                 <Download className="h-3.5 w-3.5" /> Export CSV
               </button>
             )}
             {type === 'prescriptions' && (
               <button onClick={exportPrescriptionsCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-teal-500/20 transition-colors">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200">
                 <Download className="h-3.5 w-3.5" /> Export CSV
               </button>
             )}
