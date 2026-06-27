@@ -53,6 +53,18 @@ const config: Config = {
           healthy:  'var(--severity-healthy)',
           info:     'var(--severity-info)',
         },
+        sky: {
+          400: 'var(--sky-400)',
+          500: 'var(--sky-500)',
+        },
+        amber: {
+          400: 'var(--amber-400)',
+          500: 'var(--amber-500)',
+        },
+        rose: {
+          400: 'var(--rose-400)',
+          500: 'var(--rose-500)',
+        },
       },
       fontFamily: {
         // Libre Baskerville everywhere — serif, used as the default UI face.

@@ -61,6 +61,14 @@
   --severity-healthy:  #16a34a; /* Forest green (non-glowing) */
   --severity-info:     #1d4ed8; /* Dark bold blue (instead of light blue) */
 
+  /* High contrast colors for parameters and categories in light mode */
+  --sky-400: #1d4ed8;
+  --sky-500: #2563eb;
+  --amber-400: #b45309;
+  --amber-500: #d97706;
+  --rose-400: #b91c1c;
+  --rose-500: #dc2626;
+
   color-scheme: light;
 }
 
@@ -112,6 +120,14 @@
   --severity-warning:  #f5b13b;
   --severity-healthy:  #39d4ad;
   --severity-info:     #5cb8ff;
+
+  /* Vivid glowing colors for parameters and categories in dark mode */
+  --sky-400: #38bdf8;
+  --sky-500: #0ea5e9;
+  --amber-400: #fbbf24;
+  --amber-500: #f59e0b;
+  --rose-400: #fb7185;
+  --rose-500: #f43f5e;
 
   color-scheme: dark;
 }
