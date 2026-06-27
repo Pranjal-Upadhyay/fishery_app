@@ -87,22 +87,67 @@ export default function SettingsPage() {
     const rows = result.slice(1);
     return { headers, rows };
   };
+  
+  const parseFile = async (selectedFile: File): Promise<{ headers: string[]; rows: string[][] }> => {
+    return new Promise((resolve, reject) => {
+      const isExcel = selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
+      const reader = new FileReader();
+      
+      reader.onload = async (event) => {
+        try {
+          if (isExcel) {
+            const XLSX = await import('xlsx');
+            const data = new Uint8Array(event.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
+            
+            if (aoa.length === 0) {
+              resolve({ headers: [], rows: [] });
+              return;
+            }
+            
+            const headers = (aoa[0] || []).map(h => String(h || '').trim());
+            const rows = aoa.slice(1).map(row => {
+              const cells: string[] = [];
+              for (let i = 0; i < headers.length; i++) {
+                cells.push(row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '');
+              }
+              return cells;
+            });
+            
+            resolve({ headers, rows });
+          } else {
+            const text = event.target?.result as string;
+            resolve(parseCSV(text));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      };
+      
+      reader.onerror = (err) => reject(err);
+      
+      if (isExcel) {
+        reader.readAsArrayBuffer(selectedFile);
+      } else {
+        reader.readAsText(selectedFile);
+      }
+    });
+  };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
     setFile(selectedFile);
     setParseErrors([]);
     setImportResult(null);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (!text) return;
-      
-      const { headers, rows } = parseCSV(text);
+    try {
+      const { headers, rows } = await parseFile(selectedFile);
       if (headers.length === 0) {
-        setParseErrors(['The CSV file is empty.']);
+        setParseErrors(['The file is empty.']);
         return;
       }
       
@@ -163,8 +208,9 @@ export default function SettingsPage() {
       });
 
       setParseErrors(errors);
-    };
-    reader.readAsText(selectedFile);
+    } catch (err: any) {
+      setParseErrors([`Failed to parse file: ${err?.message || err}`]);
+    }
   };
 
   const handleUploadSubmit = async () => {
@@ -173,8 +219,7 @@ export default function SettingsPage() {
     setImportResult(null);
 
     try {
-      const text = await file.text();
-      const { headers, rows } = parseCSV(text);
+      const { headers, rows } = await parseFile(file);
       const lowerHeaders = headers.map(h => h.trim().toLowerCase());
 
       const jsonRows = rows.map(row => {
@@ -588,7 +633,7 @@ export default function SettingsPage() {
             {/* Upload Zone */}
             <div className="space-y-4">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-ink-secondary font-semibold">Select Ingestion File (.csv)</span>
+                <span className="text-ink-secondary font-semibold">Select Ingestion File (.csv, .xlsx, .xls)</span>
                 <button
                   onClick={() => downloadCSVTemplate(activeImportType)}
                   className="text-teal-400 hover:text-teal-300 flex items-center gap-1 font-semibold"
@@ -601,17 +646,17 @@ export default function SettingsPage() {
               <div className="border border-dashed border-glass-border hover:border-teal-500/30 transition-colors rounded-xl p-8 flex flex-col items-center justify-center gap-3 bg-canvas-950/20 text-center relative">
                 <input
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   onChange={handleFileChange}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
                 <UploadCloud className="h-10 w-10 text-ink-muted" />
                 <div>
                   <p className="text-xs text-ink-primary font-bold">
-                    {file ? file.name : 'Drag & drop your CSV file here, or click to browse'}
+                    {file ? file.name : 'Drag & drop your file (.csv, .xlsx, .xls) here, or click to browse'}
                   </p>
                   <p className="text-[10px] text-ink-muted mt-1">
-                    {file ? `${(file.size / 1024).toFixed(1)} KB` : 'Only CSV files are supported'}
+                    {file ? `${(file.size / 1024).toFixed(1)} KB` : 'CSV and Excel files are supported'}
                   </p>
                 </div>
               </div>
