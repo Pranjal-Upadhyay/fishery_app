@@ -18,10 +18,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
-import { query } from '../db';
+import { query, pool } from '../db';
 import { logger } from '../utils/logger';
 import {
   requireAdmin,
+  requireAdminRole,
   signAdminToken,
   AdminAuthPayload,
   AdminRole,
@@ -523,5 +524,636 @@ router.get('/marketplace/orders', requireAdmin, async (req, res, next) => {
     next(error);
   }
 });
+
+// ── LEGACY INGESTION ROUTES (SUPERADMIN ONLY) ──────────────────────────────────
+
+const hatcheryImportRowSchema = z.object({
+  hatchery_name: z.string().min(1),
+  owner_name: z.string().min(1),
+  owner_mobile: z.string().regex(/^\d{10}$/),
+  district: z.string().min(1),
+  block: z.string().min(1),
+  panchayat: z.string().optional().nullable(),
+  capacity_kg: z.number().optional().nullable(),
+  area_acres: z.number().optional().nullable(),
+  year_completed: z.number().optional().nullable(),
+  social_category: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
+  age: z.number().optional().nullable(),
+  annual_income: z.number().optional().nullable(),
+  disease_occurrence: z.string().optional().nullable(),
+  pond_insured: z.boolean().optional().nullable(),
+  family_size: z.number().optional().nullable(),
+  flood_impact_3yrs: z.boolean().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
+});
+
+const hatcheryImportSchema = z.array(hatcheryImportRowSchema);
+
+router.post(
+  '/import/hatcheries',
+  requireAdmin,
+  requireAdminRole('superadmin'),
+  async (req, res, next) => {
+    const ip = req.ip;
+    const ua = req.get('user-agent') ?? null;
+    const adminId = req.admin?.adminId ?? null;
+    let client: any = null;
+
+    try {
+      const data = hatcheryImportSchema.parse(req.body);
+      client = await pool.connect();
+
+      // Load locations cache
+      const dists = await client.query('SELECT code, name FROM loc_districts');
+      const blks = await client.query('SELECT code, name, district_code FROM loc_blocks');
+
+      const distMap = new Map<string, string>();
+      dists.rows.forEach((r) => distMap.set(r.name.trim().toLowerCase(), r.code));
+
+      const blkMap = new Map<string, string>();
+      blks.rows.forEach((r) =>
+        blkMap.set(r.district_code + ':' + r.name.trim().toLowerCase(), r.code)
+      );
+
+      await client.query('BEGIN');
+
+      const defaultPasswordHash = await bcrypt.hash('aquaculture2024', 10);
+      let insertedCount = 0;
+      let updatedCount = 0;
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const rawDist = row.district.trim().toLowerCase();
+        const distCode = distMap.get(rawDist);
+        if (!distCode) {
+          throw new Error(`Row ${i + 1}: District "${row.district}" not found in Bihar hierarchy`);
+        }
+
+        const rawBlk = row.block.trim().toLowerCase();
+        const blkCode = blkMap.get(distCode + ':' + rawBlk);
+        if (!blkCode) {
+          throw new Error(
+            `Row ${i + 1}: Block "${row.block}" not found in district "${row.district}"`
+          );
+        }
+
+        // 1. Upsert owner
+        let userId: string;
+        const userCheck = await client.query(
+          'SELECT id FROM users WHERE phone_number = $1',
+          [row.owner_mobile]
+        );
+
+        if ((userCheck.rowCount ?? 0) > 0) {
+          userId = userCheck.rows[0].id;
+          await client.query(
+            `UPDATE users 
+             SET name = $1, role = 'HATCHERY', district_code = $2, block_code = $3, state_code = 'BR', updated_at = NOW() 
+             WHERE id = $4`,
+            [row.owner_name, distCode, blkCode, userId]
+          );
+          updatedCount++;
+        } else {
+          const userInsert = await client.query(
+            `INSERT INTO users (phone_number, password_hash, name, role, farmer_category, state_code, district_code, block_code, created_at, updated_at)
+             VALUES ($1, $2, $3, 'HATCHERY', 'GENERAL', 'BR', $4, $5, NOW(), NOW())
+             RETURNING id`,
+            [row.owner_mobile, defaultPasswordHash, row.owner_name, distCode, blkCode]
+          );
+          userId = userInsert.rows[0].id;
+          insertedCount++;
+        }
+
+        // 2. Insert or update Hatchery
+        // Check if hatchery already exists for this user
+        const hatcheryCheck = await client.query(
+          'SELECT id FROM hatcheries WHERE operator_id = $1',
+          [userId]
+        );
+
+        const lat = row.latitude;
+        const lon = row.longitude;
+
+        const diseaseOccur = row.disease_occurrence?.toUpperCase();
+        const validatedDiseaseOccur =
+          diseaseOccur === 'NONE' || diseaseOccur === 'MINOR' || diseaseOccur === 'MAJOR'
+            ? diseaseOccur
+            : null;
+
+        if ((hatcheryCheck.rowCount ?? 0) > 0) {
+          const hatcheryId = hatcheryCheck.rows[0].id;
+          // Update
+          await client.query(
+            `UPDATE hatcheries
+             SET name = $1, district = $2, block = $3, panchayat = $4, capacity_kg = $5,
+                 social_category = $6, age = $7, annual_income = $8, family_size = $9,
+                 flood_impact_3yrs = $10, disease_occurrence = $11, pond_insured = $12,
+                 gender = $13, location = CASE WHEN $14::numeric IS NOT NULL THEN ST_SetSRID(ST_MakePoint($15, $14), 4326)::geography ELSE location END,
+                 updated_at = NOW()
+             WHERE id = $16`,
+            [
+              row.hatchery_name,
+              row.district,
+              row.block,
+              row.panchayat,
+              row.capacity_kg,
+              row.social_category,
+              row.age,
+              row.annual_income,
+              row.family_size,
+              row.flood_impact_3yrs,
+              validatedDiseaseOccur,
+              row.pond_insured,
+              row.gender,
+              lat,
+              lon,
+              hatcheryId,
+            ]
+          );
+        } else {
+          // Insert
+          if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
+            await client.query(
+              `INSERT INTO hatcheries (name, operator_id, district, block, panchayat, capacity_kg, social_category, age, annual_income, family_size, flood_impact_3yrs, disease_occurrence, pond_insured, gender, location, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, ST_SetSRID(ST_MakePoint($16, $15), 4326)::geography, NOW(), NOW())`,
+              [
+                row.hatchery_name,
+                userId,
+                row.district,
+                row.block,
+                row.panchayat,
+                row.capacity_kg,
+                row.social_category,
+                row.age,
+                row.annual_income,
+                row.family_size,
+                row.flood_impact_3yrs,
+                validatedDiseaseOccur,
+                row.pond_insured,
+                row.gender,
+                lat,
+                lon,
+              ]
+            );
+          } else {
+            await client.query(
+              `INSERT INTO hatcheries (name, operator_id, district, block, panchayat, capacity_kg, social_category, age, annual_income, family_size, flood_impact_3yrs, disease_occurrence, pond_insured, gender, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
+              [
+                row.hatchery_name,
+                userId,
+                row.district,
+                row.block,
+                row.panchayat,
+                row.capacity_kg,
+                row.social_category,
+                row.age,
+                row.annual_income,
+                row.family_size,
+                row.flood_impact_3yrs,
+                validatedDiseaseOccur,
+                row.pond_insured,
+                row.gender,
+              ]
+            );
+          }
+        }
+      }
+
+      await client.query('COMMIT');
+      auditInsert(
+        adminId,
+        'import.hatcheries',
+        'success',
+        { record_count: data.length, inserted_users: insertedCount, updated_users: updatedCount },
+        ip,
+        ua
+      );
+
+      res.json({
+        success: true,
+        message: `Successfully processed ${data.length} hatcheries. Created ${insertedCount} new owner accounts, updated ${updatedCount}.`,
+      });
+    } catch (error: any) {
+      if (client) {
+        await client.query('ROLLBACK');
+      }
+      auditInsert(
+        adminId,
+        'import.hatcheries',
+        'failure',
+        { error: error?.message || 'Transaction aborted' },
+        ip,
+        ua
+      );
+      res.status(400).json({ success: false, error: error?.message || 'Failed to import hatcheries' });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  }
+);
+
+const pondImportRowSchema = z.object({
+  farmer_name: z.string().min(1),
+  farmer_mobile: z.string().regex(/^\d{10}$/),
+  pond_name: z.string().min(1),
+  area_hectares: z.number().positive(),
+  district: z.string().min(1),
+  block: z.string().min(1),
+  panchayat: z.string().optional().nullable(),
+  village: z.string().optional().nullable(),
+  father_or_husband_name: z.string().optional().nullable(),
+  aadhaar_number: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
+  social_category: z.string().optional().nullable(),
+  water_source: z.string().optional().nullable(),
+  pond_activity: z.string().optional().nullable(),
+  is_insured: z.boolean().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
+});
+
+const pondImportSchema = z.array(pondImportRowSchema);
+
+router.post(
+  '/import/ponds',
+  requireAdmin,
+  requireAdminRole('superadmin'),
+  async (req, res, next) => {
+    const ip = req.ip;
+    const ua = req.get('user-agent') ?? null;
+    const adminId = req.admin?.adminId ?? null;
+    let client: any = null;
+
+    try {
+      const data = pondImportSchema.parse(req.body);
+      client = await pool.connect();
+
+      // Load locations cache
+      const dists = await client.query('SELECT code, name FROM loc_districts');
+      const blks = await client.query('SELECT code, name, district_code FROM loc_blocks');
+
+      const distMap = new Map<string, string>();
+      dists.rows.forEach((r) => distMap.set(r.name.trim().toLowerCase(), r.code));
+
+      const blkMap = new Map<string, string>();
+      blks.rows.forEach((r) =>
+        blkMap.set(r.district_code + ':' + r.name.trim().toLowerCase(), r.code)
+      );
+
+      await client.query('BEGIN');
+
+      const defaultPasswordHash = await bcrypt.hash('aquaculture2024', 10);
+      let newFarmers = 0;
+      let existingFarmers = 0;
+      let newPonds = 0;
+      let updatedPonds = 0;
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const rawDist = row.district.trim().toLowerCase();
+        const distCode = distMap.get(rawDist);
+        if (!distCode) {
+          throw new Error(`Row ${i + 1}: District "${row.district}" not found in Bihar hierarchy`);
+        }
+
+        const rawBlk = row.block.trim().toLowerCase();
+        const blkCode = blkMap.get(distCode + ':' + rawBlk);
+        if (!blkCode) {
+          throw new Error(
+            `Row ${i + 1}: Block "${row.block}" not found in district "${row.district}"`
+          );
+        }
+
+        // 1. Upsert Farmer
+        let userId: string;
+        const userCheck = await client.query(
+          'SELECT id FROM users WHERE phone_number = $1',
+          [row.farmer_mobile]
+        );
+
+        const farmerCat =
+          row.social_category?.toUpperCase() === 'SC' ||
+          row.social_category?.toUpperCase() === 'ST' ||
+          row.social_category?.toUpperCase() === 'WOMEN'
+            ? row.social_category.toUpperCase()
+            : 'GENERAL';
+
+        const genderVal =
+          row.gender?.toUpperCase() === 'MALE' || row.gender?.toUpperCase() === 'FEMALE'
+            ? row.gender.toUpperCase()
+            : null;
+
+        if ((userCheck.rowCount ?? 0) > 0) {
+          userId = userCheck.rows[0].id;
+          await client.query(
+            `UPDATE users 
+             SET name = $1, 
+                 father_or_husband_name = COALESCE($2, father_or_husband_name), 
+                 aadhaar_number = COALESCE($3, aadhaar_number), 
+                 gender = COALESCE($4, gender),
+                 farmer_category = COALESCE($5, farmer_category),
+                 district_code = $6, 
+                 block_code = $7,
+                 state_code = 'BR',
+                 village = COALESCE($8, village),
+                 updated_at = NOW() 
+             WHERE id = $9`,
+            [
+              row.farmer_name,
+              row.father_or_husband_name,
+              row.aadhaar_number,
+              genderVal,
+              farmerCat,
+              distCode,
+              blkCode,
+              row.village,
+              userId,
+            ]
+          );
+          existingFarmers++;
+        } else {
+          const userInsert = await client.query(
+            `INSERT INTO users (
+               phone_number, password_hash, name, role, farmer_category, state_code, district_code, block_code, 
+               father_or_husband_name, aadhaar_number, gender, village, created_at, updated_at
+             )
+             VALUES ($1, $2, $3, 'FARMER', $4, 'BR', $5, $6, $7, $8, $9, $10, NOW(), NOW())
+             RETURNING id`,
+            [
+              row.farmer_mobile,
+              defaultPasswordHash,
+              row.farmer_name,
+              farmerCat,
+              distCode,
+              blkCode,
+              row.father_or_husband_name,
+              row.aadhaar_number,
+              genderVal,
+              row.village,
+            ]
+          );
+          userId = userInsert.rows[0].id;
+          newFarmers++;
+        }
+
+        // 2. Upsert Pond
+        const pondCheck = await client.query(
+          'SELECT id FROM ponds WHERE user_id = $1 AND name = $2',
+          [userId, row.pond_name]
+        );
+
+        const lat = row.latitude;
+        const lon = row.longitude;
+
+        const wSource =
+          row.water_source?.toUpperCase() === 'BOREWELL' ||
+          row.water_source?.toUpperCase() === 'OPEN_WELL' ||
+          row.water_source?.toUpperCase() === 'CANAL' ||
+          row.water_source?.toUpperCase() === 'RIVER' ||
+          row.water_source?.toUpperCase() === 'TANK'
+            ? row.water_source.toUpperCase()
+            : null;
+
+        const pActivity =
+          row.pond_activity?.toUpperCase() === 'NURSERY' ||
+          row.pond_activity?.toUpperCase() === 'REARING' ||
+          row.pond_activity?.toUpperCase() === 'GROW_OUT' ||
+          row.pond_activity?.toUpperCase() === 'BROODSTOCK' ||
+          row.pond_activity?.toUpperCase() === 'MIXED'
+            ? row.pond_activity.toUpperCase()
+            : null;
+
+        if ((pondCheck.rowCount ?? 0) > 0) {
+          const pondId = pondCheck.rows[0].id;
+          await client.query(
+            `UPDATE ponds
+             SET area_hectares = $1,
+                 water_source_type = COALESCE($2, water_source_type),
+                 pond_activity_type = COALESCE($3, pond_activity_type),
+                 is_insured = COALESCE($4, is_insured),
+                 district_name = $5,
+                 block_name = $6,
+                 panchayat_name = COALESCE($7, panchayat_name),
+                 location = CASE WHEN $8::numeric IS NOT NULL THEN ST_SetSRID(ST_MakePoint($9, $8), 4326)::geography ELSE location END,
+                 updated_at = NOW()
+             WHERE id = $10`,
+            [
+              row.area_hectares,
+              wSource,
+              pActivity,
+              row.is_insured,
+              row.district,
+              row.block,
+              row.panchayat,
+              lat,
+              lon,
+              pondId,
+            ]
+          );
+          updatedPonds++;
+        } else {
+          if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
+            await client.query(
+              `INSERT INTO ponds (
+                 user_id, name, area_hectares, water_source_type, pond_activity_type, is_insured, 
+                 district_name, block_name, panchayat_name, location, status, created_at, updated_at
+               )
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ST_SetSRID(ST_MakePoint($11, $10), 4326)::geography, 'ACTIVE', NOW(), NOW())`,
+              [
+                userId,
+                row.pond_name,
+                row.area_hectares,
+                wSource,
+                pActivity,
+                row.is_insured,
+                row.district,
+                row.block,
+                row.panchayat,
+                lat,
+                lon,
+              ]
+            );
+          } else {
+            await client.query(
+              `INSERT INTO ponds (
+                 user_id, name, area_hectares, water_source_type, pond_activity_type, is_insured, 
+                 district_name, block_name, panchayat_name, status, created_at, updated_at
+               )
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ACTIVE', NOW(), NOW())`,
+              [
+                userId,
+                row.pond_name,
+                row.area_hectares,
+                wSource,
+                pActivity,
+                row.is_insured,
+                row.district,
+                row.block,
+                row.panchayat,
+              ]
+            );
+          }
+          newPonds++;
+        }
+      }
+
+      await client.query('COMMIT');
+      auditInsert(
+        adminId,
+        'import.ponds',
+        'success',
+        {
+          record_count: data.length,
+          new_farmers: newFarmers,
+          existing_farmers: existingFarmers,
+          new_ponds: newPonds,
+          updated_ponds: updatedPonds,
+        },
+        ip,
+        ua
+      );
+
+      res.json({
+        success: true,
+        message: `Successfully processed ${data.length} records. Farmers: ${newFarmers} created, ${existingFarmers} updated. Ponds: ${newPonds} created, ${updatedPonds} updated.`,
+      });
+    } catch (error: any) {
+      if (client) {
+        await client.query('ROLLBACK');
+      }
+      auditInsert(
+        adminId,
+        'import.ponds',
+        'failure',
+        { error: error?.message || 'Transaction aborted' },
+        ip,
+        ua
+      );
+      res.status(400).json({ success: false, error: error?.message || 'Failed to import ponds' });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  }
+);
+
+const waterLogImportRowSchema = z.object({
+  farmer_mobile: z.string().regex(/^\d{10}$/),
+  pond_name: z.string().min(1),
+  timestamp: z.string(),
+  temperature: z.number().optional().nullable(),
+  ph: z.number().optional().nullable(),
+  dissolved_oxygen: z.number().optional().nullable(),
+  ammonia: z.number().optional().nullable(),
+  nitrite: z.number().optional().nullable(),
+  turbidity: z.number().optional().nullable(),
+});
+
+const waterLogImportSchema = z.array(waterLogImportRowSchema);
+
+router.post(
+  '/import/water-logs',
+  requireAdmin,
+  requireAdminRole('superadmin'),
+  async (req, res, next) => {
+    const ip = req.ip;
+    const ua = req.get('user-agent') ?? null;
+    const adminId = req.admin?.adminId ?? null;
+    let client: any = null;
+
+    try {
+      const data = waterLogImportSchema.parse(req.body);
+      client = await pool.connect();
+
+      await client.query('BEGIN');
+
+      let successCount = 0;
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+
+        // Match pond_id by phone number and pond_name
+        const match = await client.query(
+          `SELECT p.id, p.user_id 
+           FROM ponds p
+           JOIN users u ON u.id = p.user_id
+           WHERE u.phone_number = $1 AND UPPER(p.name) = UPPER($2)`,
+          [row.farmer_mobile, row.pond_name.trim()]
+        );
+
+        if ((match.rowCount ?? 0) === 0) {
+          throw new Error(
+            `Row ${i + 1}: No active pond named "${row.pond_name}" found for farmer with mobile ${row.farmer_mobile}. Please import the farmer/pond first.`
+          );
+        }
+
+        const pondId = match.rows[0].id;
+        const userId = match.rows[0].user_id;
+
+        const ts = new Date(row.timestamp);
+        if (isNaN(ts.getTime())) {
+          throw new Error(`Row ${i + 1}: Invalid date/time format "${row.timestamp}"`);
+        }
+
+        await client.query(
+          `INSERT INTO water_quality_logs (
+             user_id, pond_id, timestamp, temperature, ph, dissolved_oxygen, ammonia, nitrite, turbidity, sync_status, created_at
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'SYNCED', NOW())`,
+          [
+            userId,
+            pondId,
+            ts.toISOString(),
+            row.temperature,
+            row.ph,
+            row.dissolved_oxygen,
+            row.ammonia,
+            row.nitrite,
+            row.turbidity,
+          ]
+        );
+        successCount++;
+      }
+
+      await client.query('COMMIT');
+      auditInsert(
+        adminId,
+        'import.water-logs',
+        'success',
+        { record_count: successCount },
+        ip,
+        ua
+      );
+
+      res.json({
+        success: true,
+        message: `Successfully imported ${successCount} water quality logs.`,
+      });
+    } catch (error: any) {
+      if (client) {
+        await client.query('ROLLBACK');
+      }
+      auditInsert(
+        adminId,
+        'import.water-logs',
+        'failure',
+        { error: error?.message || 'Transaction aborted' },
+        ip,
+        ua
+      );
+      res.status(400).json({ success: false, error: error?.message || 'Failed to import water logs' });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  }
+);
 
 export { router as adminRouter };

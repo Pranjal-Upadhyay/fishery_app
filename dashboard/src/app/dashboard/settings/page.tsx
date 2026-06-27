@@ -10,10 +10,271 @@ import {
   AlertTriangle,
   Globe,
   BellRing,
+  UploadCloud,
+  Download,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { useAuth } from '@/lib/auth-context';
+import { api } from '@/lib/api';
 
 export default function SettingsPage() {
+  const { admin } = useAuth();
+  const [activeImportType, setActiveImportType] = useState<'hatcheries' | 'ponds' | 'water_logs'>('hatcheries');
+  const [file, setFile] = useState<File | null>(null);
+  const [parseErrors, setParseErrors] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const downloadCSVTemplate = (type: 'hatcheries' | 'ponds' | 'water_logs') => {
+    let headers = '';
+    let sampleRow = '';
+    let filename = '';
+
+    if (type === 'hatcheries') {
+      headers = 'hatchery_name,owner_name,owner_mobile,district,block,panchayat,capacity_kg,area_acres,year_completed,social_category,gender,age,annual_income,disease_occurrence,pond_insured,latitude,longitude';
+      sampleRow = 'Ilyash Hatchery,Ilyash,8809490575,Banka,Bounsi,Bhurkuriya,800,5,2014,GENERAL,MALE,42,150000,NONE,FALSE,24.801200,87.021300';
+      filename = 'hatcheries_import_template.csv';
+    } else if (type === 'ponds') {
+      headers = 'farmer_name,farmer_mobile,pond_name,area_hectares,district,block,panchayat,village,gender,social_category,water_source,pond_activity,is_insured,latitude,longitude';
+      sampleRow = 'K Sahani,9334241896,Pond 1,0.4047,Begusarai,Begusarai,CHANDPURA,Chanpura,MALE,ST,BOREWELL,GROW_OUT,FALSE,25.427602,86.140338';
+      filename = 'ponds_import_template.csv';
+    } else {
+      headers = 'farmer_mobile,pond_name,timestamp,temperature,ph,dissolved_oxygen,ammonia,nitrite,turbidity';
+      sampleRow = '9334241896,Pond 1,2026-06-25 08:30:00,28.5,7.2,5.2,0.02,0.01,25.0';
+      filename = 'water_quality_import_template.csv';
+    }
+
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + "\n" + sampleRow);
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const parseCSV = (text: string): { headers: string[]; rows: string[][] } => {
+    const lines = text.split(/\r?\n/);
+    const result: string[][] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const cells: string[] = [];
+      let insideQuote = false;
+      let currentCell = '';
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        if (char === '"' || char === "'") {
+          insideQuote = !insideQuote;
+        } else if (char === ',' && !insideQuote) {
+          cells.push(currentCell.trim().replace(/^['"]|['"]$/g, ''));
+          currentCell = '';
+        } else {
+          currentCell += char;
+        }
+      }
+      cells.push(currentCell.trim().replace(/^['"]|['"]$/g, ''));
+      result.push(cells);
+    }
+    
+    if (result.length === 0) return { headers: [], rows: [] };
+    const headers = result[0];
+    const rows = result.slice(1);
+    return { headers, rows };
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+    setFile(selectedFile);
+    setParseErrors([]);
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+      
+      const { headers, rows } = parseCSV(text);
+      if (headers.length === 0) {
+        setParseErrors(['The CSV file is empty.']);
+        return;
+      }
+      
+      const missingHeaders: string[] = [];
+      const lowerHeaders = headers.map(h => h.trim().toLowerCase());
+      
+      let required: string[] = [];
+      if (activeImportType === 'hatcheries') {
+        required = ['hatchery_name', 'owner_name', 'owner_mobile', 'district', 'block'];
+      } else if (activeImportType === 'ponds') {
+        required = ['farmer_name', 'farmer_mobile', 'pond_name', 'area_hectares', 'district', 'block'];
+      } else {
+        required = ['farmer_mobile', 'pond_name', 'timestamp'];
+      }
+
+      required.forEach(req => {
+        if (!lowerHeaders.includes(req.toLowerCase())) {
+          missingHeaders.push(req);
+        }
+      });
+
+      if (missingHeaders.length > 0) {
+        setParseErrors([`Missing required column headers: ${missingHeaders.join(', ')}`]);
+        return;
+      }
+
+      const errors: string[] = [];
+      rows.forEach((row, idx) => {
+        const rowNum = idx + 2;
+        
+        const getValue = (headerName: string) => {
+          const index = lowerHeaders.indexOf(headerName.toLowerCase());
+          return index !== -1 ? row[index]?.trim() : '';
+        };
+
+        const mobile = getValue(activeImportType === 'hatcheries' ? 'owner_mobile' : 'farmer_mobile');
+        if (mobile && !/^\d{10}$/.test(mobile)) {
+          errors.push(`Row ${rowNum}: Mobile number must be exactly 10 digits (got "${mobile}")`);
+        }
+
+        if (activeImportType === 'ponds') {
+          const area = getValue('area_hectares');
+          if (area && isNaN(Number(area))) {
+            errors.push(`Row ${rowNum}: area_hectares must be a numeric value (got "${area}")`);
+          }
+        }
+
+        if (activeImportType === 'water_logs') {
+          const ph = getValue('ph');
+          if (ph && (isNaN(Number(ph)) || Number(ph) < 0 || Number(ph) > 14)) {
+            errors.push(`Row ${rowNum}: pH must be a number between 0 and 14 (got "${ph}")`);
+          }
+          const doVal = getValue('dissolved_oxygen');
+          if (doVal && isNaN(Number(doVal))) {
+            errors.push(`Row ${rowNum}: dissolved_oxygen must be a numeric value (got "${doVal}")`);
+          }
+        }
+      });
+
+      setParseErrors(errors);
+    };
+    reader.readAsText(selectedFile);
+  };
+
+  const handleUploadSubmit = async () => {
+    if (!file || parseErrors.length > 0) return;
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const text = await file.text();
+      const { headers, rows } = parseCSV(text);
+      const lowerHeaders = headers.map(h => h.trim().toLowerCase());
+
+      const jsonRows = rows.map(row => {
+        const getValue = (headerName: string) => {
+          const index = lowerHeaders.indexOf(headerName.toLowerCase());
+          return index !== -1 ? row[index]?.trim() : '';
+        };
+
+        const getNum = (headerName: string) => {
+          const val = getValue(headerName);
+          return val ? Number(val) : null;
+        };
+
+        const getBool = (headerName: string) => {
+          const val = getValue(headerName)?.toUpperCase();
+          if (val === 'TRUE' || val === 'YES' || val === '1') return true;
+          if (val === 'FALSE' || val === 'NO' || val === '0') return false;
+          return null;
+        };
+
+        if (activeImportType === 'hatcheries') {
+          return {
+            hatchery_name: getValue('hatchery_name'),
+            owner_name: getValue('owner_name'),
+            owner_mobile: getValue('owner_mobile'),
+            district: getValue('district'),
+            block: getValue('block'),
+            panchayat: getValue('panchayat') || null,
+            capacity_kg: getNum('capacity_kg'),
+            area_acres: getNum('area_acres'),
+            year_completed: getNum('year_completed'),
+            social_category: getValue('social_category') || null,
+            gender: getValue('gender') || null,
+            age: getNum('age'),
+            annual_income: getNum('annual_income'),
+            disease_occurrence: getValue('disease_occurrence') || null,
+            pond_insured: getBool('pond_insured'),
+            latitude: getNum('latitude'),
+            longitude: getNum('longitude'),
+          };
+        } else if (activeImportType === 'ponds') {
+          return {
+            farmer_name: getValue('farmer_name'),
+            farmer_mobile: getValue('farmer_mobile'),
+            pond_name: getValue('pond_name'),
+            area_hectares: getNum('area_hectares'),
+            district: getValue('district'),
+            block: getValue('block'),
+            panchayat: getValue('panchayat') || null,
+            village: getValue('village') || null,
+            father_or_husband_name: getValue('father_or_husband_name') || null,
+            aadhaar_number: getValue('aadhaar_number') || null,
+            gender: getValue('gender') || null,
+            social_category: getValue('social_category') || null,
+            water_source: getValue('water_source') || null,
+            pond_activity: getValue('pond_activity') || null,
+            is_insured: getBool('is_insured'),
+            latitude: getNum('latitude'),
+            longitude: getNum('longitude'),
+          };
+        } else {
+          return {
+            farmer_mobile: getValue('farmer_mobile'),
+            pond_name: getValue('pond_name'),
+            timestamp: getValue('timestamp'),
+            temperature: getNum('temperature'),
+            ph: getNum('ph'),
+            dissolved_oxygen: getNum('dissolved_oxygen'),
+            ammonia: getNum('ammonia'),
+            nitrite: getNum('nitrite'),
+            turbidity: getNum('turbidity'),
+          };
+        }
+      });
+
+      const endpoint =
+        activeImportType === 'hatcheries'
+          ? '/api/v1/admin/import/hatcheries'
+          : activeImportType === 'ponds'
+          ? '/api/v1/admin/import/ponds'
+          : '/api/v1/admin/import/water-logs';
+
+      const res = await api.post<{ success: boolean; message?: string; error?: string }>(endpoint, jsonRows);
+      
+      if (res.success) {
+        setImportResult({ success: true, message: res.message || 'Data imported successfully.' });
+        setFile(null);
+      } else {
+        setImportResult({ success: false, message: res.error || 'Failed to import data.' });
+      }
+    } catch (err: any) {
+      setImportResult({
+        success: false,
+        message: err?.message || 'A network error occurred while uploading.',
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const [doThreshold, setDoThreshold] = useState('3.5');
   const [phMin, setPhMin] = useState('6.5');
   const [phMax, setPhMax] = useState('8.5');
@@ -282,6 +543,157 @@ export default function SettingsPage() {
           </form>
         </GlassCard>
       </div>
+
+      {admin?.role === 'superadmin' && (
+        <GlassCard className="p-6 flex flex-col gap-6 mt-6">
+          <div>
+            <h3 className="text-base font-bold text-ink-primary flex items-center gap-2">
+              <UploadCloud className="h-5 w-5 text-teal-400" />
+              Legacy Data Ingestion Console
+            </h3>
+            <p className="text-xs text-ink-muted leading-relaxed mt-1">
+              Upload historical CSV files to sync legacy records with the MatsyaMitra databases. Validated against the Bihar location hierarchy and user registrations.
+            </p>
+          </div>
+
+          {/* Ingestion Tabs */}
+          <div className="flex gap-2 border-b border-glass-border pb-3">
+            {(
+              [
+                { id: 'hatcheries', label: 'Hatcheries Registry' },
+                { id: 'ponds', label: 'Farmers & Ponds' },
+                { id: 'water_logs', label: 'Water Quality Logs' },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setActiveImportType(t.id);
+                  setFile(null);
+                  setParseErrors([]);
+                  setImportResult(null);
+                }}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg border transition-all ${
+                  activeImportType === t.id
+                    ? 'bg-teal-500/10 text-teal-300 border-teal-500/30'
+                    : 'text-ink-secondary border-transparent hover:bg-glass'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* Upload Zone */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-ink-secondary font-semibold">Select Ingestion File (.csv)</span>
+                <button
+                  onClick={() => downloadCSVTemplate(activeImportType)}
+                  className="text-teal-400 hover:text-teal-300 flex items-center gap-1 font-semibold"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download CSV Template
+                </button>
+              </div>
+
+              <div className="border border-dashed border-glass-border hover:border-teal-500/30 transition-colors rounded-xl p-8 flex flex-col items-center justify-center gap-3 bg-canvas-950/20 text-center relative">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+                <UploadCloud className="h-10 w-10 text-ink-muted" />
+                <div>
+                  <p className="text-xs text-ink-primary font-bold">
+                    {file ? file.name : 'Drag & drop your CSV file here, or click to browse'}
+                  </p>
+                  <p className="text-[10px] text-ink-muted mt-1">
+                    {file ? `${(file.size / 1024).toFixed(1)} KB` : 'Only CSV files are supported'}
+                  </p>
+                </div>
+              </div>
+
+              {file && parseErrors.length === 0 && (
+                <button
+                  onClick={handleUploadSubmit}
+                  disabled={isImporting}
+                  className="w-full py-3 rounded-lg text-xs font-semibold bg-teal-500 text-slate-950 hover:bg-teal-400 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-1.5"
+                >
+                  {isImporting ? 'Ingesting Data...' : 'Start Ingestion'}
+                </button>
+              )}
+            </div>
+
+            {/* Error & Status Reports */}
+            <div className="space-y-4">
+              {parseErrors.length > 0 && (
+                <div className="border border-red-500/20 bg-red-500/5 rounded-xl p-4 flex flex-col gap-2">
+                  <h4 className="text-xs font-bold text-red-400 flex items-center gap-1.5">
+                    <AlertCircle className="h-4 w-4" />
+                    Validation Failed ({parseErrors.length} Errors)
+                  </h4>
+                  <div className="max-h-[160px] overflow-y-auto text-[11px] text-red-300/80 space-y-1.5 leading-relaxed pr-2">
+                    {parseErrors.slice(0, 10).map((err, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <span>•</span>
+                        <span>{err}</span>
+                      </div>
+                    ))}
+                    {parseErrors.length > 10 && (
+                      <p className="text-[10px] text-red-400/60 font-semibold italic mt-2">
+                        And {parseErrors.length - 10} more errors... Please check your template structure.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {importResult && (
+                <div
+                  className={`border rounded-xl p-4 flex flex-col gap-2 ${
+                    importResult.success
+                      ? 'border-teal-500/20 bg-teal-500/5'
+                      : 'border-red-500/20 bg-red-500/5'
+                  }`}
+                >
+                  <h4
+                    className={`text-xs font-bold flex items-center gap-1.5 ${
+                      importResult.success ? 'text-teal-400' : 'text-red-400'
+                    }`}
+                  >
+                    {importResult.success ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    {importResult.success ? 'Ingestion Successful' : 'Ingestion Failed'}
+                  </h4>
+                  <p
+                    className={`text-[11px] leading-relaxed ${
+                      importResult.success ? 'text-teal-300/80' : 'text-red-300/80'
+                    }`}
+                  >
+                    {importResult.message}
+                  </p>
+                </div>
+              )}
+
+              {!file && !importResult && parseErrors.length === 0 && (
+                <div className="border border-glass-border rounded-xl p-6 flex flex-col items-center justify-center bg-canvas-950/10 text-center min-h-[160px]">
+                  <Sliders className="h-8 w-8 text-ink-muted opacity-40 mb-2" />
+                  <p className="text-xs text-ink-muted font-medium">Ready for Ingestion</p>
+                  <p className="text-[10px] text-ink-muted opacity-60 mt-1 max-w-xs leading-relaxed">
+                    Upload a standardized CSV file. We will perform column checks and validate values prior to database upload.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </GlassCard>
+      )}
     </div>
   );
 }
