@@ -11,7 +11,7 @@ import type { HTMLAttributes } from 'react';
  *   strong  — higher opacity, used for overlays that need more presence
  */
 interface GlassCardProps extends HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'subtle' | 'strong';
+  variant?: 'default' | 'subtle' | 'strong' | 'solid';
 }
 
 export function GlassCard({
@@ -25,7 +25,9 @@ export function GlassCard({
       ? 'bg-glass-subtle'
       : variant === 'strong'
         ? 'bg-glass-strong'
-        : 'bg-glass';
+        : variant === 'solid'
+          ? 'bg-canvas-800'
+          : 'bg-glass';
 
   const ring =
     variant === 'strong'

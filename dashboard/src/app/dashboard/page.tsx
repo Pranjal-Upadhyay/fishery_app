@@ -379,7 +379,7 @@ export default function DashboardHome() {
       {/* Selected Pond details Slide-over inspection drawer */}
       {selectedPond && (
         <div className="absolute left-4 top-4 bottom-4 z-20 w-[360px] pointer-events-none">
-          <GlassCard className="pointer-events-auto h-full p-5 flex flex-col gap-4 shadow-glow border-teal-500/25 overflow-y-auto">
+          <GlassCard variant="solid" className="pointer-events-auto h-full p-5 flex flex-col gap-4 shadow-glow border-teal-500/25 overflow-y-auto">
             {/* Drawer Header */}
             <div className="flex justify-between items-start border-b border-glass-border/30 pb-3">
               <div>
