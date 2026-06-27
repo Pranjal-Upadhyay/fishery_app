@@ -44,6 +44,23 @@
   /* Grain — very faint on paper so it reads as texture, not noise */
   --grain-opacity: 0.18;
 
+  /* Brand Teal — High contrast dark shades in light mode for accessibility */
+  --teal-50:  #f0fdf9;
+  --teal-100: #ccfbf1;
+  --teal-200: #99f6e4;
+  --teal-300: #0f766e; /* Rich dark teal */
+  --teal-400: #115e59; /* Bold dark teal (resolves light blue/green visibility issues) */
+  --teal-500: #134e4a;
+  --teal-600: #115e59;
+  --teal-700: #134e4a;
+  --teal-800: #115e59;
+
+  /* Severity — High contrast accessible shades in light mode */
+  --severity-critical: #b91c1c; /* Deep red */
+  --severity-warning:  #b45309; /* Deep amber */
+  --severity-healthy:  #16a34a; /* Forest green (non-glowing) */
+  --severity-info:     #1d4ed8; /* Dark bold blue (instead of light blue) */
+
   color-scheme: light;
 }
 
@@ -78,6 +95,23 @@
 
   /* Noise grain opacity */
   --grain-opacity: 0.6;
+
+  /* Brand Teal — Glowing neon brand identity in dark mode */
+  --teal-50:  #e8fbf6;
+  --teal-100: #bcf2e3;
+  --teal-200: #7fe6cd;
+  --teal-300: #39d4ad;
+  --teal-400: #19b893;
+  --teal-500: #0e9b7c;
+  --teal-600: #0a7b62;
+  --teal-700: #085f4b;
+  --teal-800: #064739;
+
+  /* Severity — Vivid glowing colors for dark mode context */
+  --severity-critical: #ef4d57;
+  --severity-warning:  #f5b13b;
+  --severity-healthy:  #39d4ad;
+  --severity-info:     #5cb8ff;
 
   color-scheme: dark;
 }

@@ -95,49 +95,7 @@ const INITIAL_PONDS: PondMapItem[] = [
       'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=400&q=80',
     ],
   },
-  {
-    id: 'p5',
-    name: 'Mithila Matsya Hatchery',
-    farmerName: 'Sanjay Kumar Yadav',
-    lat: 26.330,
-    lng: 86.050,
-    type: 'HATCHERY',
-    alertStatus: 'normal',
-    district: 'Madhubani',
-    species: 'Jayanti Rohu',
-    system: 'Earthen',
-    ownerType: 'OWNED',
-    waterSource: 'PERENNIAL',
-    areaHectares: 3.5,
-    photos: [
-      'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1516253593875-bd7ba052fbc5?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-    ],
-  },
-  {
-    id: 'p6',
-    name: 'Patna Central Hatchery',
-    farmerName: 'Gopal Dev Prasad',
-    lat: 25.610,
-    lng: 85.150,
-    type: 'HATCHERY',
-    alertStatus: 'critical',
-    alertReason: 'High Ammonia: 0.12 ppm (Max Threshold: 0.05)',
-    district: 'Patna',
-    species: 'Jayanti Rohu',
-    system: 'Earthen',
-    ownerType: 'OWNED',
-    waterSource: 'PERENNIAL',
-    areaHectares: 2.8,
-    photos: [
-      'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1516253593875-bd7ba052fbc5?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
-    ],
-  },
+
   {
     id: 'p7',
     name: 'Ganga RAS Unit 2',
@@ -162,7 +120,8 @@ const INITIAL_PONDS: PondMapItem[] = [
 ];
 
 export default function DashboardHome() {
-  const [ponds, setPonds] = useState<PondMapItem[]>(INITIAL_PONDS);
+  const [ponds, setPonds] = useState<PondMapItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedPond, setSelectedPond] = useState<PondMapItem | null>(null);
 
   // Filter states
@@ -192,22 +151,14 @@ export default function DashboardHome() {
                 };
               }
             }
-            if (p.id === 'p6') {
-              const currentAmmonia = 0.12;
-              if (currentAmmonia > ammoniaVal) {
-                return {
-                  ...p,
-                  alertStatus: 'critical' as const,
-                  alertReason: `Critical: High Ammonia level ${currentAmmonia} ppm (Above threshold of ${ammoniaVal} ppm)`,
-                };
-              }
-            }
             return p;
           });
-          setPonds(updatedItems);
+          setPonds([...INITIAL_PONDS, ...updatedItems]);
         }
       } catch (err) {
         console.error('Failed to fetch live atlas items:', err);
+      } finally {
+        setIsLoading(false);
       }
     }
     fetchLiveItems();
@@ -215,9 +166,8 @@ export default function DashboardHome() {
 
   // Dynamic user-defined thresholds loaded from localStorage settings
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (!isLoading && typeof window !== 'undefined') {
       const doVal = parseFloat(localStorage.getItem('thresholds_do') || '3.5');
-      const ammoniaVal = parseFloat(localStorage.getItem('thresholds_ammonia') || '0.05');
 
       setPonds((prevPonds) =>
         prevPonds.map((p) => {
@@ -231,21 +181,11 @@ export default function DashboardHome() {
               };
             }
           }
-          if (p.id === 'p6') {
-            const currentAmmonia = 0.12;
-            if (currentAmmonia > ammoniaVal) {
-              return {
-                ...p,
-                alertStatus: 'critical' as const,
-                alertReason: `Critical: High Ammonia level ${currentAmmonia} ppm (Above threshold of ${ammoniaVal} ppm)`,
-              };
-            }
-          }
           return { ...p, alertStatus: p.alertStatus, alertReason: p.alertReason };
         })
       );
     }
-  }, []);
+  }, [isLoading]);
 
   // Filter application logic
   const filteredPonds = ponds.filter((p) => {
@@ -263,6 +203,17 @@ export default function DashboardHome() {
 
   return (
     <div className="relative h-full w-full">
+      {isLoading && (
+        <div className="absolute inset-0 z-50 bg-canvas-950/80 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-full border-2 border-teal-500/20 border-t-teal-400 animate-spin" />
+            <Activity className="h-6 w-6 text-teal-400 absolute inset-0 m-auto animate-pulse" />
+          </div>
+          <p className="text-xs font-semibold text-ink-secondary tracking-widest uppercase animate-pulse">
+            Loading Bihar Pond Atlas...
+          </p>
+        </div>
+      )}
       {/* Hero element — the map fills the entire viewport */}
       <MapCanvas
         ponds={filteredPonds}

@@ -14,6 +14,8 @@ import {
   Download,
   CheckCircle2,
   AlertCircle,
+  Trash2,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { useAuth } from '@/lib/auth-context';
@@ -643,32 +645,57 @@ export default function SettingsPage() {
                 </button>
               </div>
 
-              <div className="border border-dashed border-glass-border hover:border-teal-500/30 transition-colors rounded-xl p-8 flex flex-col items-center justify-center gap-3 bg-canvas-950/20 text-center relative">
-                <input
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={handleFileChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                />
-                <UploadCloud className="h-10 w-10 text-ink-muted" />
-                <div>
-                  <p className="text-xs text-ink-primary font-bold">
-                    {file ? file.name : 'Drag & drop your file (.csv, .xlsx, .xls) here, or click to browse'}
-                  </p>
-                  <p className="text-[10px] text-ink-muted mt-1">
-                    {file ? `${(file.size / 1024).toFixed(1)} KB` : 'CSV and Excel files are supported'}
-                  </p>
+              {!file ? (
+                <div className="border border-dashed border-glass-border hover:border-teal-500/30 transition-colors rounded-xl p-8 flex flex-col items-center justify-center gap-3 bg-canvas-950/20 text-center relative">
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <UploadCloud className="h-10 w-10 text-ink-muted" />
+                  <div>
+                    <p className="text-xs text-ink-primary font-bold">
+                      Drag & drop your file (.csv, .xlsx, .xls) here, or click to browse
+                    </p>
+                    <p className="text-[10px] text-ink-muted mt-1">
+                      CSV and Excel files are supported
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between bg-canvas-950/40 border border-glass-border p-4 rounded-xl text-xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileSpreadsheet className="h-5 w-5 text-teal-400 shrink-0" />
+                      <div className="truncate">
+                        <p className="font-bold text-ink-primary truncate">{file.name}</p>
+                        <p className="text-[10px] text-ink-muted">{(file.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setFile(null);
+                        setParseErrors([]);
+                        setImportResult(null);
+                      }}
+                      className="text-red-400 hover:text-red-300 font-semibold flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 rounded-lg transition-all"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  </div>
 
-              {file && parseErrors.length === 0 && (
-                <button
-                  onClick={handleUploadSubmit}
-                  disabled={isImporting}
-                  className="w-full py-3 rounded-lg text-xs font-semibold bg-teal-500 text-slate-950 hover:bg-teal-400 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-1.5"
-                >
-                  {isImporting ? 'Ingesting Data...' : 'Start Ingestion'}
-                </button>
+                  {parseErrors.length === 0 && (
+                    <button
+                      onClick={handleUploadSubmit}
+                      disabled={isImporting}
+                      className="w-full py-3 rounded-lg text-xs font-semibold bg-teal-500 text-slate-950 hover:bg-teal-400 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      {isImporting ? 'Ingesting Data...' : 'Start Ingestion'}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 

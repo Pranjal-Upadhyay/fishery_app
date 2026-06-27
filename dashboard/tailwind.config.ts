@@ -35,23 +35,23 @@ const config: Config = {
           faint:     'var(--ink-faint)',
         },
 
-        // ── Identity colors (constant across themes) ────────────────────────
+        // ── Identity colors (theme-aware CSS variables) ────────────────────────
         teal: {
-          50:  '#e8fbf6',
-          100: '#bcf2e3',
-          200: '#7fe6cd',
-          300: '#39d4ad',
-          400: '#19b893',
-          500: '#0e9b7c',
-          600: '#0a7b62',
-          700: '#085f4b',
-          800: '#064739',
+          50:  'var(--teal-50)',
+          100: 'var(--teal-100)',
+          200: 'var(--teal-200)',
+          300: 'var(--teal-300)',
+          400: 'var(--teal-400)',
+          500: 'var(--teal-500)',
+          600: 'var(--teal-600)',
+          700: 'var(--teal-700)',
+          800: 'var(--teal-800)',
         },
         severity: {
-          critical: '#ef4d57',
-          warning:  '#f5b13b',
-          healthy:  '#39d4ad',
-          info:     '#5cb8ff',
+          critical: 'var(--severity-critical)',
+          warning:  'var(--severity-warning)',
+          healthy:  'var(--severity-healthy)',
+          info:     'var(--severity-info)',
         },
       },
       fontFamily: {
