@@ -327,6 +327,7 @@ export default function MarketplacePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedDispute, setSelectedDispute] = useState<Order | null>(null);
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Fetch from backend, with graceful fallback to mock data
@@ -369,7 +370,7 @@ export default function MarketplacePage() {
   const grossMerchandiseValue = orders
     .filter(o => ['FULFILLED', 'HATCHERY_CONFIRMED', 'FARMER_PAID', 'DISPUTED'].includes(o.status))
     .reduce((acc, curr) => acc + Number(curr.total_amount), 0);
-  const totalActiveListings = listings.filter(l => l.status === 'AVAILABLE').length;
+  const totalActiveListings = listings.filter(l => l.status === 'AVAILABLE' && l.quantity_available > 0).length;
   const disputedOrders = orders.filter(o => o.status === 'DISPUTED');
   const disputeRate = orders.length ? ((disputedOrders.length / orders.length) * 100).toFixed(1) : '0';
 
@@ -379,7 +380,15 @@ export default function MarketplacePage() {
       l.species_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (l.species_variant && l.species_variant.toLowerCase().includes(searchTerm.toLowerCase())) ||
       l.hatchery_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || l.status === statusFilter;
+    
+    const isSoldOut = l.status === 'CLOSED' || l.quantity_available === 0;
+    let matchesStatus = statusFilter === 'ALL' || l.status === statusFilter;
+    if (statusFilter === 'CLOSED' || statusFilter === 'SOLD_OUT') {
+      matchesStatus = isSoldOut;
+    } else if (statusFilter === 'AVAILABLE') {
+      matchesStatus = l.status === 'AVAILABLE' && !isSoldOut;
+    }
+
     return matchesSearch && matchesStatus;
   });
 
@@ -402,6 +411,14 @@ export default function MarketplacePage() {
         return (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
             {status.toLowerCase()}
+          </span>
+        );
+      case 'CLOSED':
+      case 'SOLD OUT':
+      case 'SOLD_OUT':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+            sold out
           </span>
         );
       case 'UPCOMING':
@@ -664,53 +681,64 @@ export default function MarketplacePage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredListings.map(l => (
-                        <tr key={l.id} className="hover:bg-glass-subtle transition-colors group">
-                          <td className="py-3 pl-2">
-                            <div className="font-bold text-ink-primary">{l.species_name}</div>
-                            <div className="text-[10px] text-ink-muted capitalize">
-                              {l.species_variant || 'Standard'} • {l.stage}
-                            </div>
-                          </td>
-                          <td className="py-3">
-                            <div className="font-semibold text-ink-primary">{l.hatchery_name}</div>
-                            <div className="text-[10px] text-ink-muted flex items-center gap-1">
-                              <MapPin className="h-3 w-3 text-teal-400" />
-                              {l.hatchery_district}
-                            </div>
-                          </td>
-                          <td className="py-3 font-mono">
-                            <div className="text-ink-primary font-bold">
-                              {l.quantity_available.toLocaleString()}{' '}
-                              <span className="text-[9px] text-ink-muted">pcs</span>
-                            </div>
-                            <div className="text-[10px] text-ink-muted">
-                              Total: {l.total_quantity.toLocaleString()} pcs
-                            </div>
-                          </td>
-                          <td className="py-3 font-mono font-bold text-ink-primary">
-                            ₹{Number(l.price_per_piece).toFixed(2)}
-                            {l.bulk_price_per_piece && (
-                              <div className="text-[9px] text-teal-400 font-normal">
-                                Bulk: ₹{Number(l.bulk_price_per_piece).toFixed(2)} (&gt;{l.bulk_price_threshold} pcs)
+                      filteredListings.map(l => {
+                        const isSoldOut = l.status === 'CLOSED' || l.quantity_available === 0;
+                        return (
+                          <tr 
+                            key={l.id} 
+                            onClick={() => setSelectedListing(l)}
+                            title="Click to view full listing & sales details"
+                            className="hover:bg-glass-subtle transition-colors group cursor-pointer"
+                          >
+                            <td className="py-3 pl-2">
+                              <div className="font-bold text-ink-primary flex items-center gap-1.5">
+                                {l.species_name}
+                                <Eye className="h-3.5 w-3.5 text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
-                            )}
-                          </td>
-                          <td className="py-3">
-                            <div className="text-ink-primary flex items-center gap-1">
-                              <Calendar className="h-3.5 w-3.5 text-ink-muted" />
-                              {l.expected_ready_date || 'Immediate'}
-                            </div>
-                          </td>
-                          <td className="py-3">
-                            <div className="text-[10px] text-ink-primary">
-                              {l.pickup_available && '✓ Pickup'}
-                              {l.delivery_available && ' / ✓ Delivery'}
-                            </div>
-                          </td>
-                          <td className="py-3">{renderStatusBadge(l.status)}</td>
-                        </tr>
-                      ))
+                              <div className="text-[10px] text-ink-muted capitalize">
+                                {l.species_variant || 'Standard'} • {l.stage}
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              <div className="font-semibold text-ink-primary">{l.hatchery_name}</div>
+                              <div className="text-[10px] text-ink-muted flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-teal-400" />
+                                {l.hatchery_district}
+                              </div>
+                            </td>
+                            <td className="py-3 font-mono">
+                              <div className="text-ink-primary font-bold">
+                                {l.quantity_available.toLocaleString()}{' '}
+                                <span className="text-[9px] text-ink-muted">pcs</span>
+                              </div>
+                              <div className="text-[10px] text-ink-muted">
+                                Total: {l.total_quantity.toLocaleString()} pcs
+                              </div>
+                            </td>
+                            <td className="py-3 font-mono font-bold text-ink-primary">
+                              ₹{Number(l.price_per_piece).toFixed(2)}
+                              {l.bulk_price_per_piece && (
+                                <div className="text-[9px] text-teal-400 font-normal">
+                                  Bulk: ₹{Number(l.bulk_price_per_piece).toFixed(2)} (&gt;{l.bulk_price_threshold} pcs)
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3">
+                              <div className="text-ink-primary flex items-center gap-1">
+                                <Calendar className="h-3.5 w-3.5 text-ink-muted" />
+                                {l.expected_ready_date || 'Immediate'}
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              <div className="text-[10px] text-ink-primary">
+                                {l.pickup_available && '✓ Pickup'}
+                                {l.delivery_available && ' / ✓ Delivery'}
+                              </div>
+                            </td>
+                            <td className="py-3">{renderStatusBadge(isSoldOut ? 'SOLD OUT' : l.status)}</td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -973,6 +1001,176 @@ export default function MarketplacePage() {
               </GlassCard>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Listing Details Pop-up Modal */}
+      {selectedListing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas-950/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-canvas-900 border border-glass-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col gap-5 text-ink-primary">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start border-b border-glass-border pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Listing & Sales Details</span>
+                  {renderStatusBadge(selectedListing.status === 'CLOSED' || selectedListing.quantity_available === 0 ? 'SOLD OUT' : selectedListing.status)}
+                </div>
+                <h2 className="text-xl font-bold text-ink-primary mt-1">
+                  {selectedListing.species_name} {selectedListing.species_variant ? `(${selectedListing.species_variant})` : ''}
+                </h2>
+                <p className="text-xs text-ink-muted capitalize mt-0.5">Stage: {selectedListing.stage} • ID: {selectedListing.id}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedListing(null)}
+                className="text-ink-muted hover:text-ink-primary p-1 rounded-lg hover:bg-glass-subtle transition-colors"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Grid of details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Hatchery & Location */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-2">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Hatchery Information</div>
+                <div className="font-bold text-sm">{selectedListing.hatchery_name}</div>
+                <div className="flex items-center gap-1 text-ink-muted">
+                  <MapPin className="h-3.5 w-3.5 text-teal-400" />
+                  <span>Location: {selectedListing.hatchery_district} District</span>
+                </div>
+              </div>
+
+              {/* Inventory Stock */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-2">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Stock & Inventory</div>
+                <div className="grid grid-cols-2 gap-2 font-mono">
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">Total Quantity:</span>
+                    <span className="font-bold text-sm">{selectedListing.total_quantity.toLocaleString()} pcs</span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">Quantity Available:</span>
+                    <span className="font-bold text-sm text-teal-400">{selectedListing.quantity_available.toLocaleString()} pcs</span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">Reserved:</span>
+                    <span className="font-bold">{selectedListing.reserved_quantity?.toLocaleString() || 0} pcs</span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted block text-[10px]">Confirmed/Sold:</span>
+                    <span className="font-bold">{selectedListing.confirmed_quantity?.toLocaleString() || 0} pcs</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-1.5">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Pricing Details</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">Standard Price:</span>
+                  <span className="font-mono font-bold text-sm">₹{Number(selectedListing.price_per_piece).toFixed(2)} / piece</span>
+                </div>
+                {selectedListing.bulk_price_per_piece && (
+                  <div className="flex justify-between items-center text-teal-300">
+                    <span>Bulk Price (&gt;{selectedListing.bulk_price_threshold} pcs):</span>
+                    <span className="font-mono font-bold">₹{Number(selectedListing.bulk_price_per_piece).toFixed(2)} / piece</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-ink-muted pt-1 border-t border-glass-border/50">
+                  <span>Minimum Order Qty:</span>
+                  <span className="font-mono font-semibold">{selectedListing.min_order_qty.toLocaleString()} pcs</span>
+                </div>
+              </div>
+
+              {/* Availability & Logistics */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-1.5">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Logistics & Schedule</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">Expected Ready Date:</span>
+                  <span className="font-semibold">{selectedListing.expected_ready_date || 'Immediate'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">Fulfillment Options:</span>
+                  <span className="font-semibold">
+                    {selectedListing.pickup_available && '✓ Pickup '}
+                    {selectedListing.delivery_available && '✓ Delivery'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Description if present */}
+            {selectedListing.description && (
+              <div className="bg-canvas-950/40 border border-glass-border p-3 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-ink-muted block mb-1">Description</span>
+                <p className="text-xs text-ink-secondary leading-relaxed">{selectedListing.description}</p>
+              </div>
+            )}
+
+            {/* Sales / Order History Table */}
+            <div className="space-y-2 pt-2 border-t border-glass-border">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-ink-primary">Sales & Buyers History</h3>
+                <span className="text-[10px] font-mono text-ink-muted">
+                  {orders.filter(o => o.listing_id === selectedListing.id).length} Orders Found
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-glass-border bg-canvas-950/60">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-glass-border text-[9px] font-bold uppercase tracking-wider text-ink-muted bg-canvas-900/50">
+                      <th className="py-2 px-3">Txn Ref / Order ID</th>
+                      <th className="py-2 px-3">Buyer (Farmer)</th>
+                      <th className="py-2 px-3">Qty Sold</th>
+                      <th className="py-2 px-3">Total Paid</th>
+                      <th className="py-2 px-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-glass-border/60">
+                    {orders.filter(o => o.listing_id === selectedListing.id).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-4 text-center text-ink-muted text-[11px]">
+                          No orders placed for this listing yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      orders
+                        .filter(o => o.listing_id === selectedListing.id)
+                        .map(o => (
+                          <tr key={o.id} className="hover:bg-glass-subtle transition-colors">
+                            <td className="py-2 px-3 font-mono text-teal-400 font-semibold text-[11px]">
+                              {o.id.length > 14 ? o.id.substring(0, 14) + '...' : o.id}
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="font-bold text-ink-primary">{o.farmer_name}</div>
+                              <div className="text-[10px] text-ink-muted">{o.farmer_phone}</div>
+                            </td>
+                            <td className="py-2 px-3 font-mono font-semibold">
+                              {o.quantity_ordered.toLocaleString()} pcs
+                            </td>
+                            <td className="py-2 px-3 font-mono font-bold text-teal-300">
+                              ₹{Number(o.total_amount).toLocaleString()}
+                            </td>
+                            <td className="py-2 px-3">{renderStatusBadge(o.status)}</td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setSelectedListing(null)}
+                className="px-5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-canvas-950 font-bold text-xs transition-colors"
+              >
+                Close Pop-up
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -78,6 +78,7 @@ export default function MarketListingsScreen() {
             ? Math.round((item.quantity_available / item.total_quantity) * 100)
             : 0;
         const isUpcoming = item.status === 'UPCOMING';
+        const isSoldOut = item.status === 'CLOSED' || item.quantity_available === 0;
 
         const locText = [item.block_snapshot, item.district_snapshot]
             .filter(Boolean).join(', ') || 'Location not available';
@@ -112,9 +113,15 @@ export default function MarketListingsScreen() {
                             </View>
                         )}
                         {!isUpcoming && (
-                            <View style={styles.availBadge}>
-                                <Text style={styles.availBadgeText}>AVAILABLE</Text>
-                            </View>
+                            isSoldOut ? (
+                                <View style={[styles.availBadge, { backgroundColor: '#ef4444' }]}>
+                                    <Text style={styles.availBadgeText}>SOLD OUT</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.availBadge}>
+                                    <Text style={styles.availBadgeText}>AVAILABLE</Text>
+                                </View>
+                            )
                         )}
                     </View>
                 </View>

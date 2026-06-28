@@ -90,7 +90,7 @@ export default function ManageListingsScreen() {
     useFocusEffect(useCallback(() => { void load(); }, [load]));
 
     const filtered = listings.filter(l => {
-        const isSoldOut = l.quantity_available === 0 && (l.reserved_quantity === 0 || !l.reserved_quantity);
+        const isSoldOut = l.quantity_available === 0 || l.status === 'CLOSED';
         if (tab === 'active')   return l.status === 'AVAILABLE' && !isSoldOut;
         if (tab === 'upcoming') return l.status === 'UPCOMING' && !isSoldOut;
         if (tab === 'drafts')   return l.status === 'DRAFT';
