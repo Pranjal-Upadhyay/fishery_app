@@ -17,7 +17,7 @@ import {
   XCircle,
   Eye,
   Info,
-  DollarSign
+  IndianRupee
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { api } from '@/lib/api';
@@ -328,6 +328,7 @@ export default function MarketplacePage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedDispute, setSelectedDispute] = useState<Order | null>(null);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Fetch from backend, with graceful fallback to mock data
@@ -534,7 +535,7 @@ export default function MarketplacePage() {
 
                 <GlassCard className="p-4 flex items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-500/10 text-emerald-400">
-                    <DollarSign className="h-5 w-5" />
+                    <IndianRupee className="h-5 w-5" />
                   </span>
                   <div>
                     <div className="text-xl font-mono font-bold text-ink-primary">
@@ -800,19 +801,28 @@ export default function MarketplacePage() {
                       </tr>
                     ) : (
                       filteredOrders.map(o => (
-                        <tr key={o.id} className="hover:bg-glass-subtle transition-colors group">
+                        <tr 
+                          key={o.id} 
+                          onClick={() => setSelectedOrder(o)}
+                          title="Click to view full order transaction details"
+                          className="hover:bg-glass-subtle transition-colors group cursor-pointer"
+                        >
                           <td className="py-3 pl-2">
-                            <span 
-                              title="Click to copy full Transaction Reference"
-                              onClick={() => {
-                                navigator.clipboard.writeText(o.id);
-                                setCopiedId(o.id);
-                                setTimeout(() => setCopiedId(null), 2000);
-                              }}
-                              className="font-mono text-teal-400 font-semibold uppercase hover:underline cursor-pointer select-all"
-                            >
-                              {o.id.length > 15 ? o.id.substring(0, 15) + '...' : o.id}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span 
+                                title="Click to copy full Transaction Reference"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(o.id);
+                                  setCopiedId(o.id);
+                                  setTimeout(() => setCopiedId(null), 2000);
+                                }}
+                                className="font-mono text-teal-400 font-semibold uppercase hover:underline cursor-pointer select-all"
+                              >
+                                {o.id.length > 15 ? o.id.substring(0, 15) + '...' : o.id}
+                              </span>
+                              <Eye className="h-3.5 w-3.5 text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                             <div className="text-[9px] text-ink-muted transition-colors">
                               {copiedId === o.id ? (
                                 <span className="text-teal-400 font-semibold">✓ Copied!</span>
@@ -1165,6 +1175,138 @@ export default function MarketplacePage() {
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setSelectedListing(null)}
+                className="px-5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-canvas-950 font-bold text-xs transition-colors"
+              >
+                Close Pop-up
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Pop-up Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas-950/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-canvas-900 border border-glass-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col gap-5 text-ink-primary">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start border-b border-glass-border pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Order & Transaction Details</span>
+                  {renderStatusBadge(selectedOrder.status)}
+                </div>
+                <h2 className="text-xl font-bold text-ink-primary mt-1 font-mono flex items-center gap-2">
+                  <span>{selectedOrder.id}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedOrder.id);
+                      setCopiedId(selectedOrder.id);
+                      setTimeout(() => setCopiedId(null), 2000);
+                    }}
+                    className="text-xs font-sans font-normal text-teal-400 hover:underline bg-teal-500/10 px-2 py-0.5 rounded-md border border-teal-500/20"
+                  >
+                    {copiedId === selectedOrder.id ? '✓ Copied!' : 'Copy ID'}
+                  </button>
+                </h2>
+                <p className="text-xs text-ink-muted capitalize mt-0.5">
+                  Type: {selectedOrder.order_type.replace('_', ' ')} • Placed on {new Date(selectedOrder.created_at).toLocaleString('en-IN')}
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedOrder(null)}
+                className="text-ink-muted hover:text-ink-primary p-1 rounded-lg hover:bg-glass-subtle transition-colors"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Grid of details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Buyer (Farmer) */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-2">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Buyer (Farmer) Info</div>
+                <div className="font-bold text-sm">{selectedOrder.farmer_name}</div>
+                <div className="text-ink-muted">Phone: {selectedOrder.farmer_phone}</div>
+                {selectedOrder.farmer_uid && (
+                  <div className="text-ink-muted font-mono text-[11px]">Govt UID: {selectedOrder.farmer_uid}</div>
+                )}
+              </div>
+
+              {/* Seller (Hatchery) */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-2">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Seller (Hatchery) Info</div>
+                <div className="font-bold text-sm">{selectedOrder.hatchery_name}</div>
+                <div className="text-ink-muted">Contact: {selectedOrder.hatchery_phone || 'Available on request'}</div>
+              </div>
+
+              {/* Product & Seed Details */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-1.5">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Seed Specifications</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">Species:</span>
+                  <span className="font-semibold">{selectedOrder.species_name}</span>
+                </div>
+                {selectedOrder.species_variant && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-muted">Variant:</span>
+                    <span className="font-semibold">{selectedOrder.species_variant}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">Growth Stage:</span>
+                  <span className="font-semibold capitalize">{selectedOrder.stage}</span>
+                </div>
+              </div>
+
+              {/* Financial Breakdown */}
+              <div className="bg-canvas-950/60 border border-glass-border p-3.5 rounded-xl space-y-1.5">
+                <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Financial Summary</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">Quantity Ordered:</span>
+                  <span className="font-mono font-bold">{selectedOrder.quantity_ordered.toLocaleString()} pcs</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">Unit Price:</span>
+                  <span className="font-mono font-bold">₹{Number(selectedOrder.price_per_piece).toFixed(2)} / pc</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t border-glass-border/50 text-teal-300 font-bold">
+                  <span>Total Amount Paid:</span>
+                  <span className="font-mono text-base">₹{Number(selectedOrder.total_amount).toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Delivery & Notes */}
+            {(selectedOrder.delivery_address || selectedOrder.farmer_notes) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {selectedOrder.delivery_address && (
+                  <div className="bg-canvas-950/40 border border-glass-border p-3 rounded-xl">
+                    <span className="text-[10px] uppercase font-bold text-ink-muted block mb-1">Delivery Address</span>
+                    <p className="text-xs text-ink-secondary">{selectedOrder.delivery_address}</p>
+                  </div>
+                )}
+                {selectedOrder.farmer_notes && (
+                  <div className="bg-canvas-950/40 border border-glass-border p-3 rounded-xl">
+                    <span className="text-[10px] uppercase font-bold text-ink-muted block mb-1">Farmer Notes</span>
+                    <p className="text-xs text-ink-secondary">{selectedOrder.farmer_notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Dispute details if disputed */}
+            {selectedOrder.status === 'DISPUTED' && selectedOrder.dispute_description && (
+              <div className="bg-rose-500/10 border border-rose-500/30 p-3.5 rounded-xl space-y-1">
+                <div className="text-[10px] uppercase font-bold text-rose-400 tracking-wider">Dispute Details</div>
+                <div className="text-xs font-semibold text-rose-300">Reason: {selectedOrder.dispute_reason?.replace('_', ' ')}</div>
+                <p className="text-xs text-rose-200/90 leading-relaxed mt-1">{selectedOrder.dispute_description}</p>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex justify-end pt-2 border-t border-glass-border">
+              <button
+                onClick={() => setSelectedOrder(null)}
                 className="px-5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-canvas-950 font-bold text-xs transition-colors"
               >
                 Close Pop-up
