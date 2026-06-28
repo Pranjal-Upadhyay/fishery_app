@@ -570,10 +570,10 @@ router.post(
       const blks = await client.query('SELECT code, name, district_code FROM loc_blocks');
 
       const distMap = new Map<string, string>();
-      dists.rows.forEach((r) => distMap.set(r.name.trim().toLowerCase(), r.code));
+      dists.rows.forEach((r: any) => distMap.set(r.name.trim().toLowerCase(), r.code));
 
       const blkMap = new Map<string, string>();
-      blks.rows.forEach((r) =>
+      blks.rows.forEach((r: any) =>
         blkMap.set(r.district_code + ':' + r.name.trim().toLowerCase(), r.code)
       );
 
@@ -798,10 +798,10 @@ router.post(
       const blks = await client.query('SELECT code, name, district_code FROM loc_blocks');
 
       const distMap = new Map<string, string>();
-      dists.rows.forEach((r) => distMap.set(r.name.trim().toLowerCase(), r.code));
+      dists.rows.forEach((r: any) => distMap.set(r.name.trim().toLowerCase(), r.code));
 
       const blkMap = new Map<string, string>();
-      blks.rows.forEach((r) =>
+      blks.rows.forEach((r: any) =>
         blkMap.set(r.district_code + ':' + r.name.trim().toLowerCase(), r.code)
       );
 
