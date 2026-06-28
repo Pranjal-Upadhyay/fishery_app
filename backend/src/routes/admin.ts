@@ -293,8 +293,16 @@ function formatPondActivity(act: string | null | undefined): 'GROW_OUT' | 'HATCH
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/v1/admin/atlas-items
 // ─────────────────────────────────────────────────────────────────────────────
+let atlasCache: { data: any[]; timestamp: number } | null = null;
+const ATLAS_CACHE_TTL = 60 * 1000; // 60 seconds cache TTL
+
 router.get('/atlas-items', requireAdmin, async (req, res, next) => {
   try {
+    const now = Date.now();
+    if (atlasCache && now - atlasCache.timestamp < ATLAS_CACHE_TTL) {
+      return res.json({ success: true, data: atlasCache.data });
+    }
+
     // Fetch ponds, hatcheries, and BAIP Geotagged Farmers in parallel
     const [pondsRes, hatcheriesRes, baipRes] = await Promise.all([
       query(`
@@ -432,6 +440,7 @@ router.get('/atlas-items', requireAdmin, async (req, res, next) => {
       });
     });
 
+    atlasCache = { data: allItems, timestamp: Date.now() };
     res.json({ success: true, data: allItems });
   } catch (error) {
     next(error);

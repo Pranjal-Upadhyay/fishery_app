@@ -229,10 +229,13 @@ function BiharBorders() {
       }
     };
 
-    loadBorders();
+    const timer = setTimeout(() => {
+      loadBorders();
+    }, 500);
 
     return () => {
       active = false;
+      clearTimeout(timer);
       addedFeatures.forEach((feature) => {
         try {
           map.data.remove(feature);

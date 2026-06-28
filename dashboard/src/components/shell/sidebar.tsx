@@ -63,6 +63,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={cn(
                 'group relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
                 active
@@ -90,6 +91,7 @@ export function Sidebar() {
       {/* Settings */}
       <Link
         href="/dashboard/settings"
+        prefetch={false}
         className="group relative my-4 flex h-11 w-11 items-center justify-center rounded-xl text-ink-secondary transition-colors hover:bg-glass hover:text-ink-primary"
         aria-label="Settings"
       >
