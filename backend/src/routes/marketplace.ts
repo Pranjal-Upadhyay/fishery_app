@@ -727,7 +727,9 @@ router.post('/listings/:id/publish', requireAuth, async (req, res, next) => {
 
         // Compute next status
         const today = new Date().toISOString().slice(0, 10);
-        const readyDate = listing.expected_ready_date.toISOString().slice(0, 10);
+        const readyDate = typeof listing.expected_ready_date === 'string'
+            ? listing.expected_ready_date.slice(0, 10)
+            : new Date(listing.expected_ready_date).toISOString().slice(0, 10);
         let nextStatus: string;
         if (target) {
             // explicit override (validated against ready date)
