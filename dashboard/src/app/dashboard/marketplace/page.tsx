@@ -689,10 +689,10 @@ export default function MarketplacePage() {
                             </div>
                           </td>
                           <td className="py-3 font-mono font-bold text-ink-primary">
-                            ₹{l.price_per_piece.toFixed(2)}
+                            ₹{Number(l.price_per_piece).toFixed(2)}
                             {l.bulk_price_per_piece && (
                               <div className="text-[9px] text-teal-400 font-normal">
-                                Bulk: ₹{l.bulk_price_per_piece.toFixed(2)} (&gt;{l.bulk_price_threshold} pcs)
+                                Bulk: ₹{Number(l.bulk_price_per_piece).toFixed(2)} (&gt;{l.bulk_price_threshold} pcs)
                               </div>
                             )}
                           </td>
