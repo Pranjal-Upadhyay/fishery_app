@@ -218,7 +218,7 @@ export default function ListingDetailScreen() {
 
     const stageColor = STAGE_COLOR[listing.stage] ?? theme.colors.primary;
     const isOwner = Boolean(currentUser && listing && listing.operator_id === currentUser.id);
-    const isSoldOut = listing.status === 'AVAILABLE' && listing.quantity_available === 0;
+    const isSoldOut = (listing.status === 'AVAILABLE' && listing.quantity_available === 0) || listing.status === 'CLOSED';
     const isPurchasable = listing.status === 'AVAILABLE' && listing.quantity_available > 0;
     const isInterestable = listing.status === 'UPCOMING';
     const canOrder = (isPurchasable || isInterestable) && !isOwner;
@@ -234,6 +234,9 @@ export default function ListingDetailScreen() {
             badgeText = 'SOLD OUT';
             badgeStyle = styles.statusBadgeClosed;
         }
+    } else if (listing.status === 'CLOSED') {
+        badgeText = 'SOLD OUT';
+        badgeStyle = styles.statusBadgeClosed;
     } else if (listing.status === 'UPCOMING') {
         badgeText = 'COMING SOON';
         badgeStyle = styles.statusBadgeUpcoming;
