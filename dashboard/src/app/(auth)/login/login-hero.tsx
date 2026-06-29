@@ -45,10 +45,10 @@ export function LoginHero({ children }: LoginHeroProps) {
     const video = videoRef.current;
     if (!video) return;
 
-    // Fallback safety timeout (7s) in case onEnded doesn't fire or video stutters
+    // Fallback safety timeout (5s) in case onEnded doesn't fire or video stutters
     const safetyTimer = setTimeout(() => {
       triggerReveal();
-    }, 7000);
+    }, 5000);
 
     // Attempt autoplay
     video.play().catch(() => {
