@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api';
+import { LoginHero } from './login-hero';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,13 +56,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative grid min-h-screen place-items-center px-6 py-12">
+    <div className="relative min-h-screen">
       {/* Theme toggle — top-right corner */}
-      <div className="absolute right-6 top-6">
+      <div className="fixed right-6 top-6 z-50">
         <ThemeToggle />
       </div>
 
-      <div className="w-full max-w-[460px]">
+      <LoginHero>
         {/* Brand mark */}
         <div className="mb-10 flex items-center gap-3">
           <span className="grid h-12 w-12 place-items-center rounded-xl border border-teal-400/40 bg-teal-500/15 text-teal-300 shadow-glow">
@@ -77,7 +78,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <GlassCard className="p-8">
+        <GlassCard className="p-8 shadow-popup">
           <header className="mb-7">
             <h1 className="text-3xl font-bold leading-tight text-ink-primary">
               Sign in
@@ -140,7 +141,7 @@ export default function LoginPage() {
         <p className="mt-8 text-center text-xs text-ink-muted">
           © Government of Bihar · Department of Animal &amp; Fisheries Resources
         </p>
-      </div>
+      </LoginHero>
     </div>
   );
 }
