@@ -289,7 +289,7 @@ function DoctorProfileModal({ doctor, onClose }: { doctor: Doctor; onClose: () =
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <GlassCard className="relative z-10 w-full max-w-md p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[85vh] overflow-y-auto">
+      <GlassCard className="relative z-10 w-full max-w-md p-6 flex flex-col gap-5 shadow-popup border-teal-500/30 max-h-[85vh] overflow-y-auto">
         <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Doctor Profile</div>
@@ -359,7 +359,7 @@ function PrescriptionDetailModal({ rx: rx, onClose }: { rx: Prescription; onClos
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <GlassCard className={`relative z-10 w-full max-w-lg p-6 flex flex-col gap-5 shadow-glow max-h-[90vh] overflow-y-auto border ${
+      <GlassCard className={`relative z-10 w-full max-w-lg p-6 flex flex-col gap-5 shadow-popup max-h-[90vh] overflow-y-auto border ${
         rx.status === 'In Treatment' ? 'border-sky-500/30' : rx.status === 'Follow-up Due' ? 'border-amber-500/30' : 'border-teal-500/30'
       }`}>
         {/* Header */}
@@ -489,7 +489,7 @@ function KpiModal({ type, onClose, onDoctorClick, onRxClick, assignedIds, onAssi
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <GlassCard className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[88vh] overflow-hidden">
+      <GlassCard className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-popup border-teal-500/30 max-h-[88vh] overflow-hidden">
         {/* Header */}
         <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
           <div>

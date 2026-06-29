@@ -1020,7 +1020,7 @@ export default function MarketplacePage() {
       {/* Listing Details Pop-up Modal */}
       {selectedListing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas-950/80 backdrop-blur-md p-4 animate-fadeIn">
-          <div className="bg-canvas-900 border border-glass-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col gap-5 text-ink-primary">
+          <div className="bg-canvas-900 border border-glass-border rounded-2xl max-w-2xl w-full p-6 shadow-popup overflow-y-auto max-h-[90vh] flex flex-col gap-5 text-ink-primary">
             {/* Modal Header */}
             <div className="flex justify-between items-start border-b border-glass-border pb-4">
               <div>
@@ -1190,7 +1190,7 @@ export default function MarketplacePage() {
       {/* Order Details Pop-up Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas-950/80 backdrop-blur-md p-4 animate-fadeIn">
-          <div className="bg-canvas-900 border border-glass-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col gap-5 text-ink-primary">
+          <div className="bg-canvas-900 border border-glass-border rounded-2xl max-w-2xl w-full p-6 shadow-popup overflow-y-auto max-h-[90vh] flex flex-col gap-5 text-ink-primary">
             {/* Modal Header */}
             <div className="flex justify-between items-start border-b border-glass-border pb-4">
               <div>

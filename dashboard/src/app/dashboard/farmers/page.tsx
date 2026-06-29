@@ -138,7 +138,7 @@ function FarmerProfileDrawer({ farmer, onClose }: { farmer: Farmer; onClose: () 
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Drawer */}
-      <GlassCard className="relative z-10 w-full max-w-lg p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[90vh] overflow-y-auto">
+      <GlassCard className="relative z-10 w-full max-w-lg p-6 flex flex-col gap-5 shadow-popup border-teal-500/30 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
           <div>
@@ -380,7 +380,7 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDe
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[85vh] overflow-hidden">
+      <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-popup border-teal-500/30 max-h-[85vh] overflow-hidden">
         {/* Header */}
         <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
           <div>

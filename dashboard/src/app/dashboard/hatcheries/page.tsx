@@ -487,7 +487,7 @@ export default function HatcheriesPage() {
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
            onClick={(e) => { if (e.target === e.currentTarget) setActiveHatchModal(null); }}>
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveHatchModal(null)} />
-        <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-glow border-teal-500/30 max-h-[88vh] overflow-hidden">
+        <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-popup border-teal-500/30 max-h-[88vh] overflow-hidden">
 
           {/* Modal header */}
           <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
@@ -766,7 +766,7 @@ export default function HatcheriesPage() {
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4"
                onClick={(e) => { if (e.target === e.currentTarget) setSelectedBatchDetail(null); }}>
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedBatchDetail(null)} />
-            <GlassCard className="relative z-10 w-full max-w-xl p-6 flex flex-col gap-4 shadow-glow border-sky-500/30 max-h-[90vh] overflow-y-auto">
+            <GlassCard className="relative z-10 w-full max-w-xl p-6 flex flex-col gap-4 shadow-popup border-sky-500/30 max-h-[90vh] overflow-y-auto">
               
               {/* Header */}
               <div className="flex justify-between items-start border-b border-glass-border/40 pb-3 shrink-0">
@@ -891,7 +891,7 @@ export default function HatcheriesPage() {
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4"
                onClick={(e) => { if (e.target === e.currentTarget) setSelectedHatcheryDetail(null); }}>
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedHatcheryDetail(null)} />
-            <GlassCard className="relative z-10 w-full max-w-xl p-6 flex flex-col gap-4 shadow-glow border-teal-500/30 max-h-[90vh] overflow-y-auto">
+            <GlassCard className="relative z-10 w-full max-w-xl p-6 flex flex-col gap-4 shadow-popup border-teal-500/30 max-h-[90vh] overflow-y-auto">
               
               {/* Header */}
               <div className="flex justify-between items-start border-b border-glass-border/40 pb-3 shrink-0">

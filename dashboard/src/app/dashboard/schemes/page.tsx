@@ -362,6 +362,18 @@ export default function SchemesPage() {
 
   const handleStatusChange = async (appId: string, dbStatus: string) => {
     setProcessingId(appId);
+    // Optimistic local update
+    let mappedStatus = 'Awaiting Review';
+    if (dbStatus === 'DLC_QUEUE') mappedStatus = 'DLC Queue';
+    else if (dbStatus === 'APPROVED') mappedStatus = 'Approved';
+    else if (dbStatus === 'MILESTONE_1_MET') mappedStatus = 'Milestone 1 Met';
+    else if (dbStatus === 'MILESTONE_2_MET') mappedStatus = 'Milestone 2 Met';
+    else if (dbStatus === 'REJECTED') mappedStatus = 'Rejected';
+
+    setApplications(prev =>
+      prev.map(app => (app.id === appId ? { ...app, status: mappedStatus } : app))
+    );
+
     try {
       await api.patch<ApiEnvelope<unknown>>(`/api/v1/yojana/admin/applications/${appId}/status`, { status: dbStatus });
       await fetchApps();
@@ -429,7 +441,7 @@ export default function SchemesPage() {
           subtitle="All active aquaculture subsidy schemes. Click a scheme to view full eligibility rules, subsidy breakdown, and how to apply."
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {SCHEME_CATALOG.map(scheme => {
             const a = ACCENT[scheme.accentColor];
             const isOpen = selectedScheme === scheme.id;
@@ -438,10 +450,10 @@ export default function SchemesPage() {
               <button
                 key={scheme.id}
                 onClick={() => setSelectedScheme(isOpen ? null : scheme.id)}
-                className={`text-left p-5 rounded-2xl border transition-all duration-200 ${
+                className={`text-left p-5 rounded-2xl border transition-all duration-300 ${
                   isOpen
-                    ? `${a.border} ${a.bg} ${a.ring}`
-                    : 'border-glass-border/60 bg-canvas-900/50 hover:bg-glass-subtle hover:border-glass-border'
+                    ? `${a.border} ${a.bg} ${a.ring} shadow-tileSelected scale-[1.02]`
+                    : 'border-glass-border/60 bg-canvas-900/60 shadow-tile hover:shadow-tileHover hover:border-glass-border hover:-translate-y-0.5'
                 }`}
               >
                 <div className={`text-[10px] font-mono font-bold tracking-widest mb-2.5 ${a.text}`}>
@@ -486,7 +498,7 @@ export default function SchemesPage() {
           const farmerSharePct = 100 - maxSubsidyPct;
           const farmerShareLakh = ((farmerSharePct / 100) * scheme.unitCostCapLakh).toFixed(2);
           return (
-            <div className={`rounded-2xl border ${a.border} bg-canvas-950/70 p-6 backdrop-blur-sm`}>
+            <div className={`rounded-2xl border ${a.border} bg-canvas-950/80 p-6 backdrop-blur-md shadow-popup animate-fadeIn`}>
               {/* Detail header */}
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                 <div>
@@ -751,8 +763,10 @@ export default function SchemesPage() {
               return (
                 <div
                   key={app.id}
-                  className={`rounded-2xl border overflow-hidden transition-all ${
-                    isExpanded ? 'border-teal-500/25' : 'border-glass-border'
+                  className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
+                    isExpanded
+                      ? 'border-teal-500/40 shadow-tileSelected ring-1 ring-teal-500/30'
+                      : 'border-glass-border/60 shadow-tile hover:shadow-tileHover hover:border-glass-border'
                   }`}
                 >
                   {/* ── Collapsed Row ── */}

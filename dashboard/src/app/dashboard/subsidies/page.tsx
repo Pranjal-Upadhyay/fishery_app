@@ -98,7 +98,7 @@ function BreakdownModal({ type, onClose, stats, apps }: {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <GlassCard className="relative z-10 w-full max-w-2xl p-6 shadow-glow border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
+      <GlassCard className="relative z-10 w-full max-w-2xl p-6 shadow-popup border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
         {/* Header */}
         <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
           <div>

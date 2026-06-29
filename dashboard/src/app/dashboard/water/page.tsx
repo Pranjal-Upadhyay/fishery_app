@@ -448,7 +448,7 @@ export default function WaterQualityPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setActiveParam(null); }}
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveParam(null)} />
-          <GlassCard variant="solid" className={`relative z-10 w-full max-w-xl p-6 shadow-glow border max-h-[85vh] overflow-y-auto flex flex-col gap-5 ${paramInfo.border}`}>
+          <GlassCard variant="solid" className={`relative z-10 w-full max-w-xl p-6 shadow-popup border max-h-[85vh] overflow-y-auto flex flex-col gap-5 ${paramInfo.border}`}>
             {/* Header */}
             <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
               <div className="flex items-center gap-3">
@@ -514,7 +514,7 @@ export default function WaterQualityPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setSelectedLog(null); }}
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedLog(null)} />
-          <GlassCard variant="solid" className={`relative z-10 w-full max-w-lg p-6 shadow-glow max-h-[85vh] overflow-y-auto flex flex-col gap-5 border ${
+          <GlassCard variant="solid" className={`relative z-10 w-full max-w-lg p-6 shadow-popup max-h-[85vh] overflow-y-auto flex flex-col gap-5 border ${
             selectedLog.status === 'critical' ? 'border-rose-500/30' : selectedLog.status === 'alert' ? 'border-amber-500/30' : 'border-teal-500/30'
           }`}>
             {/* Header */}

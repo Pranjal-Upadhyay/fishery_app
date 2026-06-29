@@ -38,7 +38,7 @@ export function GlassCard({
     <div
       {...rest}
       className={cn(
-        'relative rounded-glass border backdrop-blur-glass shadow-glass',
+        'relative rounded-glass border backdrop-blur-glass shadow-tile transition-all duration-300',
         tint,
         ring,
         className

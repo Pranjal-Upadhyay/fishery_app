@@ -728,7 +728,7 @@ export default function ProductionPage() {
       {/* Farmer Yield Spotlight Modal */}
       {selectedFarmer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <GlassCard className="relative w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh] flex flex-col gap-5 shadow-glow border-teal-500/30">
+          <GlassCard className="relative w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh] flex flex-col gap-5 shadow-popup border-teal-500/30">
             {/* Modal Header */}
             <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
               <div>
@@ -1033,7 +1033,7 @@ export default function ProductionPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setActiveProductionModal(null); }}
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveProductionModal(null)} />
-          <GlassCard variant="solid" className="relative z-10 w-full max-w-xl p-6 shadow-glow border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
+          <GlassCard variant="solid" className="relative z-10 w-full max-w-xl p-6 shadow-popup border-teal-500/30 max-h-[85vh] overflow-y-auto flex flex-col gap-5">
             {/* Header */}
             <div className="flex justify-between items-start border-b border-glass-border/40 pb-4">
               <div>
