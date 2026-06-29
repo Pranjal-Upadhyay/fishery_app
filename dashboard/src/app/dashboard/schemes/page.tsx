@@ -293,11 +293,11 @@ const GLOSSARY = [
 
 // ─── Accent Styles ────────────────────────────────────────────────────────────
 
-const ACCENT: Record<string, { border: string; bg: string; text: string; selectedBg: string }> = {
-  teal:   { border: 'border-teal-500/40',   bg: 'bg-teal-500/10',   text: 'text-teal-400',   selectedBg: 'bg-teal-500/15' },
-  sky:    { border: 'border-sky-500/40',    bg: 'bg-sky-500/10',    text: 'text-sky-400',    selectedBg: 'bg-sky-500/15' },
-  amber:  { border: 'border-amber-500/40',  bg: 'bg-amber-500/10',  text: 'text-amber-400',  selectedBg: 'bg-amber-500/15' },
-  violet: { border: 'border-violet-500/40', bg: 'bg-violet-500/10', text: 'text-violet-400', selectedBg: 'bg-violet-500/15' },
+const ACCENT: Record<string, { border: string; bg: string; text: string; ring: string }> = {
+  teal:   { border: 'border-teal-500/50',   bg: 'bg-teal-500/10',   text: 'text-teal-400',   ring: 'ring-1 ring-teal-500/50' },
+  sky:    { border: 'border-sky-500/50',    bg: 'bg-sky-500/10',    text: 'text-sky-400',    ring: 'ring-1 ring-sky-500/50' },
+  amber:  { border: 'border-amber-500/50',  bg: 'bg-amber-500/10',  text: 'text-amber-400',  ring: 'ring-1 ring-amber-500/50' },
+  violet: { border: 'border-violet-400/50', bg: 'bg-violet-500/8',  text: 'text-violet-400', ring: 'ring-1 ring-violet-400/50' },
 };
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -440,8 +440,8 @@ export default function SchemesPage() {
                 onClick={() => setSelectedScheme(isOpen ? null : scheme.id)}
                 className={`text-left p-5 rounded-2xl border transition-all duration-200 ${
                   isOpen
-                    ? `${a.border} ${a.selectedBg}`
-                    : 'border-glass-border bg-canvas-900/50 hover:bg-glass-subtle'
+                    ? `${a.border} ${a.bg} ${a.ring}`
+                    : 'border-glass-border/60 bg-canvas-900/50 hover:bg-glass-subtle hover:border-glass-border'
                 }`}
               >
                 <div className={`text-[10px] font-mono font-bold tracking-widest mb-2.5 ${a.text}`}>
@@ -482,10 +482,13 @@ export default function SchemesPage() {
         {selectedScheme && (() => {
           const scheme = SCHEME_CATALOG.find(s => s.id === selectedScheme)!;
           const a = ACCENT[scheme.accentColor];
+          const maxSubsidyPct = Math.max(...Object.values(scheme.subsidyByCategory));
+          const farmerSharePct = 100 - maxSubsidyPct;
+          const farmerShareLakh = ((farmerSharePct / 100) * scheme.unitCostCapLakh).toFixed(2);
           return (
             <div className={`rounded-2xl border ${a.border} bg-canvas-950/70 p-6 backdrop-blur-sm`}>
               {/* Detail header */}
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                 <div>
                   <div className={`text-[10px] font-mono font-bold tracking-widest ${a.text} mb-1`}>{scheme.code}</div>
                   <h3 className="text-xl font-bold text-ink-primary">{scheme.nameEn}</h3>
@@ -503,7 +506,26 @@ export default function SchemesPage() {
                 </div>
               </div>
 
+              {/* ── Quick Facts Strip ── */}
+              <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-8 p-4 rounded-xl border ${a.border} bg-canvas-950/40`}>
+                {[
+                  { label: 'Max Govt. Subsidy', value: `${maxSubsidyPct}%`, sub: 'of unit cost' },
+                  { label: 'Farmer\'s Share', value: `${farmerSharePct}%`, sub: `≈ ₹${farmerShareLakh}L` },
+                  { label: 'Unit Cost Cap', value: `₹${scheme.unitCostCapLakh}L`, sub: 'per beneficiary' },
+                  { label: 'Max Payout', value: `₹${scheme.maxSubsidyLakh}L`, sub: 'govt. share' },
+                  { label: 'Disbursement', value: `${scheme.applicationSteps.length > 5 ? 2 : 1} Milestones`, sub: 'instalment mode' },
+                  { label: 'Documents Required', value: `${scheme.requiredDocuments.length}`, sub: 'mandatory docs' },
+                ].map(fact => (
+                  <div key={fact.label} className="text-center">
+                    <div className={`text-sm font-bold font-mono ${a.text}`}>{fact.value}</div>
+                    <div className="text-[9px] font-bold text-ink-muted uppercase tracking-wider mt-0.5">{fact.label}</div>
+                    <div className="text-[9px] text-ink-muted/70 mt-0.5">{fact.sub}</div>
+                  </div>
+                ))}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+
                 {/* Subsidy by category */}
                 <div>
                   <div className="text-[10px] font-bold text-ink-muted uppercase tracking-widest mb-4">

@@ -42,7 +42,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
         <AlertTicker />
-        <main className="relative flex-1 overflow-hidden">{children}</main>
+        <main className="relative flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   );
