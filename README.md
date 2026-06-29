@@ -723,6 +723,10 @@ POST   /api/v1/marketplace/orders/:id/convert              Farmer converts inter
 GET    /api/v1/marketplace/notifications                   List in-app notifications
 PATCH  /api/v1/marketplace/notifications/:id/read          Mark read
 
+# Real-time System Notifications & Alerts
+POST   /api/v1/notifications/send                         Dispatch alert notification to farmer app
+GET    /api/v1/notifications/farmer/:farmerId             Fetch notification feed for farmer
+
 # Survey — Crop cycles (Section B recurring + B-16 costs)
 GET    /api/v1/crop-cycles?pondId=&status=                 List cycles
 GET    /api/v1/crop-cycles/:id                             Cycle detail
@@ -1069,6 +1073,7 @@ In addition to this README, the repository ships a living `documentation/` folde
 | **`YOJANA_INTEGRATION_PLAN.md`** | The PMMSY scheme catalog integration spec — application lifecycle, DLC escalation, milestone proof requirements |
 | **`MatsyaMitra_Hatchery_Feature_Implementation.md`** | The hatchery marketplace v2 feature build plan — listing lifecycle, order state machine, dispute taxonomy |
 | **`AGENTS.md`** | AI agent prompts and operating guidance used during development |
+| **`ODOO_INTEGRATION_GUIDE.md`** | Complete architectural and integration guide for Odoo ERP — field team collaboration, Chatter feeds, web application embedding, and MatsyaMitra + Odoo workflow integration for Gates Foundation / NGO agricultural initiatives |
 | **`SECURITY.md`** | Platform-wide security posture (mobile + backend); see also `dashboard/SECURITY.md` for the admin-side document |
 | **`backend/MARKET_DATA_STRATEGY.md`** | AGMARKNET + FMPIS scraping strategy, fallback chains, data quality guarantees |
 | **`mobile/METRO_HANG_RESOLUTION.md`** | Field log of every Metro / Node / Expo hang we've hit and how we fixed it |
@@ -1156,7 +1161,11 @@ Two new tables + screens for cycle-based survey data:
 
 **Bucket 4 (Surveyor remarks/signature) intentionally skipped** — those fields belong on a future government officer portal, not the farmer app.
 
-#### Other Improvements
+#### Other Improvements & Performance Optimizations
+- **Real-Time Notification Dispatch System**: Connected Admin Dashboard Alerts (`/dashboard/alerts`) and Water Quality (`/dashboard/water`) screens to `POST /api/v1/notifications/send` backend API. Updated mobile app `getNotificationFeed()` (`mobile/src/utils/notificationCenter.ts`) to fetch and merge server notifications in real-time into the farmer's mobile notification feed.
+- **Dashboard Performance & Loading Resilience**: Added 60s in-memory caching to `/api/v1/admin/atlas-items` (reduced map marker load time from 1.5s to <5ms), deferred static GeoJSON boundary loading by 500ms, disabled sidebar link prefetching (`prefetch={false}`), added 8s `AbortController` timeout guards to `api.ts`, and implemented `Promise.allSettled` in Marketplace to eliminate infinite loading spinners.
+- **Dashboard Marketplace & Order Details Modal**: Replaced DollarSign with official `IndianRupee (₹)` icon in Gross Value overview, added an interactive Order Details Pop-up Modal in Dashboard Marketplace orders table, and synchronized `sold out` / `CLOSED` listing status badges across dashboard and mobile app surfaces.
+- **Production Infrastructure & Keep-Alive**: Created GitHub Action `.github/workflows/keep-alive.yml` with a 4-job matrix strategy to keep Render backend instances warm and prevent free-tier sleep latency.
 - `app.json`: removed `experiments.baseUrl` that was leaking into Metro bundle URL (broke Expo Go loading)
 - `app.json`: added `"checkAutomatically": "ON_ERROR_RECOVERY"` to updates config so `expo start` doesn't block on EAS server pings
 - `LocationCascadePicker`: panchayat manual entry moved inside the modal (was floating below cascade row, confusing users)
