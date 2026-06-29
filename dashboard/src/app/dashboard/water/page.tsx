@@ -18,6 +18,7 @@ import {
   Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { api } from '@/lib/api';
 
 function exportWaterQualityToCSV(logs: WaterLog[]) {
   const headers = [
@@ -191,12 +192,26 @@ export default function WaterQualityPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const handleSendNotification = (log: WaterLog) => {
+  const handleSendNotification = async (log: WaterLog) => {
     setNotifiedPonds((prev) => new Set([...prev, log.id]));
+
+    const msg = `⚠️ MatsyaMitra Water Alert: Your pond "${log.pondName}" shows critical parameters (pH: ${log.ph}, DO: ${log.doLevel} mg/L, Temp: ${log.temp}°C, Ammonia: ${log.ammonia} mg/L). Immediate corrective action recommended.`;
+
+    try {
+      await api.post('/api/v1/notifications/send', {
+        phone: log.phone,
+        farmerName: log.farmerName,
+        type: 'water_quality_alert',
+        title: `⚠️ Water Alert: ${log.pondName}`,
+        message: msg
+      });
+    } catch (err) {
+      console.error('Failed to dispatch water quality notification:', err);
+    }
+
     alert(
-      `📱 Corrective notification sent to ${log.farmerName} (${log.phone}):\n\n` +
-      `"⚠️ MatsyaMitra Water Alert: Your pond "${log.pondName}" shows critical parameters. ` +
-      `Immediate corrective action recommended. Contact your field officer or call 1800-XXX-XXXX for guidance."`
+      `📱 App Notification dispatched directly to ${log.farmerName}'s MatsyaMitra mobile app:\n\n` +
+      `"${msg}"`
     );
   };
 

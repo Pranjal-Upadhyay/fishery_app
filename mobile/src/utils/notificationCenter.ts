@@ -5,6 +5,8 @@ import WaterQualityLog from '../database/models/WaterQualityLog';
 import { evaluatePondHealth } from './pondAdvisory';
 import { getCurrentMilestone, getCultureProfile, getWaterQualityTargets, getFeedingGuide, getSpeciesProfile } from './pondLifecycle';
 import { fetchSpeciesLookup } from './speciesLookup';
+import { authService } from '../services/authService';
+import { farmerNotificationsService } from '../services/apiService';
 
 const NOTIFICATION_READS_KEY = '@fishing_god_notification_reads';
 
@@ -271,14 +273,15 @@ function buildNotifications(params: {
 }
 
 export async function getNotificationFeed(): Promise<FarmNotification[]> {
-  const [ponds, logs, speciesLookup, readMap] = await Promise.all([
+  const [ponds, logs, speciesLookup, readMap, user] = await Promise.all([
     database.collections.get<Pond>('ponds').query().fetch(),
     database.collections.get<WaterQualityLog>('water_quality_logs').query().fetch(),
     fetchSpeciesLookup(),
     loadReadMap(),
+    authService.getCurrentUser().catch(() => null),
   ]);
 
-  return buildNotifications({
+  const localItems = buildNotifications({
     ponds: ponds.map(p => ({
       id: p.id, name: p.name, speciesId: p.speciesId,
       stockingDate: p.stockingDate, status: p.status,
@@ -294,6 +297,42 @@ export async function getNotificationFeed(): Promise<FarmNotification[]> {
     speciesLookup,
     readMap,
   });
+
+  // Fetch server-dispatched alerts from backend
+  if (user?.id) {
+    try {
+      const serverRes = await farmerNotificationsService.getForFarmer(user.id);
+      if (serverRes?.success && Array.isArray(serverRes.data)) {
+        serverRes.data.forEach(item => {
+          const isRead = item.is_read || Boolean(readMap[item.id]);
+          let severity: NotificationSeverity = 'warning';
+          if (item.type?.includes('critical') || item.type?.includes('outbreak') || item.title?.includes('Urgent') || item.title?.includes('Alert')) {
+            severity = 'critical';
+          } else if (item.type?.includes('info') || item.type?.includes('advisory')) {
+            severity = 'info';
+          }
+
+          let notifType: NotificationType = 'disease';
+          if (item.type?.includes('water')) notifType = 'water_quality';
+          if (item.type?.includes('market')) notifType = 'market';
+
+          localItems.push({
+            id: item.id,
+            type: notifType,
+            severity,
+            title: item.title,
+            message: item.message,
+            timestamp: new Date(item.created_at).getTime(),
+            isRead,
+          });
+        });
+      }
+    } catch (err) {
+      // Graceful fallback if offline or server unreachable
+    }
+  }
+
+  return localItems.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {

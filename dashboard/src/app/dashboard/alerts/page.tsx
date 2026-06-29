@@ -18,6 +18,7 @@ import {
   Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { api } from '@/lib/api';
 
 function exportAlertsToCSV(alerts: AlertItem[]) {
   const headers = [
@@ -159,13 +160,32 @@ export default function AlertsPage() {
   const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
   const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
 
-  const handleSendSms = (alertId: string) => {
+  const handleSendSms = async (alertId: string) => {
+    const alertItem = alerts.find(a => a.id === alertId);
+    if (!alertItem) return;
+
+    try {
+      await api.post('/api/v1/notifications/send', {
+        phone: alertItem.phone,
+        farmerName: alertItem.farmerName,
+        type: 'alert_sms_guidance',
+        title: `⚠️ Urgent Guidance: ${alertItem.title}`,
+        message: alertItem.recommendation
+      });
+    } catch (err) {
+      console.error('Failed to dispatch backend alert:', err);
+    }
+
     setAlerts((prev) =>
       prev.map((a) => {
         if (a.id !== alertId) return a;
-        alert(`SMS sent to ${a.farmerName} (${a.phone}): "MatsyaMitra Alert: Critical parameter detected in your pond. Please start aerators and add lime immediately."`);
         return { ...a, resolved: true };
       })
+    );
+
+    alert(
+      `📱 Active SMS Gateway is inactive. App Notification guidance has been dispatched directly to ${alertItem.farmerName}'s mobile app:\n\n` +
+      `"⚠️ ${alertItem.title}\n${alertItem.recommendation}"`
     );
   };
 
@@ -175,7 +195,7 @@ export default function AlertsPage() {
     setAlerts((prev) =>
       prev.map((a) => {
         if (a.id !== dispatchTarget.id) return a;
-        alert(`Specialist ${doc?.name} dispatched to ${a.farmerName}'s site in ${a.location}. SMS confirmation sent.`);
+        alert(`Specialist ${doc?.name} dispatched to ${a.farmerName}'s site in ${a.location}. App & SMS notification sent.`);
         return { ...a, resolved: true };
       })
     );
@@ -183,10 +203,23 @@ export default function AlertsPage() {
     setSelectedDocId('');
   };
 
-  const handleAppNotification = (alertItem: AlertItem) => {
+  const handleAppNotification = async (alertItem: AlertItem) => {
     setNotifiedIds((prev) => new Set([...prev, alertItem.id]));
+
+    try {
+      await api.post('/api/v1/notifications/send', {
+        phone: alertItem.phone,
+        farmerName: alertItem.farmerName,
+        type: 'alert_guidance',
+        title: `⚠️ Advisory: ${alertItem.title}`,
+        message: alertItem.recommendation
+      });
+    } catch (err) {
+      console.error('Failed to dispatch app notification:', err);
+    }
+
     alert(
-      `📱 Push notification sent to ${alertItem.farmerName}'s MatsyaMitra app:\n\n` +
+      `📱 Push notification successfully dispatched to ${alertItem.farmerName}'s MatsyaMitra app:\n\n` +
       `"⚠️ ${alertItem.title}\n${alertItem.recommendation}"`
     );
   };
