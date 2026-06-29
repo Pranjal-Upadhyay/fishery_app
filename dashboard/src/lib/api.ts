@@ -55,7 +55,7 @@ export class ApiError extends Error {
 type RequestInitWithAuth = RequestInit & { skipAuth?: boolean };
 
 async function request<T>(path: string, init: RequestInitWithAuth = {}): Promise<T> {
-  const { skipAuth, headers, ...rest } = init;
+  const { skipAuth, headers, signal, ...rest } = init;
   const token = skipAuth ? null : tokenStore.get();
 
   const finalHeaders: Record<string, string> = {
@@ -64,14 +64,24 @@ async function request<T>(path: string, init: RequestInitWithAuth = {}): Promise
   };
   if (token) finalHeaders.Authorization = `Bearer ${token}`;
 
+  // 8-second network timeout guard to prevent infinite loading screens
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const fetchSignal = signal ?? controller.signal;
+
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...rest, headers: finalHeaders });
+    res = await fetch(`${API_BASE}${path}`, { ...rest, headers: finalHeaders, signal: fetchSignal });
   } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new ApiError('Request timed out after 8 seconds', 408);
+    }
     throw new ApiError(
       `Network error: ${err?.message ?? 'unable to reach API'}`,
       0
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   // 401 with an existing token means our session expired — kick the user out.

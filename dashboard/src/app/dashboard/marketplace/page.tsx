@@ -336,19 +336,22 @@ export default function MarketplacePage() {
     async function loadData() {
       try {
         setLoading(true);
-        const [listingsRes, ordersRes] = await Promise.all([
+        const results = await Promise.allSettled([
           api.get<{ success: boolean; data: Listing[] }>('/api/v1/admin/marketplace/listings'),
           api.get<{ success: boolean; data: Order[] }>('/api/v1/admin/marketplace/orders')
         ]);
         
-        if (listingsRes.success && listingsRes.data && listingsRes.data.length > 0) {
-          setListings(listingsRes.data);
+        const listingsResult = results[0];
+        const ordersResult = results[1];
+
+        if (listingsResult.status === 'fulfilled' && listingsResult.value?.success && Array.isArray(listingsResult.value?.data) && listingsResult.value.data.length > 0) {
+          setListings(listingsResult.value.data);
         } else {
           setListings(MOCK_LISTINGS);
         }
 
-        if (ordersRes.success && ordersRes.data && ordersRes.data.length > 0) {
-          setOrders(ordersRes.data);
+        if (ordersResult.status === 'fulfilled' && ordersResult.value?.success && Array.isArray(ordersResult.value?.data) && ordersResult.value.data.length > 0) {
+          setOrders(ordersResult.value.data);
         } else {
           setOrders(MOCK_ORDERS);
         }
