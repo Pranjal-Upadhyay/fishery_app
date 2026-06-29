@@ -1,6 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+
+interface LoginHeroContextType {
+  showCard: boolean;
+  prefersReducedMotion: boolean;
+}
+
+const LoginHeroContext = createContext<LoginHeroContextType>({
+  showCard: false,
+  prefersReducedMotion: false,
+});
+
+export const useLoginHero = () => useContext(LoginHeroContext);
 
 interface LoginHeroProps {
   children: ReactNode;
@@ -60,58 +72,60 @@ export function LoginHero({ children }: LoginHeroProps) {
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-canvas-950 flex items-center justify-center">
-      {/* ── Background Video & Blur Layer ── */}
-      <div
-        className={`fixed inset-0 pointer-events-none transition-all duration-700 ease-out ${
-          videoEnded && !prefersReducedMotion
-            ? 'scale-[1.05] filter blur-xl'
-            : prefersReducedMotion && videoEnded
-            ? 'filter blur-md'
-            : 'scale-100 filter blur-0'
-        }`}
-      >
-        <video
-          ref={videoRef}
-          src="/login-bg.mp4"
-          poster="/login-bg-poster.jpg"
-          preload="auto"
-          muted
-          playsInline
-          onEnded={triggerReveal}
-          className="h-full w-full object-cover object-center"
+    <LoginHeroContext.Provider value={{ showCard, prefersReducedMotion }}>
+      <div className="relative min-h-screen w-full overflow-hidden bg-canvas-950 flex items-center justify-center p-4 sm:p-6">
+        {/* ── Background Video Container with Crisp White Glass Border ── */}
+        <div
+          className={`fixed inset-3 sm:inset-6 rounded-3xl border-2 border-white/90 shadow-[0_0_40px_rgba(255,255,255,0.35)] overflow-hidden pointer-events-none z-0 transition-all duration-700 ease-out ${
+            videoEnded && !prefersReducedMotion
+              ? 'scale-[1.02] filter blur-xl'
+              : prefersReducedMotion && videoEnded
+              ? 'filter blur-md'
+              : 'scale-100 filter blur-0'
+          }`}
+        >
+          <video
+            ref={videoRef}
+            src="/login-bg.mp4"
+            poster="/login-bg-poster.jpg"
+            preload="auto"
+            muted
+            playsInline
+            onEnded={triggerReveal}
+            className="h-full w-full object-cover object-center"
+          />
+        </div>
+
+        {/* ── Dimming Backdrop Overlay ── */}
+        <div
+          className={`fixed inset-3 sm:inset-6 rounded-3xl pointer-events-none transition-opacity z-0 ${
+            prefersReducedMotion ? 'duration-200' : 'duration-700'
+          } ${
+            videoEnded
+              ? 'opacity-100 bg-canvas-950/60 dark:bg-canvas-950/75'
+              : 'opacity-0 bg-transparent'
+          }`}
         />
-      </div>
 
-      {/* ── Dimming Backdrop Overlay ── */}
-      <div
-        className={`fixed inset-0 pointer-events-none transition-opacity ${
-          prefersReducedMotion ? 'duration-200' : 'duration-700'
-        } ${
-          videoEnded
-            ? 'opacity-100 bg-canvas-950/60 dark:bg-canvas-950/75'
-            : 'opacity-0 bg-transparent'
-        }`}
-      />
-
-      {/* ── Login Card Foreground Layer ── */}
-      <div
-        className={`relative z-10 w-full max-w-[460px] px-6 py-12 transition-all ${
-          prefersReducedMotion ? 'duration-200 ease-out' : 'duration-450'
-        } ${
-          showCard
-            ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
-            : 'opacity-0 translate-y-4 scale-95 pointer-events-none'
-        }`}
-        style={{
-          transitionTimingFunction:
-            showCard && !prefersReducedMotion
-              ? 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-              : 'ease-out',
-        }}
-      >
-        {children}
+        {/* ── Login Card Foreground Layer ── */}
+        <div
+          className={`relative z-10 w-full max-w-[480px] px-2 py-8 transition-all ${
+            prefersReducedMotion ? 'duration-200 ease-out' : 'duration-450'
+          } ${
+            showCard
+              ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+              : 'opacity-0 translate-y-4 scale-95 pointer-events-none'
+          }`}
+          style={{
+            transitionTimingFunction:
+              showCard && !prefersReducedMotion
+                ? 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+                : 'ease-out',
+          }}
+        >
+          {children}
+        </div>
       </div>
-    </div>
+    </LoginHeroContext.Provider>
   );
 }

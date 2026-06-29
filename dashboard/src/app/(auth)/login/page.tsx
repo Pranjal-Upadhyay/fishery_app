@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Waves, ArrowRight, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -11,6 +11,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api';
 import { LoginHero } from './login-hero';
+import { TypewriterBrand } from './typewriter-brand';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -63,20 +64,8 @@ export default function LoginPage() {
       </div>
 
       <LoginHero>
-        {/* Brand mark */}
-        <div className="mb-10 flex items-center gap-3">
-          <span className="grid h-12 w-12 place-items-center rounded-xl border border-teal-400/40 bg-teal-500/15 text-teal-300 shadow-glow">
-            <Waves className="h-6 w-6" />
-          </span>
-          <div>
-            <div className="text-2xl font-bold leading-none text-ink-primary">
-              MatsyaMitra
-            </div>
-            <div className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-ink-secondary">
-              Admin Oversight
-            </div>
-          </div>
-        </div>
+        {/* Brand mark with typewriter animation and enlarged fonts */}
+        <TypewriterBrand />
 
         <GlassCard className="p-8 shadow-popup">
           <header className="mb-7">
