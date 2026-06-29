@@ -100,7 +100,7 @@ router.post('/login', async (req, res, next) => {
 
   try {
     const { email: rawEmail, password } = loginSchema.parse(req.body);
-    const email = rawEmail.toLowerCase();
+    const email = rawEmail.trim().toLowerCase();
 
     const result = await query<AdminUserRow>(
       `SELECT id, email, password_hash, full_name, role,

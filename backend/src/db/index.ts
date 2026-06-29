@@ -48,7 +48,7 @@ const poolConfig: PoolConfig = process.env.DATABASE_URL
       connectionString: process.env.DATABASE_URL,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000, // 10 seconds for cloud / SSL handshakes
       application_name: 'fishing_god_backend',
       ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
     }
@@ -60,7 +60,7 @@ const poolConfig: PoolConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || (process.env.NODE_ENV === 'production' ? undefined : 'fishing_god'),
       max: 20, // Maximum number of clients in the pool
       idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Return error after 2 seconds if connection not established
+      connectionTimeoutMillis: 10000, // Return error after 10 seconds if connection not established
       application_name: 'fishing_god_backend',
       ssl: process.env.NODE_ENV === 'production' || process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
     };

@@ -52,10 +52,10 @@ export class ApiError extends Error {
 }
 
 // ── Core fetch wrapper ──────────────────────────────────────────────────────
-type RequestInitWithAuth = RequestInit & { skipAuth?: boolean };
+type RequestInitWithAuth = RequestInit & { skipAuth?: boolean; timeoutMs?: number };
 
 async function request<T>(path: string, init: RequestInitWithAuth = {}): Promise<T> {
-  const { skipAuth, headers, signal, ...rest } = init;
+  const { skipAuth, timeoutMs, headers, signal, ...rest } = init;
   const token = skipAuth ? null : tokenStore.get();
 
   const finalHeaders: Record<string, string> = {
@@ -64,9 +64,10 @@ async function request<T>(path: string, init: RequestInitWithAuth = {}): Promise
   };
   if (token) finalHeaders.Authorization = `Bearer ${token}`;
 
-  // 8-second network timeout guard to prevent infinite loading screens
+  // Configurable network timeout guard (25s for auth/login cold-starts, 12s for general calls)
+  const effectiveTimeout = timeoutMs ?? (path.includes('/login') ? 25000 : 12000);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
   const fetchSignal = signal ?? controller.signal;
 
   let res: Response;
@@ -74,7 +75,7 @@ async function request<T>(path: string, init: RequestInitWithAuth = {}): Promise
     res = await fetch(`${API_BASE}${path}`, { ...rest, headers: finalHeaders, signal: fetchSignal });
   } catch (err: any) {
     if (err?.name === 'AbortError') {
-      throw new ApiError('Request timed out after 8 seconds', 408);
+      throw new ApiError(`Request timed out after ${Math.round(effectiveTimeout / 1000)} seconds`, 408);
     }
     throw new ApiError(
       `Network error: ${err?.message ?? 'unable to reach API'}`,

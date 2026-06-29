@@ -34,13 +34,20 @@ export default function LoginPage() {
       await login(email.trim().toLowerCase(), password);
       router.replace('/dashboard');
     } catch (err) {
-      // Always surface a generic message — prevents account enumeration.
-      if (err instanceof ApiError && err.status === 429) {
-        setError('Too many attempts. Please wait 15 minutes and try again.');
-      } else if (err instanceof ApiError && err.status === 423) {
-        setError('Account temporarily locked due to repeated failures. Try again later.');
+      if (err instanceof ApiError) {
+        if (err.status === 429) {
+          setError('Too many attempts. Please wait 15 minutes and try again.');
+        } else if (err.status === 423) {
+          setError('Account temporarily locked due to repeated failures. Try again later.');
+        } else if (err.status === 408 || err.status === 0) {
+          setError('Server connection timed out or is starting up. Please click Continue again in a moment.');
+        } else if (err.status >= 500) {
+          setError('Server error during authentication. Please try again in a few seconds.');
+        } else {
+          setError('Invalid email or password.');
+        }
       } else {
-        setError('Invalid email or password.');
+        setError('An unexpected connection error occurred. Please try again.');
       }
     } finally {
       setSubmitting(false);
