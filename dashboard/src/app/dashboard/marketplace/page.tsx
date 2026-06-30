@@ -17,7 +17,8 @@ import {
   XCircle,
   Eye,
   Info,
-  IndianRupee
+  IndianRupee,
+  Download
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { api } from '@/lib/api';
@@ -90,6 +91,125 @@ interface Order {
   stage: 'fry' | 'fingerling';
   hatchery_name: string;
   hatchery_phone: string;
+}
+
+// ── CSV Export Helpers ───────────────────────────────────────────────────────
+function exportListingsCSV(listings: Listing[]) {
+  const headers = [
+    'Listing ID',
+    'Species',
+    'Variant',
+    'Stage',
+    'Hatchery Name',
+    'District',
+    'Status',
+    'Total Quantity (pcs)',
+    'Available Quantity (pcs)',
+    'Reserved (pcs)',
+    'Confirmed / Sold (pcs)',
+    'Min Order Qty (pcs)',
+    'Price Per Piece (INR)',
+    'Bulk Price Per Piece (INR)',
+    'Bulk Price Threshold (pcs)',
+    'Pickup Available',
+    'Delivery Available',
+    'Expected Ready Date',
+    'Last Available Date',
+    'Description',
+  ];
+
+  const rows = listings.map(l => [
+    l.id,
+    l.species_name,
+    l.species_variant ?? '',
+    l.stage,
+    l.hatchery_name,
+    l.hatchery_district,
+    l.status,
+    l.total_quantity,
+    l.quantity_available,
+    l.reserved_quantity,
+    l.confirmed_quantity,
+    l.min_order_qty,
+    Number(l.price_per_piece).toFixed(2),
+    l.bulk_price_per_piece != null ? Number(l.bulk_price_per_piece).toFixed(2) : '',
+    l.bulk_price_threshold ?? '',
+    l.pickup_available ? 'Yes' : 'No',
+    l.delivery_available ? 'Yes' : 'No',
+    l.expected_ready_date ?? 'Immediate',
+    l.last_available_date ?? '',
+    `"${(l.description ?? '').replace(/"/g, '""')}"`,
+  ]);
+
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `matsyamitra_marketplace_listings_${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportOrdersCSV(orders: Order[]) {
+  const headers = [
+    'Transaction Reference',
+    'Order Type',
+    'Status',
+    'Farmer Name',
+    'Farmer Phone',
+    'Farmer UID',
+    'Hatchery Name',
+    'Hatchery Phone',
+    'Species',
+    'Variant',
+    'Stage',
+    'Quantity Ordered (pcs)',
+    'Unit Price (INR)',
+    'Total Amount (INR)',
+    'Delivery Address',
+    'Farmer Notes',
+    'Order Placed',
+    'Accepted At',
+    'Fulfilled At',
+    'Cancelled At',
+    'Dispute Reason',
+    'Dispute Description',
+  ];
+
+  const rows = orders.map(o => [
+    o.id,
+    o.order_type,
+    o.status,
+    o.farmer_name,
+    o.farmer_phone,
+    o.farmer_uid ?? '',
+    o.hatchery_name,
+    o.hatchery_phone,
+    o.species_name,
+    o.species_variant ?? '',
+    o.stage,
+    o.quantity_ordered,
+    Number(o.price_per_piece).toFixed(2),
+    Number(o.total_amount).toFixed(2),
+    `"${(o.delivery_address ?? '').replace(/"/g, '""')}"`,
+    `"${(o.farmer_notes ?? '').replace(/"/g, '""')}"`,
+    new Date(o.created_at).toLocaleString('en-IN'),
+    o.accepted_at ? new Date(o.accepted_at).toLocaleString('en-IN') : '',
+    o.fulfilled_at ? new Date(o.fulfilled_at).toLocaleString('en-IN') : '',
+    o.cancelled_at ? new Date(o.cancelled_at).toLocaleString('en-IN') : '',
+    o.dispute_reason ?? '',
+    `"${(o.dispute_description ?? '').replace(/"/g, '""')}"`,
+  ]);
+
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `matsyamitra_marketplace_orders_${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Mock Data Fallbacks ──────────────────────────────────────────────────────
@@ -648,19 +768,28 @@ export default function MarketplacePage() {
                     className="w-full bg-canvas-950/80 border border-glass-border focus:border-teal-500/50 rounded-lg pl-9 pr-4 py-2 text-sm text-ink-primary placeholder-ink-muted outline-none transition-colors"
                   />
                 </div>
-                <div className="relative w-full sm:w-auto">
-                  <select
-                    value={statusFilter}
-                    onChange={e => setStatusFilter(e.target.value)}
-                    className="appearance-none w-full sm:w-auto bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:flex-none">
+                    <select
+                      value={statusFilter}
+                      onChange={e => setStatusFilter(e.target.value)}
+                      className="appearance-none w-full sm:w-auto bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="AVAILABLE">AVAILABLE</option>
+                      <option value="UPCOMING">UPCOMING</option>
+                      <option value="CLOSED">CLOSED</option>
+                      <option value="DRAFT">DRAFT</option>
+                      <option value="EXPIRED">EXPIRED</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => exportListingsCSV(filteredListings)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95 whitespace-nowrap"
                   >
-                    <option value="ALL">All Statuses</option>
-                    <option value="AVAILABLE">AVAILABLE</option>
-                    <option value="UPCOMING">UPCOMING</option>
-                    <option value="CLOSED">CLOSED</option>
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="EXPIRED">EXPIRED</option>
-                  </select>
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </button>
                 </div>
               </div>
 
@@ -764,21 +893,30 @@ export default function MarketplacePage() {
                     className="w-full bg-canvas-950/80 border border-glass-border focus:border-teal-500/50 rounded-lg pl-9 pr-4 py-2 text-sm text-ink-primary placeholder-ink-muted outline-none transition-colors"
                   />
                 </div>
-                <div className="relative w-full sm:w-auto">
-                  <select
-                    value={statusFilter}
-                    onChange={e => setStatusFilter(e.target.value)}
-                    className="appearance-none w-full sm:w-auto bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:flex-none">
+                    <select
+                      value={statusFilter}
+                      onChange={e => setStatusFilter(e.target.value)}
+                      className="appearance-none w-full sm:w-auto bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="REQUESTED">REQUESTED</option>
+                      <option value="ACCEPTED">ACCEPTED</option>
+                      <option value="FARMER_PAID">FARMER_PAID</option>
+                      <option value="HATCHERY_CONFIRMED">HATCHERY_CONFIRMED</option>
+                      <option value="FULFILLED">FULFILLED</option>
+                      <option value="DISPUTED">DISPUTED</option>
+                      <option value="CANCELLED">CANCELLED</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => exportOrdersCSV(filteredOrders)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95 whitespace-nowrap"
                   >
-                    <option value="ALL">All Statuses</option>
-                    <option value="REQUESTED">REQUESTED</option>
-                    <option value="ACCEPTED">ACCEPTED</option>
-                    <option value="FARMER_PAID">FARMER_PAID</option>
-                    <option value="HATCHERY_CONFIRMED">HATCHERY_CONFIRMED</option>
-                    <option value="FULFILLED">FULFILLED</option>
-                    <option value="DISPUTED">DISPUTED</option>
-                    <option value="CANCELLED">CANCELLED</option>
-                  </select>
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </button>
                 </div>
               </div>
 
