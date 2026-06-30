@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,20 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
-  Modal,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import axios from 'axios';
 import { useTheme } from '../ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import database from '../database';
 import { yojanaService } from '../services/apiService';
+import DocumentUploadRow from '../components/DocumentUploadRow';
 
 interface Milestone {
   name: string;
@@ -36,6 +40,16 @@ interface Transaction {
   processed_at: string;
 }
 
+interface Document {
+  id: string;
+  doc_type: string;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  verification_status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  rejection_reason?: string | null;
+}
+
 interface Application {
   id: string;
   pond_id: string;
@@ -47,7 +61,14 @@ interface Application {
   milestones: Milestone[];
   created_at: string;
   updated_at: string;
+  applicant_name: string;
+  applicant_district: string;
+  applicant_category: string;
+  applicant_land_area: number;
+  project_description?: string;
+  application_rejection_reason?: string | null;
   transactions: Transaction[];
+  documents: Document[];
 }
 
 interface Scheme {
@@ -92,6 +113,14 @@ const SCHEMES: Scheme[] = [
   },
 ];
 
+const STATUS_STAGES = [
+  { key: 'AWAITING_REVIEW', label: 'Review' },
+  { key: 'DLC_QUEUE', label: 'DLC Queue' },
+  { key: 'APPROVED', label: 'Approved' },
+  { key: 'MILESTONE_1_MET', label: 'Milestone 1' },
+  { key: 'MILESTONE_2_MET', label: 'Milestone 2' }
+];
+
 export default function YojanaApplicationsScreen() {
   const { theme, isDark } = useTheme();
   const { t } = useTranslation();
@@ -102,24 +131,18 @@ export default function YojanaApplicationsScreen() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [ponds, setPonds] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [confirmingTxId, setConfirmingTxId] = useState<string | null>(null);
-
-  // Apply Modal state
-  const [applyModalVisible, setApplyModalVisible] = useState(false);
-  const [selectedScheme, setSelectedScheme] = useState<Scheme | null>(null);
-  const [selectedPondId, setSelectedPondId] = useState<string>('');
+  const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
+  const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Fetch applications from backend
       const res = await yojanaService.listApplications();
       if (res.success) {
         setApplications(res.data);
       }
 
-      // Fetch user ponds from local WatermelonDB
       const localPonds = await database.get<any>('ponds').query().fetch();
       setPonds(localPonds);
     } catch (err) {
@@ -135,163 +158,335 @@ export default function YojanaApplicationsScreen() {
     }, [])
   );
 
-  const handleApply = async () => {
-    if (!selectedScheme || !selectedPondId) return;
-
-    // Check if there is already an active application for this scheme on this pond
-    const exists = applications.some(
-      app => app.pond_id === selectedPondId && app.yojana_code === selectedScheme.code && app.status !== 'REJECTED'
-    );
-
-    if (exists) {
-      Alert.alert(
-        t('yojana.already_exists_title', 'Application Exists'),
-        t('yojana.already_exists_msg', 'An active application for this scheme on this pond already exists.')
-      );
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const res = await yojanaService.apply({
-        pondId: selectedPondId,
-        yojanaCode: selectedScheme.code,
-      });
-
-      if (res.success) {
-        Alert.alert(
-          t('yojana.apply_success_title', 'Application Submitted'),
-          t('yojana.apply_success_msg', 'Your application has been received and is awaiting document review.')
-        );
-        setApplyModalVisible(false);
-        setSelectedPondId('');
-        setSelectedScheme(null);
-        setActiveTab('my_apps');
-        loadData();
-      } else {
-        Alert.alert(t('common.error', 'Error'), res.error || t('yojana.apply_failed', 'Failed to submit application.'));
-      }
-    } catch (err: any) {
-      Alert.alert(t('common.error', 'Error'), err?.response?.data?.error || err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleConfirmReceipt = async (transactionId: string) => {
     setConfirmingTxId(transactionId);
     try {
       const res = await yojanaService.confirmReceipt(transactionId);
       if (res.success) {
         Alert.alert(
-          t('yojana.confirm_success_title', 'Receipt Confirmed'),
-          t('yojana.confirm_success_msg', 'Thank you! The Direct Benefit Transfer (DBT) receipt has been successfully verified.')
+          t('yojana.receipt_confirmed_title', 'Receipt Confirmed'),
+          t('yojana.receipt_confirmed_msg', 'Thank you for confirming. Your ledger has been updated.')
         );
         loadData();
-      } else {
-        Alert.alert(t('common.error', 'Error'), res.error || t('yojana.confirm_failed', 'Failed to confirm receipt.'));
       }
-    } catch (err: any) {
-      Alert.alert(t('common.error', 'Error'), err?.response?.data?.error || err.message);
+    } catch (err) {
+      console.warn('[Yojana] Confirm receipt failed:', err);
+      Alert.alert('Error', 'Unable to confirm receipt. Please check your internet connection.');
     } finally {
       setConfirmingTxId(null);
     }
   };
 
-  const getStatusStyle = (status: Application['status']) => {
-    switch (status) {
-      case 'AWAITING_REVIEW':
-        return { bg: '#fef3c7', text: '#d97706', label: 'Awaiting Review' };
-      case 'DLC_QUEUE':
-        return { bg: '#e0f2fe', text: '#0284c7', label: 'DLC Queue' };
-      case 'APPROVED':
-        return { bg: '#dcfce7', text: '#16a34a', label: 'Approved' };
-      case 'MILESTONE_1_MET':
-        return { bg: '#ccfbf1', text: '#0d9488', label: 'Milestone 1 Met' };
-      case 'MILESTONE_2_MET':
-        return { bg: '#dcfce7', text: '#15803d', label: 'Completed' };
-      case 'REJECTED':
-        return { bg: '#fee2e2', text: '#dc2626', label: 'Rejected' };
-      default:
-        return { bg: '#f3f4f6', text: '#4b5563', label: status };
+  const handleEditApplication = (app: Application) => {
+    Alert.alert(
+      'Edit Application',
+      'Editing your application details will require the block officer to re-review it. Do you want to proceed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, Edit',
+          onPress: () => {
+            navigation.navigate('YojanaApplicationForm', {
+              schemeCode: app.yojana_code,
+              schemeName: app.yojana_name,
+              editMode: true,
+              applicationData: app,
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDocReupload = async (appId: string, docType: string, label: string) => {
+    try {
+      const acceptType = docType === 'POND_PHOTO' || docType === 'PASSPORT_PHOTO' ? 'image' : 'pdf';
+      let result;
+
+      if (acceptType === 'pdf') {
+        result = await DocumentPicker.getDocumentAsync({
+          type: 'application/pdf',
+          copyToCacheDirectory: true,
+        });
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission Denied', 'Please grant library access to upload photos.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.8,
+        });
+      }
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const asset = result.assets[0];
+      const fileName = (asset as any).name || (asset as any).fileName || `${docType.toLowerCase()}_reupload.jpg`;
+      const fileUri = asset.uri;
+      const mimeType = asset.mimeType || (acceptType === 'pdf' ? 'application/pdf' : 'image/jpeg');
+
+      // Set loading
+      setUploadingDocType(docType);
+
+      // Fetch signed upload URL
+      const tokenRes = await yojanaService.getUploadToken(docType, fileName);
+      if (!tokenRes.success || !tokenRes.data?.signedUrl) {
+        throw new Error(tokenRes.error || 'Failed to get upload authorization');
+      }
+
+      const { signedUrl, filePath } = tokenRes.data;
+
+      // Upload file directly to Supabase storage URL
+      const fileResponse = await fetch(fileUri);
+      const fileBlob = await fileResponse.blob();
+
+      await axios.put(signedUrl, fileBlob, {
+        headers: { 'Content-Type': mimeType }
+      });
+
+      // Submit re-upload reference to backend
+      const reuploadRes = await yojanaService.reuploadDocument(appId, docType, filePath, fileName, mimeType);
+      if (reuploadRes.success) {
+        Alert.alert('Success', `${label} has been re-uploaded and is now awaiting review.`);
+        loadData();
+      } else {
+        throw new Error(reuploadRes.error || 'Failed to sync reupload with server');
+      }
+
+    } catch (err: any) {
+      console.warn('[DocReupload] Failed:', err);
+      Alert.alert('Upload Failed', err.message || 'Unable to re-upload document.');
+    } finally {
+      setUploadingDocType(null);
     }
   };
 
-  const renderApplicationCard = ({ item }: { item: Application }) => {
-    const statusStyle = getStatusStyle(item.status);
-    const unconfirmedTx = item.transactions.find(tx => tx.status === 'SUCCESS' && !tx.farmer_confirmed);
+  const renderVisualPipeline = (currentStatus: string) => {
+    if (currentStatus === 'REJECTED') {
+      return (
+        <View style={styles.rejectedPipelineRow}>
+          <Ionicons name="close-circle" size={16} color="#dc2626" />
+          <Text style={styles.rejectedPipelineText}>Application Rejected by Administrative Committee</Text>
+        </View>
+      );
+    }
+
+    const currentIndex = STATUS_STAGES.findIndex(s => s.key === currentStatus);
+    const resolvedIndex = currentIndex === -1 ? 0 : currentIndex;
 
     return (
-      <View style={styles.appCard}>
-        <View style={styles.cardHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.schemeCodeText}>{item.yojana_code}</Text>
-            <Text style={styles.yojanaNameText}>{item.yojana_name}</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-            <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-              {statusStyle.label}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.cardDetail}>
-          <View style={styles.detailItem}>
-            <Ionicons name="water-outline" size={16} color={theme.colors.primary} />
-            <Text style={styles.detailLabel}>Pond: <Text style={styles.detailValue}>{item.pond_name}</Text></Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="wallet-outline" size={16} color={theme.colors.primary} />
-            <Text style={styles.detailLabel}>Sanctioned Amount: <Text style={styles.detailValue}>₹{item.approved_subsidy_amount.toLocaleString('en-IN')}</Text></Text>
-          </View>
-        </View>
-
-        {/* Milestones Checklists */}
-        <View style={styles.milestonesSection}>
-          <Text style={styles.sectionTitle}>Verification Milestones</Text>
-          {item.milestones.map((m, idx) => (
-            <View key={idx} style={styles.milestoneRow}>
-              <View style={[styles.checkboxCircle, m.verified && styles.checkboxCircleChecked]}>
-                {m.verified ? (
-                  <Ionicons name="checkmark" size={12} color="#fff" />
-                ) : (
-                  <View style={styles.checkboxCircleInner} />
+      <View style={styles.pipelineContainer}>
+        <View style={styles.pipelineTrackRow}>
+          {STATUS_STAGES.map((stage, idx) => {
+            const isActive = resolvedIndex === idx;
+            const isCompleted = resolvedIndex > idx;
+            return (
+              <React.Fragment key={stage.key}>
+                <View style={[
+                  styles.pipelineDot,
+                  isCompleted && styles.pipelineDotCompleted,
+                  isActive && styles.pipelineDotActive
+                ]}>
+                  {isCompleted ? (
+                    <Ionicons name="checkmark" size={10} color="#fff" />
+                  ) : isActive ? (
+                    <View style={styles.pipelineDotInner} />
+                  ) : null}
+                </View>
+                {idx < STATUS_STAGES.length - 1 && (
+                  <View style={[
+                    styles.pipelineLine,
+                    resolvedIndex > idx && styles.pipelineLineCompleted
+                  ]} />
                 )}
-              </View>
-              <Text style={[styles.milestoneName, m.verified && styles.milestoneNameCompleted]}>
-                {m.name} ({m.pct}%)
+              </React.Fragment>
+            );
+          })}
+        </View>
+        <View style={styles.pipelineLabelsRow}>
+          {STATUS_STAGES.map((stage, idx) => {
+            const isActive = resolvedIndex === idx;
+            return (
+              <Text key={stage.key} style={[
+                styles.pipelineLabel,
+                isActive && styles.pipelineLabelActive
+              ]}>
+                {stage.label}
               </Text>
-              {m.verified && (
-                <Text style={styles.verifiedLabel}>Verified</Text>
-              )}
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  const renderApplicationCard = ({ item }: { item: Application }) => {
+    const dbtPendingTx = item.transactions?.find(t => t.status === 'SUCCESS' && !t.farmer_confirmed);
+    const dbtSuccessTx = item.transactions?.filter(t => t.status === 'SUCCESS' && t.farmer_confirmed) || [];
+    const isExpanded = expandedAppId === item.id;
+
+    // Check if documents list has rejected elements
+    const hasRejectedDocs = item.documents?.some(d => d.verification_status === 'REJECTED');
+
+    return (
+      <View style={[styles.appCard, item.status === 'REJECTED' && styles.appCardRejected]}>
+        {/* Header Block */}
+        <View style={styles.appCardHeader}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.yojanaRow}>
+              <Text style={styles.yojanaNameText}>{item.yojana_name}</Text>
             </View>
-          ))}
+            <Text style={styles.pondSubText}>Pond: {item.pond_name}</Text>
+          </View>
+          <View style={[
+            styles.statusBadge,
+            item.status === 'APPROVED' && styles.statusApproved,
+            item.status === 'REJECTED' && styles.statusRejected,
+            (item.status.includes('MET')) && styles.statusMet,
+          ]}>
+            <Text style={[
+              styles.statusText,
+              item.status === 'APPROVED' && { color: '#0f766e' },
+              item.status === 'REJECTED' && { color: '#dc2626' },
+              (item.status.includes('MET')) && { color: '#2563eb' },
+            ]}>
+              {item.status === 'AWAITING_REVIEW' ? 'Reviewing Docs' :
+               item.status === 'DLC_QUEUE' ? 'DLC Queue' :
+               item.status === 'APPROVED' ? 'Approved' :
+               item.status === 'MILESTONE_1_MET' ? 'Milestone 1 Released' :
+               item.status === 'MILESTONE_2_MET' ? 'Complete' : 'Rejected'}
+            </Text>
+          </View>
         </View>
 
-        {/* DBT Payout Warning Notification (Two-way Confirmation Loop) */}
-        {unconfirmedTx && (
-          <View style={styles.alertCard}>
-            <View style={styles.alertHeader}>
-              <View style={styles.alertIconBg}>
-                <Ionicons name="wallet" size={20} color={theme.colors.accent} />
-              </View>
-              <Text style={styles.alertTitle}>Direct Benefit Transfer Alert</Text>
+        {/* Visual Pipeline */}
+        {renderVisualPipeline(item.status)}
+
+        {/* Rejection Alert Banner */}
+        {item.status === 'REJECTED' && (
+          <View style={styles.rejectionReasonBanner}>
+            <Ionicons name="alert-circle" size={18} color="#dc2626" style={{ marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rejectionReasonTitle}>REJECTION EXPLANATION:</Text>
+              <Text style={styles.rejectionReasonText}>
+                {item.application_rejection_reason || 'Please contact the Block Fisheries Officer for document validation details.'}
+              </Text>
             </View>
-            <Text style={styles.alertBody}>
-              Government record shows DBT payout of <Text style={styles.alertHighlight}>₹{unconfirmedTx.amount.toLocaleString('en-IN')}</Text> was released to your linked bank account (UTR: {unconfirmedTx.utr_number}).
+          </View>
+        )}
+
+        {/* Application details block */}
+        <View style={styles.appStatsGrid}>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Sanctioned Subsidy</Text>
+            <Text style={styles.statValue}>₹{item.approved_subsidy_amount.toLocaleString('en-IN')}</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Land Area</Text>
+            <Text style={styles.statValue}>{item.applicant_land_area || '0'} Acres</Text>
+          </View>
+        </View>
+
+        {/* Action button row (Edit / Collapse) */}
+        <View style={styles.cardActionsRow}>
+          {item.status === 'AWAITING_REVIEW' && (
+            <TouchableOpacity 
+              style={styles.editCardBtn} 
+              onPress={() => handleEditApplication(item)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="create-outline" size={14} color={theme.colors.primary} />
+              <Text style={styles.editCardBtnText}>Edit Details</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={styles.collapseToggleBtn}
+            onPress={() => setExpandedAppId(isExpanded ? null : item.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.collapseToggleText}>
+              {isExpanded ? 'Hide Documents' : `Show Documents (${item.documents?.length || 0})`}
             </Text>
-            <Text style={styles.alertQuestion}>Have you received this payment in your bank?</Text>
+            <Ionicons 
+              name={isExpanded ? "chevron-up" : "chevron-down"} 
+              size={14} 
+              color={theme.colors.primary} 
+            />
+            {hasRejectedDocs && !isExpanded && (
+              <View style={styles.alertIndicatorDot} />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Collapsible Documents Section */}
+        {isExpanded && (
+          <View style={styles.expandedDocsSection}>
+            <Text style={styles.expandedDocsHeader}>Uploaded Application Documents</Text>
+            {item.documents && item.documents.length > 0 ? (
+              item.documents.map(doc => {
+                let name = doc.doc_type;
+                if (doc.doc_type === 'AADHAAR') name = 'Aadhaar Card';
+                else if (doc.doc_type === 'CASTE_CERT') name = 'Caste Certificate';
+                else if (doc.doc_type === 'LAND_DEED') name = 'Land Deed / LPC';
+                else if (doc.doc_type === 'BANK_PASSBOOK') name = 'Bank Passbook (Seeded)';
+                else if (doc.doc_type === 'INCOME_CERT') name = 'Income Certificate';
+                else if (doc.doc_type === 'POND_PHOTO') name = 'Geo-tagged Pond Photos';
+                else if (doc.doc_type === 'POWER_PROOF') name = 'Electricity Bill';
+                else if (doc.doc_type === 'TRAINING_CERT') name = 'Aquaculture Training Certificate';
+                else if (doc.doc_type === 'PASSPORT_PHOTO') name = 'Passport Size Photo';
+
+                const canReupload = item.status === 'AWAITING_REVIEW' && doc.verification_status === 'REJECTED';
+
+                return (
+                  <DocumentUploadRow
+                    key={doc.id}
+                    label={name}
+                    required={true}
+                    value={{ filePath: doc.file_path, fileName: doc.file_name }}
+                    onUploadPress={() => {
+                      if (canReupload) {
+                        handleDocReupload(item.id, doc.doc_type, name);
+                      } else {
+                        Alert.alert('Document Locked', 'This document has already been verified or the application is currently locked in processing.');
+                      }
+                    }}
+                    verificationStatus={doc.verification_status}
+                    rejectionReason={doc.rejection_reason}
+                    isUploading={uploadingDocType === doc.doc_type}
+                  />
+                );
+              })
+            ) : (
+              <Text style={styles.noDocsText}>No documents found for this application.</Text>
+            )}
+          </View>
+        )}
+
+        {/* DBT Payout Alerts */}
+        {dbtPendingTx && (
+          <View style={styles.dbtAlertBox}>
+            <View style={styles.dbtAlertHeader}>
+              <Ionicons name="wallet" size={20} color="#0f766e" />
+              <Text style={styles.dbtAlertTitle}>Direct Benefit Transfer Released</Text>
+            </View>
+            <Text style={styles.dbtAlertMsg}>
+              A payout of <Text style={{ fontWeight: '800' }}>₹{Number(dbtPendingTx.amount).toLocaleString('en-IN')}</Text> has been processed to your Aadhaar-seeded bank account.
+            </Text>
+            <Text style={styles.utrText}>Bank Reference UTR: {dbtPendingTx.utr_number}</Text>
             <TouchableOpacity
               style={styles.confirmBtn}
               activeOpacity={0.8}
-              onPress={() => handleConfirmReceipt(unconfirmedTx.id)}
-              disabled={confirmingTxId !== null}
+              onPress={() => handleConfirmReceipt(dbtPendingTx.id)}
+              disabled={confirmingTxId === dbtPendingTx.id}
             >
-              {confirmingTxId === unconfirmedTx.id ? (
-                <ActivityIndicator size="small" color={theme.colors.textInverse} />
+              {confirmingTxId === dbtPendingTx.id ? (
+                <ActivityIndicator color={theme.colors.textInverse} size="small" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.textInverse} />
+                  <Ionicons name="checkmark-done" size={16} color={theme.colors.textInverse} />
                   <Text style={styles.confirmBtnText}>Yes, Confirm Receipt</Text>
                 </>
               )}
@@ -300,19 +495,17 @@ export default function YojanaApplicationsScreen() {
         )}
 
         {/* Confirmed Transactions History */}
-        {item.transactions.filter(tx => tx.farmer_confirmed).length > 0 && (
-          <View style={styles.receiptsSection}>
-            <Text style={styles.receiptsTitle}>Confirmed Receipts</Text>
-            {item.transactions.filter(tx => tx.farmer_confirmed).map(tx => (
-              <View key={tx.id} style={styles.receiptRow}>
-                <Ionicons name="checkmark-circle" size={16} color={theme.colors.secondary} />
+        {dbtSuccessTx.length > 0 && (
+          <View style={styles.txHistoryBox}>
+            <Text style={styles.txHistoryHeader}>Released Payouts Ledger</Text>
+            {dbtSuccessTx.map(tx => (
+              <View key={tx.id} style={styles.txHistoryRow}>
+                <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.receiptText}>
-                    ₹{tx.amount.toLocaleString('en-IN')} Received
+                  <Text style={styles.txHistoryText}>
+                    Milestone {tx.milestone_index + 1} Released: ₹{Number(tx.amount).toLocaleString('en-IN')}
                   </Text>
-                  <Text style={styles.receiptSubText}>
-                    UTR: {tx.utr_number} • Confirmed
-                  </Text>
+                  <Text style={styles.txHistorySub}>UTR: {tx.utr_number} • Confirmed by you</Text>
                 </View>
               </View>
             ))}
@@ -345,7 +538,6 @@ export default function YojanaApplicationsScreen() {
           style={styles.applyBtn}
           activeOpacity={0.8}
           onPress={() => {
-            setSelectedScheme(item);
             if (ponds.length === 0) {
               Alert.alert(
                 t('yojana.no_ponds_title', 'No Ponds Found'),
@@ -353,8 +545,10 @@ export default function YojanaApplicationsScreen() {
               );
               return;
             }
-            setSelectedPondId(ponds[0].id);
-            setApplyModalVisible(true);
+            navigation.navigate('YojanaApplicationForm', {
+              schemeCode: item.code,
+              schemeName: item.name,
+            });
           }}
         >
           <Ionicons name="open-outline" size={16} color={theme.colors.textInverse} />
@@ -387,6 +581,7 @@ export default function YojanaApplicationsScreen() {
           onPress={() => setActiveTab('schemes')}
           activeOpacity={0.8}
         >
+          <Text style={[styles.tabText, activeTab === 'schemes' && styles.activeTab]} />
           <Text style={[styles.tabText, activeTab === 'schemes' && styles.activeTabText]}>
             Available Schemes
           </Text>
@@ -429,76 +624,6 @@ export default function YojanaApplicationsScreen() {
           contentContainerStyle={styles.listContent}
         />
       )}
-
-      {/* Apply Modal */}
-      <Modal
-        visible={applyModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setApplyModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Apply for Scheme</Text>
-              <TouchableOpacity
-                onPress={() => setApplyModalVisible(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={24} color={theme.colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedScheme && (
-              <>
-                <Text style={styles.modalSchemeName}>{selectedScheme.name}</Text>
-                <Text style={styles.modalSchemeSubsidy}>{selectedScheme.subsidy}</Text>
-
-                <Text style={styles.fieldLabel}>Select Pond for Project</Text>
-                <View style={styles.pickerContainer}>
-                  {ponds.map(pond => (
-                    <TouchableOpacity
-                      key={pond.id}
-                      style={[
-                        styles.pondOption,
-                        selectedPondId === pond.id && styles.pondOptionSelected,
-                      ]}
-                      onPress={() => setSelectedPondId(pond.id)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.radioCircle, selectedPondId === pond.id && styles.radioCircleSelected]}>
-                        {selectedPondId === pond.id && <View style={styles.radioCircleInner} />}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.pondOptionName}>{pond.name}</Text>
-                        <Text style={styles.pondOptionDetail}>
-                          {pond.areaHectares} Ha • {pond.systemType}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
-                  activeOpacity={0.85}
-                  onPress={handleApply}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color={theme.colors.textInverse} />
-                  ) : (
-                    <>
-                      <Ionicons name="checkmark" size={20} color={theme.colors.textInverse} />
-                      <Text style={styles.submitBtnText}>Submit Project Application</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -514,29 +639,23 @@ const getStyles = (theme: any, isDark: boolean) =>
       backgroundColor: theme.colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
-      padding: 6,
     },
     tab: {
       flex: 1,
-      paddingVertical: 12,
+      paddingVertical: 14,
       alignItems: 'center',
-      borderRadius: theme.borderRadius.md,
     },
     activeTab: {
-      backgroundColor: theme.colors.primaryLight,
+      borderBottomWidth: 3,
+      borderBottomColor: theme.colors.primary,
     },
     tabText: {
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '700',
       color: theme.colors.textSecondary,
     },
     activeTabText: {
       color: theme.colors.primary,
-      fontWeight: '700',
-    },
-    listContent: {
-      padding: 16,
-      paddingBottom: 40,
     },
     loadingContainer: {
       flex: 1,
@@ -545,253 +664,366 @@ const getStyles = (theme: any, isDark: boolean) =>
       gap: 12,
     },
     loadingText: {
-      color: theme.colors.textSecondary,
       fontSize: 14,
-      fontWeight: '600',
+      color: theme.colors.textSecondary,
+    },
+    listContent: {
+      padding: 16,
+      paddingBottom: 40,
     },
     emptyState: {
       alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 60,
-      paddingHorizontal: 20,
+      paddingVertical: 80,
+      gap: 12,
     },
     emptyStateTitle: {
       fontSize: 18,
       fontWeight: '800',
       color: theme.colors.textPrimary,
-      marginTop: 16,
     },
     emptyStateSub: {
-      fontSize: 13,
-      color: theme.colors.textSecondary,
+      fontSize: 14,
+      color: theme.colors.textMuted,
       textAlign: 'center',
-      marginTop: 8,
-      lineHeight: 18,
+      lineHeight: 20,
+      paddingHorizontal: 20,
+      marginBottom: 10,
     },
     browseBtn: {
-      marginTop: 20,
       backgroundColor: theme.colors.primary,
+      paddingHorizontal: 20,
       paddingVertical: 12,
-      paddingHorizontal: 24,
-      borderRadius: theme.borderRadius.lg,
+      borderRadius: theme.borderRadius.md,
     },
     browseBtnText: {
       color: theme.colors.textInverse,
-      fontWeight: '700',
+      fontWeight: '800',
       fontSize: 14,
     },
-
-    // App Card
     appCard: {
       backgroundColor: theme.colors.surface,
       borderRadius: theme.borderRadius.lg,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.colors.borderGlass,
       padding: 16,
       marginBottom: 16,
-      ...theme.shadows.sm,
+      gap: 12,
+      ...theme.shadows.glow,
     },
-    cardHeader: {
+    appCardRejected: {
+      borderColor: '#fca5a5',
+      backgroundColor: isDark ? 'rgba(220,38,38,0.02)' : '#fffafb',
+    },
+    appCardHeader: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.borderGlass,
-      paddingBottom: 12,
-      marginBottom: 12,
     },
-    schemeCodeText: {
-      fontSize: 11,
-      fontWeight: '800',
-      color: theme.colors.primary,
-      letterSpacing: 1,
+    yojanaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
     },
     yojanaNameText: {
       fontSize: 15,
       fontWeight: '800',
       color: theme.colors.textPrimary,
+    },
+    pondSubText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
       marginTop: 2,
     },
     statusBadge: {
-      paddingHorizontal: 10,
+      paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 999,
+      borderRadius: 6,
+      backgroundColor: theme.colors.surfaceAlt,
     },
-    statusBadgeText: {
+    statusApproved: {
+      backgroundColor: '#ccfbf1',
+    },
+    statusRejected: {
+      backgroundColor: '#fee2e2',
+    },
+    statusMet: {
+      backgroundColor: '#dbeafe',
+    },
+    statusText: {
       fontSize: 11,
       fontWeight: '800',
-    },
-    cardDetail: {
-      gap: 6,
-      marginBottom: 14,
-    },
-    detailItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    detailLabel: {
-      fontSize: 13,
       color: theme.colors.textSecondary,
     },
-    detailValue: {
-      fontWeight: '700',
-      color: theme.colors.textPrimary,
+    pipelineContainer: {
+      backgroundColor: theme.colors.surfaceLow,
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.borderGlass,
     },
-
-    // Milestones
-    milestonesSection: {
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.borderGlass,
-      paddingTop: 12,
-      marginBottom: 12,
-    },
-    sectionTitle: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: theme.colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginBottom: 10,
-    },
-    milestoneRow: {
+    pipelineTrackRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 6,
-      gap: 10,
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
     },
-    checkboxCircle: {
+    pipelineDot: {
       width: 18,
       height: 18,
       borderRadius: 9,
-      borderWidth: 1.5,
-      borderColor: theme.colors.textMuted,
+      backgroundColor: theme.colors.border,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    checkboxCircleChecked: {
-      borderColor: theme.colors.secondary,
-      backgroundColor: theme.colors.secondary,
+    pipelineDotCompleted: {
+      backgroundColor: theme.colors.primary,
     },
-    checkboxCircleInner: {
+    pipelineDotActive: {
+      backgroundColor: theme.colors.primary,
+      borderWidth: 2,
+      borderColor: theme.colors.primaryLight,
+    },
+    pipelineDotInner: {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: 'transparent',
+      backgroundColor: theme.colors.textInverse,
     },
-    milestoneName: {
+    pipelineLine: {
       flex: 1,
-      fontSize: 13,
-      color: theme.colors.textSecondary,
+      height: 2,
+      backgroundColor: theme.colors.border,
+      marginHorizontal: 2,
     },
-    milestoneNameCompleted: {
+    pipelineLineCompleted: {
+      backgroundColor: theme.colors.primary,
+    },
+    pipelineLabelsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 6,
+    },
+    pipelineLabel: {
+      fontSize: 9,
+      fontWeight: '600',
       color: theme.colors.textMuted,
-      textDecorationLine: 'line-through',
+      width: 45,
+      textAlign: 'center',
     },
-    verifiedLabel: {
-      fontSize: 11,
-      color: theme.colors.secondary,
+    pipelineLabelActive: {
+      color: theme.colors.primary,
+      fontWeight: '800',
+    },
+    rejectedPipelineRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: '#fee2e2',
+      padding: 10,
+      borderRadius: 8,
+    },
+    rejectedPipelineText: {
+      fontSize: 12,
       fontWeight: '700',
+      color: '#dc2626',
     },
-
-    // DBT Alert Box
-    alertCard: {
-      backgroundColor: isDark ? 'rgba(255, 185, 95, 0.08)' : 'rgba(255, 185, 95, 0.12)',
-      borderColor: theme.colors.accent,
-      borderWidth: 1.5,
-      borderRadius: theme.borderRadius.md,
-      padding: 14,
-      marginTop: 10,
+    rejectionReasonBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
       gap: 8,
+      backgroundColor: '#fee2e2',
+      borderRadius: 8,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: '#fca5a5',
     },
-    alertHeader: {
+    rejectionReasonTitle: {
+      fontSize: 9,
+      fontWeight: '900',
+      color: '#dc2626',
+      letterSpacing: 0.5,
+    },
+    rejectionReasonText: {
+      fontSize: 12,
+      color: '#dc2626',
+      lineHeight: 16,
+      fontWeight: '600',
+      marginTop: 2,
+    },
+    appStatsGrid: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    statBox: {
+      flex: 1,
+      backgroundColor: theme.colors.surfaceLow,
+      borderRadius: 10,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.borderGlass,
+    },
+    statLabel: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+    },
+    statValue: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      marginTop: 2,
+    },
+    cardActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.borderGlass,
+      paddingTop: 12,
+      marginTop: 4,
+    },
+    editCardBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '30',
+      backgroundColor: theme.colors.primaryLight,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 6,
+    },
+    editCardBtnText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: theme.colors.primary,
+    },
+    collapseToggleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginLeft: 'auto',
+    },
+    collapseToggleText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.primary,
+    },
+    alertIndicatorDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#dc2626',
+      position: 'absolute',
+      right: -8,
+      top: -2,
+    },
+    expandedDocsSection: {
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.borderGlass,
+      paddingTop: 12,
+      marginTop: 4,
+      gap: 4,
+    },
+    expandedDocsHeader: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 6,
+    },
+    noDocsText: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+    },
+    dbtAlertBox: {
+      backgroundColor: '#ccfbf1',
+      borderWidth: 1.5,
+      borderColor: '#2dd4bf',
+      borderRadius: 14,
+      padding: 14,
+      gap: 8,
+      marginTop: 4,
+    },
+    dbtAlertHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
     },
-    alertIconBg: {
-      backgroundColor: theme.colors.accentSoft,
-      padding: 6,
-      borderRadius: 8,
-    },
-    alertTitle: {
-      fontSize: 14,
+    dbtAlertTitle: {
+      fontSize: 15,
       fontWeight: '800',
-      color: isDark ? '#ffd090' : '#855300',
+      color: '#0f766e',
     },
-    alertBody: {
+    dbtAlertMsg: {
       fontSize: 13,
-      color: theme.colors.textSecondary,
+      color: '#115e59',
       lineHeight: 18,
     },
-    alertHighlight: {
-      fontWeight: '800',
-      color: theme.colors.textPrimary,
-    },
-    alertQuestion: {
-      fontSize: 13,
+    utrText: {
+      fontSize: 11,
+      color: '#0f766e',
+      fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
       fontWeight: '700',
-      color: theme.colors.textPrimary,
-      marginTop: 4,
     },
     confirmBtn: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: '#0f766e',
       paddingVertical: 10,
       borderRadius: 10,
       marginTop: 4,
     },
     confirmBtnText: {
-      color: '#000000',
+      color: theme.colors.textInverse,
       fontWeight: '800',
       fontSize: 13,
     },
-
-    // Receipts Section
-    receiptsSection: {
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.borderGlass,
-      paddingTop: 12,
-      marginTop: 8,
-    },
-    receiptsTitle: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: theme.colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginBottom: 8,
-    },
-    receiptRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    txHistoryBox: {
+      backgroundColor: theme.colors.surfaceLow,
+      borderWidth: 1,
+      borderColor: theme.colors.borderGlass,
+      borderRadius: 12,
+      padding: 12,
       gap: 8,
-      paddingVertical: 4,
+      marginTop: 4,
     },
-    receiptText: {
-      fontSize: 13,
+    txHistoryHeader: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: theme.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    txHistoryRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      paddingVertical: 2,
+    },
+    txHistoryText: {
+      fontSize: 12,
       fontWeight: '700',
       color: theme.colors.textPrimary,
     },
-    receiptSubText: {
-      fontSize: 11,
+    txHistorySub: {
+      fontSize: 10,
       color: theme.colors.textMuted,
       marginTop: 1,
     },
-
-    // Scheme Card
     schemeCard: {
       backgroundColor: theme.colors.surface,
       borderRadius: theme.borderRadius.lg,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.colors.borderGlass,
       padding: 16,
       marginBottom: 16,
-      ...theme.shadows.sm,
+      ...theme.shadows.glow,
     },
     schemeHeader: {
       flexDirection: 'row',
@@ -863,113 +1095,6 @@ const getStyles = (theme: any, isDark: boolean) =>
       borderRadius: theme.borderRadius.md,
     },
     applyBtnText: {
-      color: theme.colors.textInverse,
-      fontWeight: '800',
-      fontSize: 14,
-    },
-
-    // Modal
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
-    modalContent: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.borderRadius.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: 20,
-      width: '100%',
-      maxWidth: 400,
-      gap: 14,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: '800',
-      color: theme.colors.textPrimary,
-    },
-    modalSchemeName: {
-      fontSize: 15,
-      fontWeight: '800',
-      color: theme.colors.textPrimary,
-    },
-    modalSchemeSubsidy: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: theme.colors.primary,
-    },
-    fieldLabel: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: theme.colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginTop: 6,
-    },
-    pickerContainer: {
-      gap: 8,
-      maxHeight: 200,
-    },
-    pondOption: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      borderWidth: 1.5,
-      borderColor: theme.colors.border,
-      borderRadius: theme.borderRadius.sm,
-      padding: 12,
-    },
-    pondOptionSelected: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.primaryLight,
-    },
-    radioCircle: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      borderWidth: 1.5,
-      borderColor: theme.colors.textMuted,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    radioCircleSelected: {
-      borderColor: theme.colors.primary,
-    },
-    radioCircleInner: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: theme.colors.primary,
-    },
-    pondOptionName: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: theme.colors.textPrimary,
-    },
-    pondOptionDetail: {
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      marginTop: 2,
-    },
-    submitBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      backgroundColor: theme.colors.primary,
-      paddingVertical: 14,
-      borderRadius: theme.borderRadius.md,
-      marginTop: 10,
-    },
-    submitBtnText: {
       color: theme.colors.textInverse,
       fontWeight: '800',
       fontSize: 14,

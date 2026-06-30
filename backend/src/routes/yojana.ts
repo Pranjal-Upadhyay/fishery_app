@@ -4,6 +4,7 @@ import { query } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
 import { logger } from '../utils/logger';
+import { SupabaseService } from '../services/supabaseService';
 
 const router = Router();
 
@@ -11,6 +12,27 @@ const router = Router();
 const applySchema = z.object({
   pondId: z.string().uuid(),
   yojanaCode: z.string().min(1).max(80),
+  applicantName: z.string().min(2).max(200),
+  applicantDistrict: z.string().min(2).max(100),
+  applicantCategory: z.string().min(2).max(20),
+  applicantLandArea: z.number().positive(),
+  projectDescription: z.string().optional(),
+  documents: z.array(
+    z.object({
+      docType: z.string(),
+      filePath: z.string(),
+      fileName: z.string(),
+      mimeType: z.string().optional(),
+    })
+  ).min(1),
+});
+
+const editSchema = z.object({
+  applicantName: z.string().min(2).max(200).optional(),
+  applicantDistrict: z.string().min(2).max(100).optional(),
+  applicantCategory: z.string().min(2).max(20).optional(),
+  applicantLandArea: z.number().positive().optional(),
+  projectDescription: z.string().optional(),
 });
 
 const updateStatusSchema = z.object({
@@ -19,6 +41,15 @@ const updateStatusSchema = z.object({
 
 const releasePayoutSchema = z.object({
   milestoneIndex: z.number().int().nonnegative(),
+});
+
+const docVerifySchema = z.object({
+  status: z.enum(['VERIFIED', 'REJECTED']),
+  rejectionReason: z.string().max(500).optional(),
+});
+
+const appRejectSchema = z.object({
+  rejectionReason: z.string().min(10).max(500),
 });
 
 // Param validators — reject non-UUID ids with a clean 400 instead of letting
@@ -39,9 +70,37 @@ function getYojanaName(code: string): string {
   }
 }
 
+// ── MOCK STORAGE UPLOAD ROUTE (dev only) ────────────────────────────────────
+router.put('/mock-upload', async (req, res) => {
+  logger.info(`[Storage Mock] Received file upload for path: ${req.query.path}`);
+  res.json({ success: true, message: 'Mock upload successful' });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FARMER ENDPOINTS
 // ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/v1/yojana/upload-token
+// Generates a signed Supabase upload URL for the farmer
+router.get('/upload-token', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const docType = z.string().parse(req.query.docType);
+    const fileName = z.string().parse(req.query.fileName);
+    
+    const ext = fileName.split('.').pop() || 'pdf';
+    const timestamp = Date.now();
+    const filePath = `${userId}/${docType}_${timestamp}.${ext}`;
+    
+    const result = await SupabaseService.getSignedUploadUrl(filePath);
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /api/v1/yojana/applications
 // List all applications for the logged-in farmer
@@ -52,6 +111,8 @@ router.get('/applications', requireAuth, async (req, res, next) => {
     const result = await query(`
       SELECT ya.id, ya.pond_id, p.name as pond_name, ya.yojana_code, ya.status,
              ya.approved_subsidy_amount, ya.milestones, ya.created_at, ya.updated_at,
+             ya.applicant_name, ya.applicant_district, ya.applicant_category,
+             ya.applicant_land_area, ya.project_description, ya.rejection_reason as application_rejection_reason,
              (
                SELECT COALESCE(json_agg(dt_row), '[]'::json)
                FROM (
@@ -61,7 +122,16 @@ router.get('/applications', requireAuth, async (req, res, next) => {
                  WHERE dt.application_id = ya.id
                  ORDER BY dt.milestone_index ASC
                ) dt_row
-             ) as transactions
+             ) as transactions,
+             (
+               SELECT COALESCE(json_agg(doc_row), '[]'::json)
+               FROM (
+                 SELECT ad.id, ad.doc_type, ad.file_path, ad.file_name, ad.mime_type,
+                        ad.verification_status, ad.rejection_reason
+                 FROM application_documents ad
+                 WHERE ad.application_id = ya.id
+               ) doc_row
+             ) as documents
       FROM yojana_applications ya
       JOIN ponds p ON p.id = ya.pond_id
       WHERE ya.user_id = $1
@@ -74,7 +144,8 @@ router.get('/applications', requireAuth, async (req, res, next) => {
       data: result.rows.map(row => ({
         ...row,
         yojana_name: getYojanaName(row.yojana_code),
-        approved_subsidy_amount: parseFloat(row.approved_subsidy_amount)
+        approved_subsidy_amount: parseFloat(row.approved_subsidy_amount),
+        applicant_land_area: parseFloat(row.applicant_land_area || '0')
       }))
     });
   } catch (error) {
@@ -87,7 +158,16 @@ router.get('/applications', requireAuth, async (req, res, next) => {
 router.post('/apply', requireAuth, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
-    const { pondId, yojanaCode } = applySchema.parse(req.body);
+    const {
+      pondId,
+      yojanaCode,
+      applicantName,
+      applicantDistrict,
+      applicantCategory,
+      applicantLandArea,
+      projectDescription,
+      documents
+    } = applySchema.parse(req.body);
 
     // Verify pond belongs to user
     const pondCheck = await query(`
@@ -138,19 +218,174 @@ router.post('/apply', requireAuth, async (req, res, next) => {
       ];
     }
 
+    // Insert Yojana application
     const insertResult = await query(`
-      INSERT INTO yojana_applications (user_id, pond_id, yojana_code, status, approved_subsidy_amount, milestones)
-      VALUES ($1, $2, $3, 'AWAITING_REVIEW', $4, $5)
+      INSERT INTO yojana_applications (
+        user_id, pond_id, yojana_code, status, approved_subsidy_amount, milestones,
+        applicant_name, applicant_district, applicant_category, applicant_land_area,
+        project_description, form_submitted_at
+      )
+      VALUES ($1, $2, $3, 'AWAITING_REVIEW', $4, $5, $6, $7, $8, $9, $10, NOW())
       RETURNING *
-    `, [userId, pondId, yojanaCode, approvedSubsidy, JSON.stringify(milestones)]);
+    `, [
+      userId, pondId, yojanaCode, approvedSubsidy, JSON.stringify(milestones),
+      applicantName, applicantDistrict, applicantCategory, applicantLandArea,
+      projectDescription
+    ]);
+
+    const application = insertResult.rows[0];
+
+    // Insert associated documents
+    for (const doc of documents) {
+      await query(`
+        INSERT INTO application_documents (
+          application_id, doc_type, file_path, file_name, mime_type, verification_status
+        )
+        VALUES ($1, $2, $3, $4, $5, 'PENDING')
+      `, [application.id, doc.docType, doc.filePath, doc.fileName, doc.mimeType || 'application/pdf']);
+    }
 
     res.status(201).json({
       success: true,
       data: {
-        ...insertResult.rows[0],
+        ...application,
         yojana_name: getYojanaName(yojanaCode),
-        approved_subsidy_amount: parseFloat(insertResult.rows[0].approved_subsidy_amount)
+        approved_subsidy_amount: parseFloat(application.approved_subsidy_amount)
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/v1/yojana/applications/:id/edit
+// Edit application form fields (only in AWAITING_REVIEW status)
+router.patch('/applications/:id/edit', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const appId = uuidParam.parse(req.params.id);
+    const updates = editSchema.parse(req.body);
+
+    // Verify application exists, belongs to farmer, and is in AWAITING_REVIEW status
+    const appCheck = await query(`
+      SELECT id, status FROM yojana_applications WHERE id = $1 AND user_id = $2
+    `, [appId, userId]);
+
+    if (appCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found or unauthorized access'
+      });
+    }
+
+    const app = appCheck.rows[0];
+    if (app.status !== 'AWAITING_REVIEW') {
+      return res.status(400).json({
+        success: false,
+        error: 'Application cannot be edited once it has passed document review.'
+      });
+    }
+
+    // Dynamic field update query
+    const setFields: string[] = [];
+    const values: any[] = [];
+    let valIdx = 1;
+
+    Object.entries(updates).forEach(([key, val]) => {
+      const dbCol = 
+        key === 'applicantName' ? 'applicant_name' :
+        key === 'applicantDistrict' ? 'applicant_district' :
+        key === 'applicantCategory' ? 'applicant_category' :
+        key === 'applicantLandArea' ? 'applicant_land_area' :
+        key === 'projectDescription' ? 'project_description' : null;
+
+      if (dbCol && val !== undefined) {
+        setFields.push(`${dbCol} = $${valIdx}`);
+        values.push(val);
+        valIdx++;
+      }
+    });
+
+    if (setFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    // Add ID and last edited timestamp
+    setFields.push(`last_edited_at = NOW()`);
+    values.push(appId);
+    
+    const updateResult = await query(`
+      UPDATE yojana_applications
+      SET ${setFields.join(', ')}
+      WHERE id = $${valIdx}
+      RETURNING *
+    `, values);
+
+    res.json({
+      success: true,
+      data: updateResult.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v1/yojana/applications/:id/reupload
+// Re-upload a single rejected document (deletes old storage file + updates DB row)
+router.post('/applications/:id/reupload', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const appId = uuidParam.parse(req.params.id);
+    const { docType, filePath, fileName, mimeType } = z.object({
+      docType: z.string(),
+      filePath: z.string(),
+      fileName: z.string(),
+      mimeType: z.string().optional(),
+    }).parse(req.body);
+
+    // Verify application status is before APPROVED
+    const appCheck = await query(`
+      SELECT status FROM yojana_applications WHERE id = $1 AND user_id = $2
+    `, [appId, userId]);
+
+    if (appCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Application not found' });
+    }
+
+    if (appCheck.rows[0].status === 'APPROVED' || appCheck.rows[0].status === 'MILESTONE_1_MET' || appCheck.rows[0].status === 'MILESTONE_2_MET') {
+      return res.status(400).json({ success: false, error: 'Cannot reupload documents once application is approved.' });
+    }
+
+    // Check if document already exists
+    const docCheck = await query(`
+      SELECT file_path FROM application_documents WHERE application_id = $1 AND doc_type = $2
+    `, [appId, docType]);
+
+    if (docCheck.rows.length > 0) {
+      const oldPath = docCheck.rows[0].file_path;
+      // Delete old file from Supabase storage
+      await SupabaseService.deleteFile(oldPath);
+    }
+
+    // Upsert document record
+    const result = await query(`
+      INSERT INTO application_documents (application_id, doc_type, file_path, file_name, mime_type, verification_status, rejection_reason)
+      VALUES ($1, $2, $3, $4, $5, 'PENDING', NULL)
+      ON CONFLICT (application_id, doc_type)
+      DO UPDATE SET 
+        file_path = EXCLUDED.file_path,
+        file_name = EXCLUDED.file_name,
+        mime_type = EXCLUDED.mime_type,
+        verification_status = 'PENDING',
+        rejection_reason = NULL,
+        verified_by_admin = NULL,
+        verified_at = NULL
+      RETURNING *
+    `, [appId, docType, filePath, fileName, mimeType || 'application/pdf']);
+
+    res.json({
+      success: true,
+      data: result.rows[0]
     });
   } catch (error) {
     next(error);
@@ -200,11 +435,22 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
   try {
     const result = await query(`
       SELECT ya.id, ya.yojana_code, ya.status, ya.approved_subsidy_amount, ya.milestones, ya.created_at,
+             ya.applicant_name, ya.applicant_district, ya.applicant_category, ya.applicant_land_area,
+             ya.project_description, ya.rejection_reason as application_rejection_reason,
              u.name as farmer_name, u.farmer_category as caste,
              p.name as pond_name, p.area_hectares,
              ST_Y(p.location::geometry) as latitude,
              ST_X(p.location::geometry) as longitude,
-             COALESCE(p.district_code, 'BR-MADHUBANI') as district_code
+             COALESCE(p.district_code, 'BR-MADHUBANI') as district_code,
+             (
+               SELECT COALESCE(json_agg(doc_row), '[]'::json)
+               FROM (
+                 SELECT ad.id, ad.doc_type, ad.file_path, ad.file_name, ad.mime_type,
+                        ad.verification_status, ad.rejection_reason
+                 FROM application_documents ad
+                 WHERE ad.application_id = ya.id
+               ) doc_row
+             ) as documents
       FROM yojana_applications ya
       JOIN users u ON u.id = ya.user_id
       JOIN ponds p ON p.id = ya.pond_id
@@ -215,9 +461,10 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
     const mappedApplications = result.rows.map(row => {
       // Map caste code
       let casteDisplay = 'General';
-      if (row.caste === 'SC') casteDisplay = 'SC';
-      else if (row.caste === 'ST') casteDisplay = 'ST';
-      else if (row.caste === 'WOMEN') casteDisplay = 'EBC'; // Women mapped to EBC categories for demo priority
+      const rowCaste = row.applicant_category || row.caste;
+      if (rowCaste === 'SC') casteDisplay = 'SC';
+      else if (rowCaste === 'ST') casteDisplay = 'ST';
+      else if (rowCaste === 'EBC' || rowCaste === 'WOMEN') casteDisplay = 'EBC';
 
       // Map status
       let statusDisplay = 'Awaiting Review';
@@ -225,30 +472,52 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
       else if (row.status === 'APPROVED') statusDisplay = 'Approved';
       else if (row.status === 'MILESTONE_1_MET') statusDisplay = 'Milestone 1 Met';
       else if (row.status === 'MILESTONE_2_MET') statusDisplay = 'Milestone 2 Met';
+      else if (row.status === 'REJECTED') statusDisplay = 'Rejected';
 
       // Map district code to display name
       const distParts = row.district_code.split('-');
       const districtDisplay = distParts[distParts.length - 1];
 
+      // Convert DB documents list to dashboard compatibility
+      const dashboardDocs = row.documents.map((d: any) => {
+        let name = d.doc_type;
+        if (d.doc_type === 'AADHAAR') name = 'Aadhaar Card';
+        else if (d.doc_type === 'CASTE_CERT') name = 'Caste Certificate';
+        else if (d.doc_type === 'LAND_DEED') name = 'Land Registry (LPC)';
+        else if (d.doc_type === 'BANK_PASSBOOK') name = 'Bank Passbook (Seeded)';
+        else if (d.doc_type === 'INCOME_CERT') name = 'Income Certificate';
+        else if (d.doc_type === 'POND_PHOTO') name = 'Geo-tagged Pond Photos';
+        else if (d.doc_type === 'POWER_PROOF') name = 'Power Proof (Electricity Bill)';
+        else if (d.doc_type === 'TRAINING_CERT') name = 'Aquaculture Training Certificate';
+        else if (d.doc_type === 'PASSPORT_PHOTO') name = 'Passport Photograph';
+
+        return {
+          id: d.id,
+          name,
+          doc_type: d.doc_type,
+          filePath: d.file_path,
+          fileName: d.file_name,
+          status: d.verification_status.toLowerCase(), // 'verified', 'pending', 'rejected'
+          rejectionReason: d.rejection_reason
+        };
+      });
+
       return {
         id: row.id,
         appNum: `APP-2026-${row.yojana_code}-${row.id.substring(0, 3).toUpperCase()}`,
-        farmerName: row.farmer_name,
+        farmerName: row.applicant_name || row.farmer_name,
         caste: casteDisplay,
         yojanaName: getYojanaName(row.yojana_code),
-        district: districtDisplay.charAt(0).toUpperCase() + districtDisplay.slice(1).toLowerCase(),
-        landArea: `${(parseFloat(row.area_hectares) * 2.471).toFixed(1)} Acres`,
-        documents: [
-          { name: 'Caste Certificate', status: 'verified' },
-          { name: 'Land Registry (LPC)', status: 'verified' },
-          { name: 'Aadhaar eKYC Verification', status: 'verified' },
-          { name: 'Bank Passbook (Seeded)', status: row.status === 'AWAITING_REVIEW' ? 'pending' : 'verified' },
-        ],
+        district: row.applicant_district || (districtDisplay.charAt(0).toUpperCase() + districtDisplay.slice(1).toLowerCase()),
+        landArea: row.applicant_land_area ? `${parseFloat(row.applicant_land_area).toFixed(1)} Acres` : `${(parseFloat(row.area_hectares) * 2.471).toFixed(1)} Acres`,
+        documents: dashboardDocs,
         gpsCoords: `${parseFloat(row.latitude).toFixed(4)} N, ${parseFloat(row.longitude).toFixed(4)} E`,
         gpsMatch: true,
         status: statusDisplay,
         milestones: row.milestones,
         subsidyAmount: `₹${parseFloat(row.approved_subsidy_amount).toLocaleString('en-IN')}`,
+        projectDescription: row.project_description || '',
+        applicationRejectionReason: row.application_rejection_reason || '',
       };
     });
 
@@ -256,6 +525,98 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
       success: true,
       count: mappedApplications.length,
       data: mappedApplications
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/admin/documents/:docId/view-url
+// Generates a 60-second signed Supabase read URL for a document
+router.get('/admin/documents/:docId/view-url', requireAdmin, async (req, res, next) => {
+  try {
+    const docId = uuidParam.parse(req.params.docId);
+
+    const docResult = await query(`
+      SELECT file_path FROM application_documents WHERE id = $1
+    `, [docId]);
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    const downloadUrl = await SupabaseService.getSignedDownloadUrl(docResult.rows[0].file_path);
+    res.json({
+      success: true,
+      data: {
+        url: downloadUrl
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/v1/yojana/admin/documents/:docId/verify
+// Mark document status as verified or rejected (with reason)
+router.patch('/admin/documents/:docId/verify', requireAdmin, async (req, res, next) => {
+  try {
+    const adminId = req.auth!.userId;
+    const docId = uuidParam.parse(req.params.docId);
+    const { status, rejectionReason } = docVerifySchema.parse(req.body);
+
+    if (status === 'REJECTED' && (!rejectionReason || rejectionReason.trim().length < 10)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Rejection reason of at least 10 characters is required when rejecting a document.'
+      });
+    }
+
+    const updateResult = await query(`
+      UPDATE application_documents
+      SET 
+        verification_status = $1, 
+        rejection_reason = $2, 
+        verified_by_admin = $3, 
+        verified_at = NOW()
+      WHERE id = $4
+      RETURNING *
+    `, [status, rejectionReason || null, adminId, docId]);
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    res.json({
+      success: true,
+      data: updateResult.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/v1/yojana/admin/applications/:id/reject
+// Fully reject the application with a reason
+router.patch('/admin/applications/:id/reject', requireAdmin, async (req, res, next) => {
+  try {
+    const appId = uuidParam.parse(req.params.id);
+    const { rejectionReason } = appRejectSchema.parse(req.body);
+
+    const result = await query(`
+      UPDATE yojana_applications
+      SET status = 'REJECTED', rejection_reason = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [rejectionReason, appId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Application not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0]
     });
   } catch (error) {
     next(error);

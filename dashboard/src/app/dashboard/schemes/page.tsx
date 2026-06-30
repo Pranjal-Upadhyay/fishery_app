@@ -50,6 +50,16 @@ interface SchemeCatalogItem {
   accentColor: 'teal' | 'sky' | 'amber' | 'violet';
 }
 
+interface ApplicationDocument {
+  id: string;
+  name: string;
+  doc_type: string;
+  filePath: string;
+  fileName: string;
+  status: 'verified' | 'pending' | 'rejected';
+  rejectionReason?: string | null;
+}
+
 interface Application {
   id: string;
   appNum: string;
@@ -58,12 +68,14 @@ interface Application {
   yojanaName: string;
   district: string;
   landArea: string;
-  documents: { name: string; status: 'verified' | 'pending' | 'missing' }[];
+  documents: ApplicationDocument[];
   gpsCoords: string;
   gpsMatch: boolean;
   status: string;
   milestones: { name: string; pct: number; verified: boolean; photoUrl?: string }[];
   subsidyAmount: string;
+  projectDescription?: string;
+  applicationRejectionReason?: string | null;
 }
 
 // ─── Static Data ──────────────────────────────────────────────────────────────
@@ -181,7 +193,7 @@ const SCHEME_CATALOG: SchemeCatalogItem[] = [
     id: '4',
     code: 'MPVY',
     nameEn: 'Matsya Prajati Vividhikaran Yojana',
-    nameHi: 'मत्स्य प्रजाति का विविधीकरण योजना',
+    nameHi: 'मत्स्य प्रजाति का विविविधीकरण योजना',
     tagline: 'Species Diversification & Hatchery Development',
     subsidyByCategory: { general: 60, ebc: 60, sc: 60, st: 60 },
     unitCostCapLakh: 13.12,
@@ -347,6 +359,21 @@ export default function SchemesPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [notifSent, setNotifSent] = useState<Set<string>>(new Set());
 
+  // PDF Viewer Modal state
+  const [viewingDoc, setViewingDoc] = useState<ApplicationDocument | null>(null);
+  const [viewingDocUrl, setViewingDocUrl] = useState<string>('');
+  const [fetchingDocUrl, setFetchingDocUrl] = useState(false);
+
+  // Document Rejection Modal state
+  const [rejectingDoc, setRejectingDoc] = useState<ApplicationDocument | null>(null);
+  const [rejectionDocReason, setRejectionDocReason] = useState('');
+  const [submittingDocRejection, setSubmittingDocRejection] = useState(false);
+
+  // Application Rejection Modal state
+  const [rejectingAppId, setRejectingAppId] = useState<string | null>(null);
+  const [rejectionAppReason, setRejectionAppReason] = useState('');
+  const [submittingAppRejection, setSubmittingAppRejection] = useState(false);
+
   const fetchApps = useCallback(async () => {
     try {
       const res = await api.get<ApiEnvelope<Application[]>>('/api/v1/yojana/admin/applications');
@@ -362,18 +389,6 @@ export default function SchemesPage() {
 
   const handleStatusChange = async (appId: string, dbStatus: string) => {
     setProcessingId(appId);
-    // Optimistic local update
-    let mappedStatus = 'Awaiting Review';
-    if (dbStatus === 'DLC_QUEUE') mappedStatus = 'DLC Queue';
-    else if (dbStatus === 'APPROVED') mappedStatus = 'Approved';
-    else if (dbStatus === 'MILESTONE_1_MET') mappedStatus = 'Milestone 1 Met';
-    else if (dbStatus === 'MILESTONE_2_MET') mappedStatus = 'Milestone 2 Met';
-    else if (dbStatus === 'REJECTED') mappedStatus = 'Rejected';
-
-    setApplications(prev =>
-      prev.map(app => (app.id === appId ? { ...app, status: mappedStatus } : app))
-    );
-
     try {
       await api.patch<ApiEnvelope<unknown>>(`/api/v1/yojana/admin/applications/${appId}/status`, { status: dbStatus });
       await fetchApps();
@@ -384,15 +399,81 @@ export default function SchemesPage() {
     }
   };
 
-  const handleVerifyDoc = (appId: string, docIndex: number) => {
-    setApplications(prev =>
-      prev.map(app => {
-        if (app.id !== appId) return app;
-        const newDocs = [...app.documents];
-        newDocs[docIndex] = { ...newDocs[docIndex], status: 'verified' };
-        return { ...app, documents: newDocs };
-      }),
-    );
+  const handleOpenDocViewer = async (doc: ApplicationDocument) => {
+    setViewingDoc(doc);
+    setFetchingDocUrl(true);
+    setViewingDocUrl('');
+    try {
+      const res = await api.get<ApiEnvelope<{ url: string }>>(`/api/v1/yojana/admin/documents/${doc.id}/view-url`);
+      if (res.success && res.data?.url) {
+        setViewingDocUrl(res.data.url);
+      } else {
+        console.error('Failed to fetch download url');
+      }
+    } catch (err) {
+      console.error('Error fetching doc view URL:', err);
+    } finally {
+      setFetchingDocUrl(false);
+    }
+  };
+
+  const handleVerifyDocDirectly = async (docId: string) => {
+    try {
+      await api.patch(`/api/v1/yojana/admin/documents/${docId}/verify`, {
+        status: 'VERIFIED'
+      });
+      // Close viewer if active
+      setViewingDoc(null);
+      await fetchApps();
+    } catch (err) {
+      console.error('Error verifying document:', err);
+    }
+  };
+
+  const handleConfirmDocRejection = async () => {
+    if (!rejectingDoc) return;
+    if (rejectionDocReason.trim().length < 10) {
+      alert('Please provide a reason of at least 10 characters.');
+      return;
+    }
+
+    setSubmittingDocRejection(true);
+    try {
+      await api.patch(`/api/v1/yojana/admin/documents/${rejectingDoc.id}/verify`, {
+        status: 'REJECTED',
+        rejectionReason: rejectionDocReason
+      });
+      setViewingDoc(null);
+      setRejectingDoc(null);
+      setRejectionDocReason('');
+      await fetchApps();
+    } catch (err) {
+      console.error('Error rejecting document:', err);
+    } finally {
+      setSubmittingDocRejection(false);
+    }
+  };
+
+  const handleConfirmAppRejection = async () => {
+    if (!rejectingAppId) return;
+    if (rejectionAppReason.trim().length < 10) {
+      alert('Please provide a reason of at least 10 characters.');
+      return;
+    }
+
+    setSubmittingAppRejection(true);
+    try {
+      await api.patch(`/api/v1/yojana/admin/applications/${rejectingAppId}/reject`, {
+        rejectionReason: rejectionAppReason
+      });
+      setRejectingAppId(null);
+      setRejectionAppReason('');
+      await fetchApps();
+    } catch (err) {
+      console.error('Error rejecting application:', err);
+    } finally {
+      setSubmittingAppRejection(false);
+    }
   };
 
   const handleSendNotification = async (app: Application) => {
@@ -413,8 +494,6 @@ export default function SchemesPage() {
     statusFilter === 'ALL' ? applications : applications.filter(a => a.status === statusFilter);
 
   const countByStatus = (s: string) => applications.filter(a => a.status === s).length;
-
-  // ──────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-16 p-6 pb-24 max-w-5xl mx-auto w-full">
@@ -537,7 +616,6 @@ export default function SchemesPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-
                 {/* Subsidy by category */}
                 <div>
                   <div className="text-[10px] font-bold text-ink-muted uppercase tracking-widest mb-4">
@@ -757,8 +835,8 @@ export default function SchemesPage() {
             {filteredApps.map(app => {
               const isExpanded = expandedApp === app.id;
               const isProcessing = processingId === app.id;
-              const allDocsVerified = app.documents.every(d => d.status === 'verified');
-              const isDone = app.status === 'Milestone 2 Met' || app.status === 'Rejected';
+              const allDocsVerified = app.documents && app.documents.length > 0 && app.documents.every(d => d.status === 'verified');
+              const isDone = app.status === 'Completed' || app.status === 'Rejected';
 
               return (
                 <div
@@ -797,7 +875,7 @@ export default function SchemesPage() {
 
                   {/* ── Expanded Detail Panel ── */}
                   {isExpanded && (
-                    <div className="border-t border-glass-border/60 bg-canvas-950/60 p-6">
+                    <div className="border-t border-glass-border/60 bg-canvas-950/60 p-6 animate-fadeIn">
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                         {/* ── Col 1: Profile & GPS ── */}
@@ -821,6 +899,20 @@ export default function SchemesPage() {
                               ))}
                             </div>
                           </div>
+
+                          {app.projectDescription && (
+                            <div className="p-3.5 rounded-xl border border-glass-border bg-canvas-950/20 text-xs">
+                              <div className="font-bold text-ink-secondary mb-1">Project Proposal Note</div>
+                              <div className="text-ink-muted leading-relaxed italic">"{app.projectDescription}"</div>
+                            </div>
+                          )}
+
+                          {app.applicationRejectionReason && app.status === 'Rejected' && (
+                            <div className="p-3.5 rounded-xl border border-red-500/20 bg-red-500/5 text-xs">
+                              <div className="font-bold text-red-400 mb-1">Official Rejection Reason</div>
+                              <div className="text-red-300/80 leading-relaxed">"{app.applicationRejectionReason}"</div>
+                            </div>
+                          )}
 
                           <div
                             className={`p-3.5 rounded-xl border ${
@@ -885,41 +977,80 @@ export default function SchemesPage() {
                             Document Verification
                           </div>
                           <div className="flex flex-col gap-2">
-                            {app.documents.map((doc, idx) => (
-                              <div
-                                key={doc.name}
-                                className="flex items-center justify-between p-3 rounded-xl border border-glass-border/40 bg-canvas-950/30"
-                              >
-                                <div className="flex items-center gap-2 text-xs text-ink-secondary min-w-0">
-                                  <FileText className="h-3.5 w-3.5 text-ink-muted flex-shrink-0" />
-                                  <span className="truncate">{doc.name}</span>
-                                </div>
-                                <div className="flex-shrink-0 ml-2">
-                                  {doc.status === 'verified' ? (
-                                    <span className="flex items-center gap-1 text-[10px] font-bold text-teal-400">
-                                      <CheckCircle className="h-3 w-3" /> Verified
-                                    </span>
-                                  ) : doc.status === 'missing' ? (
-                                    <span className="flex items-center gap-1 text-[10px] font-bold text-rose-400">
-                                      <AlertTriangle className="h-3 w-3" /> Missing
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleVerifyDoc(app.id, idx)}
-                                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/30 hover:bg-teal-500/20 transition-colors"
-                                    >
-                                      Verify
-                                    </button>
+                            {app.documents && app.documents.length > 0 ? (
+                              app.documents.map((doc) => (
+                                <div
+                                  key={doc.id}
+                                  className="flex flex-col p-3.5 rounded-xl border border-glass-border/40 bg-canvas-950/30 gap-2.5"
+                                >
+                                  <div className="flex items-center justify-between min-w-0">
+                                    <div className="flex items-center gap-2 text-xs text-ink-secondary min-w-0">
+                                      <FileText className="h-3.5 w-3.5 text-ink-muted flex-shrink-0" />
+                                      <span className="font-semibold truncate">{doc.name}</span>
+                                    </div>
+                                    <div className="flex-shrink-0 ml-2">
+                                      {doc.status === 'verified' ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold text-teal-400">
+                                          <CheckCircle className="h-3 w-3" /> Verified
+                                        </span>
+                                      ) : doc.status === 'rejected' ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold text-rose-400">
+                                          <XCircle className="h-3 w-3" /> Rejected
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-400">
+                                          <Clock className="h-3 w-3" /> Pending Review
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex justify-between items-center text-[10px] pt-1.5 border-t border-glass-border/20">
+                                    <span className="text-ink-muted font-mono truncate max-w-[140px]">{doc.fileName}</span>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => handleOpenDocViewer(doc)}
+                                        className="font-bold text-teal-400 hover:text-teal-300 transition-colors"
+                                      >
+                                        [View & Audit ▸]
+                                      </button>
+                                      {doc.status === 'pending' && (
+                                        <>
+                                          <button
+                                            onClick={() => handleVerifyDocDirectly(doc.id)}
+                                            className="font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
+                                          >
+                                            [✓ Verify]
+                                          </button>
+                                          <button
+                                            onClick={() => setRejectingDoc(doc)}
+                                            className="font-bold text-rose-400 hover:text-rose-300 transition-colors"
+                                          >
+                                            [✗ Reject]
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {doc.status === 'rejected' && doc.rejectionReason && (
+                                    <div className="mt-1 p-2 rounded bg-red-500/10 border border-red-500/15 text-[10px] text-red-300 leading-normal">
+                                      <span className="font-bold">Reason:</span> "{doc.rejectionReason}"
+                                    </div>
                                   )}
                                 </div>
+                              ))
+                            ) : (
+                              <div className="text-xs text-ink-muted p-4 border border-dashed border-glass-border/40 rounded-xl text-center">
+                                No uploaded documents found for this application.
                               </div>
-                            ))}
+                            )}
                           </div>
 
                           {!allDocsVerified && app.status === 'Awaiting Review' && (
-                            <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-300">
+                            <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-300 leading-relaxed">
                               <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-                              All documents must be verified before this application can be sent to the DLC Queue.
+                              All documents must be verified and status marked as "Verified" before this application can be sent to the DLC Queue.
                             </div>
                           )}
                         </div>
@@ -988,7 +1119,7 @@ export default function SchemesPage() {
                                 }`}
                               >
                                 <Bell className="h-3.5 w-3.5" />
-                                {notifSent.has(app.id) ? 'Notification Sent ✓' : 'Notify Farmer of Current Status'}
+                                {notifSent.has(app.id) ? 'Notification Sent ✓' : 'Notify Farmer of Status'}
                               </button>
                             )}
 
@@ -996,7 +1127,7 @@ export default function SchemesPage() {
                             {!isDone && (
                               <button
                                 disabled={isProcessing}
-                                onClick={() => handleStatusChange(app.id, 'REJECTED')}
+                                onClick={() => setRejectingAppId(app.id)}
                                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-red-500/5 text-red-400 border border-red-500/20 hover:bg-red-500/10 disabled:opacity-40 disabled:pointer-events-none transition-all"
                               >
                                 {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
@@ -1005,7 +1136,7 @@ export default function SchemesPage() {
                             )}
 
                             {/* Terminal states */}
-                            {app.status === 'Milestone 2 Met' && (
+                            {app.status === 'Completed' && (
                               <div className="text-center py-3 text-xs text-teal-400 font-semibold flex items-center justify-center gap-2">
                                 <CheckCircle className="h-4 w-4" />
                                 Full subsidy disbursed via DBT — Case closed
@@ -1018,7 +1149,6 @@ export default function SchemesPage() {
                               </div>
                             )}
 
-                            {/* Contextual stage note */}
                             {!isDone && (() => {
                               const stageInfo = STAGE_GUIDE.find(s => s.label === app.status || s.key === app.status);
                               if (!stageInfo) return null;
@@ -1040,6 +1170,177 @@ export default function SchemesPage() {
           </div>
         )}
       </section>
+
+      {/* ════════════════════════════════════════════════════════════
+          MODALS — PDF VIEWERS AND REJECTIONS
+      ════════════════════════════════════════════════════════════ */}
+
+      {/* PDF / Image Viewer Modal */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas-950/80 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-4xl h-[85vh] rounded-2xl border border-glass-border/60 bg-canvas-900 flex flex-col overflow-hidden shadow-popup">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-glass-border bg-glass">
+              <div>
+                <h3 className="text-base font-bold text-ink-primary">{viewingDoc.name}</h3>
+                <p className="text-xs text-ink-muted mt-0.5">Filename: {viewingDoc.fileName}</p>
+              </div>
+              <button 
+                onClick={() => setViewingDoc(null)}
+                className="p-1.5 rounded-lg bg-canvas-800 border border-glass-border text-ink-muted hover:text-ink-secondary"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Document Iframe Viewer */}
+            <div className="flex-1 bg-canvas-950 flex items-center justify-center relative">
+              {fetchingDocUrl ? (
+                <div className="flex flex-col items-center gap-3 text-ink-muted text-xs">
+                  <Loader2 className="h-6 w-6 text-teal-400 animate-spin" />
+                  Generating secure signed access token...
+                </div>
+              ) : viewingDocUrl ? (
+                <iframe 
+                  src={viewingDocUrl} 
+                  className="w-full h-full border-0" 
+                  title="Document Preview"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              ) : (
+                <div className="text-xs text-red-400 flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4" />
+                  Failed to load secure document source link.
+                </div>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="p-4 border-t border-glass-border bg-glass flex justify-between items-center">
+              <span className="text-[10px] text-ink-muted">Aadhaar-seeded documents are audited under DBT guidelines.</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setViewingDoc(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-canvas-800 text-ink-muted hover:text-ink-secondary transition-colors"
+                >
+                  Close Viewer
+                </button>
+                {viewingDoc.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => handleVerifyDocDirectly(viewingDoc.id)}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors"
+                    >
+                      ✓ Verify & Pass
+                    </button>
+                    <button
+                      onClick={() => setRejectingDoc(viewingDoc)}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-500/10 text-rose-300 border border-rose-500/30 hover:bg-rose-500/20 transition-colors"
+                    >
+                      ✗ Reject Document
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Rejection Modal */}
+      {rejectingDoc && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-canvas-950/90 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-canvas-900 p-6 flex flex-col gap-4 shadow-popup">
+            <h3 className="text-base font-bold text-ink-primary flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              Reject Document: {rejectingDoc.name}
+            </h3>
+            <p className="text-xs text-ink-secondary leading-relaxed">
+              Please provide a detailed reason explaining why this document is rejected. The farmer will see this reason in their app and must re-upload a corrected file.
+            </p>
+
+            <div>
+              <label className="text-[9px] font-bold text-ink-muted uppercase tracking-wider block mb-1.5">Rejection Reason (Required, min 10 chars)</label>
+              <textarea
+                value={rejectionDocReason}
+                onChange={e => setRejectionDocReason(e.target.value)}
+                placeholder="e.g. Scanned image is blurry. Please upload a clear PDF of the Caste Certificate."
+                rows={4}
+                className="w-full rounded-xl bg-canvas-950 border border-glass-border p-3 text-xs text-ink-primary placeholder-ink-muted focus:outline-none focus:border-red-500/50"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                disabled={submittingDocRejection}
+                onClick={() => {
+                  setRejectingDoc(null);
+                  setRejectionDocReason('');
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-canvas-800 text-ink-muted hover:text-ink-secondary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={submittingDocRejection || rejectionDocReason.trim().length < 10}
+                onClick={handleConfirmDocRejection}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-red-500/10 text-red-300 border border-red-500/30 hover:bg-red-500/20 disabled:opacity-30 flex items-center gap-1.5"
+              >
+                {submittingDocRejection && <Loader2 className="h-3 w-3 animate-spin" />}
+                Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Application Rejection Modal */}
+      {rejectingAppId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas-950/90 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-canvas-900 p-6 flex flex-col gap-4 shadow-popup">
+            <h3 className="text-base font-bold text-ink-primary flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              Reject Full Application
+            </h3>
+            <p className="text-xs text-ink-secondary leading-relaxed">
+              This will permanently reject the entire application. The farmer will be notified in-app with the reason you specify below, and the application status will change to "Rejected".
+            </p>
+
+            <div>
+              <label className="text-[9px] font-bold text-ink-muted uppercase tracking-wider block mb-1.5">Official Rejection Reason (Required, min 10 chars)</label>
+              <textarea
+                value={rejectionAppReason}
+                onChange={e => setRejectionAppReason(e.target.value)}
+                placeholder="e.g. Land deed coordinates do not match the pond surveyed. Application is rejected."
+                rows={4}
+                className="w-full rounded-xl bg-canvas-950 border border-glass-border p-3 text-xs text-ink-primary placeholder-ink-muted focus:outline-none focus:border-red-500/50"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                disabled={submittingAppRejection}
+                onClick={() => {
+                  setRejectingAppId(null);
+                  setRejectionAppReason('');
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-canvas-800 text-ink-muted hover:text-ink-secondary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={submittingAppRejection || rejectionAppReason.trim().length < 10}
+                onClick={handleConfirmAppRejection}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-red-500/10 text-red-300 border border-red-500/30 hover:bg-red-500/20 disabled:opacity-30 flex items-center gap-1.5"
+              >
+                {submittingAppRejection && <Loader2 className="h-3 w-3 animate-spin" />}
+                Reject Application
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

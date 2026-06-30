@@ -1265,8 +1265,56 @@ export const yojanaService = {
         const response = await api.get('/api/v1/yojana/applications');
         return response.data;
     },
-    apply: async (data: { pondId: string; yojanaCode: string }) => {
+    getUploadToken: async (docType: string, fileName: string) => {
+        const response = await api.get('/api/v1/yojana/upload-token', {
+            params: { docType, fileName },
+        });
+        return response.data;
+    },
+    apply: async (data: {
+        pondId: string;
+        yojanaCode: string;
+        applicantName: string;
+        applicantDistrict: string;
+        applicantCategory: string;
+        applicantLandArea: number;
+        projectDescription?: string;
+        documents: Array<{
+            docType: string;
+            filePath: string;
+            fileName: string;
+            mimeType?: string;
+        }>;
+    }) => {
         const response = await api.post('/api/v1/yojana/apply', data);
+        return response.data;
+    },
+    edit: async (
+        id: string,
+        data: {
+            applicantName?: string;
+            applicantDistrict?: string;
+            applicantCategory?: string;
+            applicantLandArea?: number;
+            projectDescription?: string;
+        }
+    ) => {
+        const response = await api.patch(`/api/v1/yojana/applications/${id}/edit`, data);
+        return response.data;
+    },
+    reuploadDocument: async (
+        id: string,
+        docType: string,
+        filePath: string,
+        fileName: string,
+        mimeType?: string
+    ) => {
+        const response = await api.post(`/api/v1/yojana/applications/${id}/reupload`, {
+            docType,
+            filePath,
+            fileName,
+            mimeType,
+        });
         return response.data;
     },
     confirmReceipt: async (transactionId: string) => {
