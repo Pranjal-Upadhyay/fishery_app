@@ -1,73 +1,79 @@
 name: Keep Render Backend Alive
 
-# ⏰ GitHub Actions cron runs in UTC.
-# Shortest reliable interval via cron syntax is every 15 min ("*/15 * * * *"),
-# but GitHub does NOT support sub-15-minute intervals natively.
-# We work around this by using a matrix strategy (4 jobs staggered by ~3 min
-# via sleep) inside a single 15-min cron tick → effective ping every ~3–4 min.
-# This is more than enough to prevent Render free-tier sleep (15-min idle).
+# ── Strategy ─────────────────────────────────────────────────────────────────
+# GitHub Actions cron is unreliable (can be delayed 15–60 min on heavy load).
+# Instead of relying on 4 staggered matrix jobs, we run ONE job that internally
+# loops and pings every 3 minutes for the full 14-minute window.
+# This guarantees at least 4 pings per invocation regardless of when GH fires it.
+# Render free tier sleeps after 15 minutes idle → 3-min pings keep it always warm.
 
 on:
   schedule:
-    # Runs every 15 minutes (UTC). GitHub's minimum supported cron interval.
-    # ⚠️ Note: GitHub Actions cron can be delayed by 5–15 min under high load.
-    # For hard production SLAs, use UptimeRobot (free) as a fallback — see README.
-    - cron: "*/15 * * * *"
+    # Every 14 minutes — keeps overlap so no gap between invocations
+    - cron: "*/14 * * * *"
 
-  # Allow manual trigger from the Actions tab for testing
+  # Manual trigger from the Actions tab (for testing / emergency wake)
   workflow_dispatch:
 
 jobs:
-  ping:
-    name: Ping Health Endpoint
+  keep-alive:
+    name: Ping & Keep Warm
     runs-on: ubuntu-latest
-
-    # Run 4 staggered pings within the same 15-min window:
-    # job 0 → immediate, job 1 → ~4 min, job 2 → ~8 min, job 3 → ~12 min
-    strategy:
-      fail-fast: false
-      matrix:
-        delay: [0, 240, 480, 720]   # seconds to sleep before pinging
+    timeout-minutes: 14
 
     steps:
-      - name: Wait before ping (${{ matrix.delay }}s delay)
-        if: matrix.delay > 0
-        run: sleep ${{ matrix.delay }}
-
-      - name: Ping Render backend /health
+      - name: Warm backend with rolling pings every 3 minutes
         run: |
-          echo "⏰ $(date -u '+%Y-%m-%d %H:%M:%S UTC') — pinging backend..."
+          URL="${{ secrets.RENDER_BACKEND_URL }}/health"
+          MAX_DURATION=780   # 13 minutes total (leave 1 min buffer)
+          INTERVAL=180       # ping every 3 minutes
+          ELAPSED=0
+          PING_COUNT=0
 
-          # Run curl and allow it to fail without crashing the shell immediately (set +e)
-          set +e
-          HTTP_STATUS=$(curl \
-            --silent \
-            --output /dev/null \
-            --write-out "%{http_code}" \
-            --max-time 120 \
-            --retry 3 \
-            --retry-delay 10 \
-            "${{ secrets.RENDER_BACKEND_URL }}/health")
-          CURL_EXIT_CODE=$?
-          set -e
+          echo "🌐 Target: $URL"
+          echo "🔁 Will ping every ${INTERVAL}s for up to ${MAX_DURATION}s"
+          echo ""
 
-          echo "📡 HTTP status: $HTTP_STATUS"
-          echo "🔌 cURL exit code: $CURL_EXIT_CODE"
+          while [ "$ELAPSED" -lt "$MAX_DURATION" ]; do
+            PING_COUNT=$((PING_COUNT + 1))
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            echo "──────────────────────────────────────────────────"
+            echo "📡 Ping #${PING_COUNT} at ${TIMESTAMP} (${ELAPSED}s elapsed)"
 
-          if [ "$CURL_EXIT_CODE" -eq 28 ]; then
-            echo "❌ Request timed out (exit code 28). The Render backend took more than 120 seconds to respond. This is common during a cold start if the database or server was asleep."
-            exit 1
-          elif [ "$CURL_EXIT_CODE" -ne 0 ]; then
-            echo "❌ cURL failed with exit code $CURL_EXIT_CODE. Connection issues or invalid URL."
-            exit 1
-          fi
+            set +e
+            HTTP_STATUS=$(curl \
+              --silent \
+              --output /dev/null \
+              --write-out "%{http_code}" \
+              --max-time 60 \
+              --connect-timeout 30 \
+              --retry 2 \
+              --retry-delay 5 \
+              --retry-all-errors \
+              "$URL")
+            CURL_EXIT=$?
+            set -e
 
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "✅ Backend is awake and healthy."
-          elif [ "$HTTP_STATUS" -eq 0 ]; then
-            echo "❌ Connection failed (status 0). Backend may be down or URL is wrong."
-            exit 1
-          else
-            echo "⚠️  Unexpected status $HTTP_STATUS — backend responded but may have an issue."
-            exit 1
-          fi
+            if [ "$CURL_EXIT" -eq 0 ] && [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+              echo "✅ Backend alive — HTTP $HTTP_STATUS"
+            elif [ "$CURL_EXIT" -eq 28 ]; then
+              echo "⚠️  Timeout (60s) — backend may be cold-starting (this is normal on first ping)"
+            elif [ "$CURL_EXIT" -ne 0 ]; then
+              echo "❌ curl error (exit $CURL_EXIT) — possible network issue"
+            else
+              echo "⚠️  HTTP $HTTP_STATUS — unexpected response"
+            fi
+
+            # Sleep for the interval, but only if there's time left
+            NEXT_ELAPSED=$((ELAPSED + INTERVAL))
+            if [ "$NEXT_ELAPSED" -lt "$MAX_DURATION" ]; then
+              echo "💤 Sleeping ${INTERVAL}s until next ping..."
+              sleep $INTERVAL
+            fi
+
+            ELAPSED=$NEXT_ELAPSED
+          done
+
+          echo ""
+          echo "──────────────────────────────────────────────────"
+          echo "✅ Keep-alive session complete — ${PING_COUNT} pings sent."

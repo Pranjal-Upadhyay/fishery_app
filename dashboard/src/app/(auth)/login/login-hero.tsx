@@ -57,6 +57,13 @@ export function LoginHero({ children }: LoginHeroProps) {
     const video = videoRef.current;
     if (!video) return;
 
+    // ── Background backend warmup ──────────────────────────────────────────
+    // Fire a silent /api/warmup probe while the video plays. This causes
+    // the Vercel edge function to ping Render /health so the backend is
+    // fully awake by the time the user finishes the 3-second intro and types
+    // their credentials. Fire-and-forget, never blocks UI.
+    fetch('/api/warmup', { cache: 'no-store' }).catch(() => {/* silent */});
+
     // Fallback safety timeout (5s) in case onEnded doesn't fire or video stutters
     const safetyTimer = setTimeout(() => {
       triggerReveal();
