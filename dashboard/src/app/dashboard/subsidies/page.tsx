@@ -14,6 +14,7 @@ import {
   PieChart,
   Users,
   BarChart2,
+  Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { api } from '@/lib/api';
@@ -80,11 +81,12 @@ const PENDING_DLC_LIST = [
 type ModalType = 'budget' | 'disbursed' | 'dlc' | 'rate' | null;
 
 // ── Breakdown Modal ──────────────────────────────────────────────
-function BreakdownModal({ type, onClose, stats, apps }: {
+function BreakdownModal({ type, onClose, stats, apps, targets }: {
   type: ModalType;
   onClose: () => void;
   stats: StatsData | null;
   apps: Application[];
+  targets: any[];
 }) {
   if (!type) return null;
 
@@ -93,6 +95,104 @@ function BreakdownModal({ type, onClose, stats, apps }: {
     disbursed: 'Total DBT Disbursed — Social Category Breakdown',
     dlc:       'Pending DLC Approvals — Application Queue',
     rate:      'Budget Utilization — Allocated vs. Disbursed',
+  };
+
+  const handleExportModalData = () => {
+    const escapeCSV = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    let headers: string[] = [];
+    let rows: string[][] = [];
+    let fileName = '';
+
+    if (type === 'budget') {
+      fileName = 'matsyamitra_budget_allocated';
+      headers = ['Scheme', 'District', 'Allocated Budget', 'Disbursed Budget'];
+      rows = SCHEME_BREAKDOWN.map(row => [
+        row.scheme,
+        row.district,
+        row.allocated,
+        row.disbursed
+      ].map(escapeCSV));
+      rows.push(['Grand Total', 'All Districts', stats?.totalBudget || '₹38.6 Cr', stats?.totalDisbursed || '₹27.1 Cr'].map(escapeCSV));
+    } else if (type === 'disbursed') {
+      fileName = 'matsyamitra_dbt_disbursed_social';
+      headers = ['Social Category', 'Beneficiaries Count', 'Disbursed (Cr)', 'Target Budget (Cr)', 'Utilization Rate'];
+      rows = (targets || []).map(row => {
+        const matchingCaste = CASTE_BREAKDOWN.find(c => c.caste === row.caste);
+        const beneficiaries = matchingCaste ? matchingCaste.beneficiaries : 0;
+        return [
+          row.caste,
+          String(beneficiaries),
+          `₹${row.current.toFixed(4)} Cr`,
+          `₹${row.target.toFixed(1)} Cr`,
+          `${row.pct}%`
+        ];
+      }).map(r => r.map(escapeCSV));
+    } else if (type === 'dlc') {
+      fileName = 'matsyamitra_pending_dlc_approvals';
+      headers = ['Application Number', 'Farmer Name', 'District', 'Scheme', 'Amount', 'Waiting Days'];
+      rows = PENDING_DLC_LIST.map(app => [
+        app.appNum,
+        app.farmer,
+        app.district,
+        app.scheme,
+        app.amount,
+        `${app.waitDays} days`
+      ].map(escapeCSV));
+    } else if (type === 'rate') {
+      fileName = 'matsyamitra_budget_utilization_analysis';
+      headers = ['Report Section', 'Key Metric / Dimension', 'Allocated', 'Disbursed / Current', 'Utilization Rate / Details'];
+      
+      rows.push(
+        ['Overall Summary', 'Total Budget (FY 24-25)', stats?.totalBudget || '₹38.6 Cr', stats?.totalDisbursed || '₹27.1 Cr', stats?.utilizationRate || '70.2%'].map(escapeCSV),
+        ['Overall Summary', 'Remaining Balance', '₹11.5 Cr', '-', 'To be disbursed for DLC queue / milestones'].map(escapeCSV),
+        ['', '', '', '', ''].map(escapeCSV)
+      );
+
+      rows.push(['Social Category Breakdown', 'Category Name', 'Target Budget', 'Disbursed', 'Utilization Rate'].map(escapeCSV));
+      (targets || []).forEach(row => {
+        rows.push([
+          'Social Category Breakdown',
+          row.caste,
+          `₹${row.target.toFixed(1)} Cr`,
+          `₹${row.current.toFixed(4)} Cr`,
+          `${row.pct}%`
+        ].map(escapeCSV));
+      });
+      rows.push(['', '', '', '', ''].map(escapeCSV));
+
+      rows.push(['Scheme & District Breakdown', 'Scheme - District', 'Allocated', 'Disbursed', 'Utilization Rate'].map(escapeCSV));
+      SCHEME_BREAKDOWN.forEach(row => {
+        const allocatedVal = parseFloat(row.allocated.replace(/[^0-9.]/g, '')) || 0;
+        const disbursedVal = parseFloat(row.disbursed.replace(/[^0-9.]/g, '')) || 0;
+        const pct = allocatedVal > 0 ? ((disbursedVal / allocatedVal) * 100).toFixed(1) + '%' : '0%';
+        rows.push([
+          'Scheme & District Breakdown',
+          `${row.scheme} - ${row.district}`,
+          row.allocated,
+          row.disbursed,
+          pct
+        ].map(escapeCSV));
+      });
+    }
+
+    const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -105,9 +205,18 @@ function BreakdownModal({ type, onClose, stats, apps }: {
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Financial Detail</div>
             <h2 className="text-lg font-bold text-ink-primary mt-1">{titles[type]}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportModalData}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/20 transition-all text-xs font-semibold"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Budget breakdown */}
@@ -144,24 +253,28 @@ function BreakdownModal({ type, onClose, stats, apps }: {
         {type === 'disbursed' && (
           <div className="space-y-4">
             <div className="text-xs text-ink-muted">Direct Benefit Transfers categorised by social reservation group (as per Bihar State Fisheries policy).</div>
-            {CASTE_BREAKDOWN.map((row) => (
-              <div key={row.caste} className="p-4 rounded-xl border border-glass-border bg-canvas-950/40 space-y-2.5">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="text-sm font-bold text-ink-primary">{row.caste} Category</span>
-                    <div className="text-[10px] text-ink-muted mt-0.5">{row.beneficiaries} beneficiaries</div>
+            {(targets || []).map((row) => {
+              const matchingCaste = CASTE_BREAKDOWN.find(c => c.caste === row.caste);
+              const beneficiaries = matchingCaste ? matchingCaste.beneficiaries : 0;
+              return (
+                <div key={row.caste} className="p-4 rounded-xl border border-glass-border bg-canvas-950/40 space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-sm font-bold text-ink-primary">{row.caste} Category</span>
+                      <div className="text-[10px] text-ink-muted mt-0.5">{beneficiaries} beneficiaries</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono text-sm font-bold text-teal-400">₹{row.current.toFixed(2)} Cr</div>
+                      <div className="text-[10px] text-ink-muted">of ₹{row.target.toFixed(1)} Cr</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-mono text-sm font-bold text-teal-400">{row.disbursed}</div>
-                    <div className="text-[10px] text-ink-muted">of {row.target}</div>
+                  <div className="w-full bg-glass-strong h-1.5 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-teal-500 to-sky-400 rounded-full" style={{ width: `${row.pct}%` }} />
                   </div>
+                  <div className="text-right text-[10px] font-mono text-teal-400 font-bold">{row.pct}% utilized</div>
                 </div>
-                <div className="w-full bg-glass-strong h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-teal-500 to-sky-400 rounded-full" style={{ width: `${row.pct}%` }} />
-                </div>
-                <div className="text-right text-[10px] font-mono text-teal-400 font-bold">{row.pct}% utilized</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -282,6 +395,50 @@ export default function SubsidiesPage() {
         pct,
       };
     });
+  };
+
+  const handleExportDbtLogs = () => {
+    if (!stats || !stats.transactions) return;
+
+    const headers = [
+      'UTR Reference Number',
+      'Recipient Name',
+      'Scheme / Yojana',
+      'Bank Seeding Status',
+      'Amount',
+      'Transaction Status',
+      'Date'
+    ];
+
+    const escapeCSV = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = stats.transactions.map((txn) => [
+      txn.utr,
+      txn.farmerName,
+      txn.yojana,
+      txn.bankSeeding,
+      txn.amount,
+      txn.status,
+      txn.date
+    ].map(escapeCSV));
+
+    const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `matsyamitra_dbt_transaction_logs_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const targets = getDynamicTargets();
@@ -442,9 +599,18 @@ export default function SubsidiesPage() {
                   <CreditCard className="h-4 w-4 text-teal-400" />
                   Direct Benefit Transfer Logs
                 </h3>
-                <span className="text-[10px] font-mono font-bold bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded">
-                  Live Bank Feed
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportDbtLogs}
+                    className="flex items-center gap-1.5 px-3 py-1.2 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/20 transition-all text-xs font-semibold"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </button>
+                  <span className="text-[10px] font-mono font-bold bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded">
+                    Live Bank Feed
+                  </span>
+                </div>
               </div>
 
               <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
@@ -519,6 +685,7 @@ export default function SubsidiesPage() {
           onClose={() => setActiveModal(null)}
           stats={stats}
           apps={apps}
+          targets={targets}
         />
       )}
     </div>
