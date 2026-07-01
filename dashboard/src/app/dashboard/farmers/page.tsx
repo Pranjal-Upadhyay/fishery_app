@@ -119,7 +119,111 @@ const MOCK_FARMERS: Farmer[] = [
       { name: 'Pond 1 - Rearing', type: 'Grow-out', areaHa: 2.1, system: 'Biofloc', species: 'Standard Katla', waterSource: 'Seasonal' },
     ],
   },
+  {
+    id: '12', name: 'Shambhu Nath Singh', phone: '9876543210', district: 'Patna', block: 'Danapur', stage: 'Registered', daysStuck: 35,
+    ponds: [],
+  },
+  {
+    id: '13', name: 'Kishore Kumar Das', phone: '9876543211', district: 'Patna', block: 'Athmalgola', stage: 'Profile Complete', daysStuck: 42,
+    ponds: [],
+  },
+  {
+    id: '14', name: 'Mahendra Prasad Sah', phone: '9876543212', district: 'Bhagalpur', block: 'Sultanganj', stage: 'First Pond Added', daysStuck: 20,
+    ponds: [
+      { name: 'Growout Pond 1', type: 'Grow-out', areaHa: 1.0, system: 'Earthen', species: 'IMC', waterSource: 'Perennial' }
+    ],
+  },
+  {
+    id: '15', name: 'Rajesh Kumar Choudhary', phone: '9876543213', district: 'Bhagalpur', block: 'Colgong', stage: 'Active Cycle', daysStuck: 36,
+    ponds: [
+      { name: 'Hatchery Tank 1', type: 'Nursery', areaHa: 0.5, system: 'Biofloc', species: 'Monosex Tilapia', waterSource: 'Perennial' }
+    ],
+  },
+  {
+    id: '16', name: 'Satish Kumar Chaurasia', phone: '9876543214', district: 'Muzaffarpur', block: 'Sakra', stage: 'Water Logging', daysStuck: 45,
+    ponds: [
+      { name: 'Chaur 2', type: 'Grow-out', areaHa: 2.5, system: 'Earthen', species: 'Common Carp', waterSource: 'Chaur/Floodplain' }
+    ],
+  },
+  {
+    id: '17', name: 'Kapil Deo Singh', phone: '9876543215', district: 'Muzaffarpur', block: 'Saraiya', stage: 'Profile Complete', daysStuck: 12,
+    ponds: [],
+  },
+  {
+    id: '18', name: 'Dhirendra Nath Thakur', phone: '9876543216', district: 'Darbhanga', block: 'Darhbanga Sadar', stage: 'Registered', daysStuck: 55,
+    ponds: [],
+  },
+  {
+    id: '19', name: 'Shatrughan Prasad Yadav', phone: '9876543217', district: 'Darbhanga', block: 'Keoti', stage: 'First Pond Added', daysStuck: 25,
+    ponds: [
+      { name: 'Pond C', type: 'Grow-out', areaHa: 1.1, system: 'Earthen', species: 'Grass Carp', waterSource: 'Seasonal' }
+    ],
+  },
+  {
+    id: '20', name: 'Niraj Kumar Mishra', phone: '9876543218', district: 'Darbhanga', block: 'Benipur', stage: 'Active Cycle', daysStuck: 8,
+    ponds: [
+      { name: 'Pond D', type: 'Grow-out', areaHa: 0.9, system: 'Earthen', species: 'Pangas', waterSource: 'Perennial' }
+    ],
+  },
+  {
+    id: '21', name: 'Subodh Kumar Mandal', phone: '9876543219', district: 'Madhubani', block: 'Madhubani Sadar', stage: 'Water Logging', daysStuck: 14,
+    ponds: [
+      { name: 'Water Check Area', type: 'Grow-out', areaHa: 1.8, system: 'Earthen', species: 'Jayanti Rohu', waterSource: 'Perennial' }
+    ],
+  },
+  {
+    id: '22', name: 'Janardan Prasad Gupta', phone: '9876543220', district: 'Madhubani', block: 'Rajnagar', stage: 'Registered', daysStuck: 65,
+    ponds: [],
+  },
+  {
+    id: '23', name: 'Mithilesh Kumar Rai', phone: '9876543221', district: 'Gaya', block: 'Belaganj', stage: 'Profile Complete', daysStuck: 40,
+    ponds: [],
+  },
+  {
+    id: '24', name: 'Ram Balak Ram', phone: '9876543222', district: 'Gaya', block: 'Dobhi', stage: 'First Pond Added', daysStuck: 6,
+    ponds: [
+      { name: 'Pond E', type: 'Grow-out', areaHa: 0.7, system: 'Earthen', species: 'Mrigal', waterSource: 'Seasonal' }
+    ],
+  },
+  {
+    id: '25', name: 'Shiv Shankar Sahni', phone: '9876543223', district: 'Bhagalpur', block: 'Jagdishpur', stage: 'Water Logging', daysStuck: 50,
+    ponds: [
+      { name: 'Pond F', type: 'Grow-out', areaHa: 1.4, system: 'Earthen', species: 'Bighead Carp', waterSource: 'Perennial' }
+    ],
+  }
 ];
+
+const DISTRICT_BLOCKS: Record<string, string[]> = {
+  Patna: ['Phulwari Sharif', 'Mokama', 'Danapur', 'Athmalgola'],
+  Gaya: ['Sherghati', 'Bodhgaya', 'Belaganj', 'Dobhi'],
+  Madhubani: ['Benipatti', 'Jhanjharpur', 'Madhubani Sadar', 'Rajnagar'],
+  Muzaffarpur: ['Kanti', 'Bochahan', 'Sakra', 'Saraiya'],
+  Bhagalpur: ['Naugachhia', 'Sultanganj', 'Colgong', 'Jagdishpur'],
+  Darbhanga: ['Baheri', 'Darhbanga Sadar', 'Keoti', 'Benipur'],
+};
+
+const STUCK_REASONS: Record<string, { definition: string; action: string }> = {
+  'Registered': {
+    definition: 'Assigned to farmers who signed up but have not submitted basic details (Aadhaar KYC, category, experience) for >30 days.',
+    action: 'Help desk outreach to assist with KYC inputs.'
+  },
+  'Profile Complete': {
+    definition: 'Farmers with completed personal profiles who have not registered their first pond for >30 days.',
+    action: 'Conduct block-level verification of land deed/lease documents.'
+  },
+  'First Pond Added': {
+    definition: 'Pond maps uploaded, but no active cycle initiated for >30 days. Farmer is awaiting seed/feed inputs.',
+    action: 'Match with local seed hatcheries and distribute subvention kits.'
+  },
+  'Active Cycle': {
+    definition: 'Crop cycle is active, but no water quality logging updates have been submitted in the last 30 days.',
+    action: 'Send SMS alerts for water testing and log submissions.'
+  },
+  'Water Logging': {
+    definition: 'Weekly water logging is operational, but cycle duration exceeds 240 days without harvest reporting.',
+    action: 'Send field officer to verify yield extraction status.'
+  }
+};
 
 // ── Farmer Profile Drawer ──────────────────────────────────────────
 function FarmerProfileDrawer({ farmer, onClose }: { farmer: Farmer; onClose: () => void }) {
@@ -184,8 +288,19 @@ function FarmerProfileDrawer({ farmer, onClose }: { farmer: Farmer; onClose: () 
             </div>
           </div>
           {farmer.daysStuck > 30 && (
-            <div className="text-amber-400 text-[11px] bg-amber-500/5 border border-amber-500/20 rounded-lg p-2">
-              ⚠ This farmer has been stuck at &ldquo;{farmer.stage}&rdquo; for over 30 days. Consider outreach.
+            <div className="text-amber-400 text-[11px] bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 space-y-1.5">
+              <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Stuck &gt; 30 Days Explanation
+              </div>
+              <p className="leading-relaxed">
+                {STUCK_REASONS[farmer.stage]?.definition || `This farmer has been stuck at this stage for ${farmer.daysStuck} days.`}
+              </p>
+              {STUCK_REASONS[farmer.stage]?.action && (
+                <div className="text-[10px] bg-amber-500/10 text-amber-200 rounded p-1.5 font-medium border border-amber-500/10">
+                  <span className="font-bold">Next Action:</span> {STUCK_REASONS[farmer.stage].action}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -261,9 +376,20 @@ interface FunnelStageDetailModalProps {
   onFarmerClick: (farmer: Farmer) => void;
 }
 
-function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDetailModalProps) {
+interface FunnelStageDetailModalProps {
+  stage: string;
+  onClose: () => void;
+  onFarmerClick: (farmer: Farmer) => void;
+  onOpenInDirectory: (stage: string) => void;
+}
+
+function FunnelStageDetailModal({ stage, onClose, onFarmerClick, onOpenInDirectory }: FunnelStageDetailModalProps) {
   const farmersList = MOCK_FARMERS.filter((f) => f.stage === stage);
   const stuckCount = farmersList.filter((f) => f.daysStuck > 30).length;
+
+  const displayFarmers = [...farmersList]
+    .sort((a, b) => b.daysStuck - a.daysStuck)
+    .slice(0, 5);
 
   const stageDescriptions: Record<string, string> = {
     'Registered': 'These farmers have signed up on the app using their mobile number. Profile details like Aadhaar, bank details, and experience are pending.',
@@ -380,16 +506,16 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDe
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4"
          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-5 shadow-popup border-teal-500/30 max-h-[85vh] overflow-hidden">
+      <GlassCard variant="solid" className="relative z-10 w-full max-w-2xl p-6 flex flex-col gap-4 shadow-popup border-teal-500/30 max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-start border-b border-glass-border/40 pb-4 shrink-0">
+        <div className="flex justify-between items-start border-b border-glass-border/40 pb-3 shrink-0">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Onboarding Funnel Breakdown</div>
             <h2 className="text-lg font-bold text-ink-primary mt-1">{stage} — Stage Analysis</h2>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={exportStageCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] active:scale-95">
               <Download className="h-3.5 w-3.5" /> Export Stage CSV
             </button>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
@@ -403,23 +529,49 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDe
           {stageDescriptions[stage] || ''}
         </div>
 
+        {/* Bottleneck Definition */}
+        {STUCK_REASONS[stage] && (
+          <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/25 text-xs text-amber-400 space-y-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[9px] text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Stage Bottleneck Definition
+            </div>
+            <p className="leading-relaxed text-[11px]">
+              {STUCK_REASONS[stage].definition}
+            </p>
+            <div className="text-[10px] bg-amber-500/10 text-amber-200 rounded p-1.5 font-medium border border-amber-500/10">
+              <span className="font-bold text-amber-100">Next Action:</span> {STUCK_REASONS[stage].action}
+            </div>
+          </div>
+        )}
+
         {/* KPI metrics */}
         <div className="grid grid-cols-3 gap-3 text-center shrink-0">
           {(stageKpis[stage] || []).map((kpi) => (
-            <div key={kpi.label} className="p-3 rounded-xl border border-glass-border bg-canvas-950/40">
-              <div className="text-[10px] text-ink-muted uppercase tracking-wider">{kpi.label}</div>
-              <div className={`text-lg font-mono font-bold mt-1 ${kpi.color}`}>{kpi.value}</div>
+            <div key={kpi.label} className="p-2.5 rounded-xl border border-glass-border bg-canvas-950/40">
+              <div className="text-[9px] text-ink-muted uppercase tracking-wider">{kpi.label}</div>
+              <div className={`text-base font-mono font-bold mt-0.5 ${kpi.color}`}>{kpi.value}</div>
             </div>
           ))}
         </div>
 
         {/* Farmers Table */}
         <div className="flex-1 flex flex-col gap-2 overflow-hidden">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted shrink-0">Farmers in this Stage ({farmersList.length})</div>
+          <div className="flex justify-between items-center shrink-0">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+              Farmers Requiring Attention (showing top {displayFarmers.length} of {farmersList.length})
+            </div>
+            <button
+              onClick={() => onOpenInDirectory(stage)}
+              className="text-[10px] font-bold text-teal-400 hover:text-teal-300 transition-colors uppercase tracking-wider hover:underline"
+            >
+              View all in Directory →
+            </button>
+          </div>
           <div className="flex-1 overflow-y-auto border border-glass-border rounded-xl">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-ink-muted border-b border-glass-border bg-canvas-950/60 sticky top-0">
+                <tr className="text-[9px] uppercase tracking-wider text-ink-muted border-b border-glass-border bg-canvas-950/60 sticky top-0">
                   <th className="p-3">Farmer</th>
                   <th className="p-3">Block / District</th>
                   <th className="p-3 text-right">Stuck</th>
@@ -427,19 +579,19 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick }: FunnelStageDe
                 </tr>
               </thead>
               <tbody>
-                {farmersList.length === 0 ? (
+                {displayFarmers.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="p-4 text-center text-ink-muted italic">No farmers currently in this stage.</td>
                   </tr>
                 ) : (
-                  farmersList.map((f) => (
+                  displayFarmers.map((f) => (
                     <tr key={f.id} className="border-b border-glass-border/30 last:border-0 hover:bg-glass/30 transition-colors">
                       <td className="p-3">
                         <div className="font-bold text-ink-primary">{f.name}</div>
                         <div className="text-[10px] text-ink-muted font-mono">{f.phone}</div>
                       </td>
                       <td className="p-3 text-ink-secondary">{f.block}, {f.district}</td>
-                      <td className={`p-3 text-right font-mono font-bold ${f.daysStuck > 30 ? 'text-severity-warning' : 'text-ink-muted'}`}>
+                      <td className={`p-3 text-right font-mono font-bold ${f.daysStuck > 30 ? 'text-severity-warning' : 'text-amber-400'}`}>
                         {f.daysStuck}d
                       </td>
                       <td className="p-3 text-right">
@@ -468,6 +620,8 @@ function FarmersPageInner() {
   const [searchTerm, setSearchTerm] = useState(urlSearch);
   const [selectedStage, setSelectedStage] = useState<string>('all');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
+  const [selectedBlock, setSelectedBlock] = useState<string>('all');
+  const [stuckFilter, setStuckFilter] = useState<string>('all');
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
   const [selectedFunnelStage, setSelectedFunnelStage] = useState<string | null>(null);
 
@@ -483,6 +637,11 @@ function FarmersPageInner() {
     }
   }, [urlSearch]);
 
+  // Reset block filter when district changes
+  useEffect(() => {
+    setSelectedBlock('all');
+  }, [selectedDistrict]);
+
   // Filter logic
   const filteredFarmers = MOCK_FARMERS.filter((farmer) => {
     const matchesSearch =
@@ -491,12 +650,19 @@ function FarmersPageInner() {
       farmer.block.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStage = selectedStage === 'all' || farmer.stage === selectedStage;
     const matchesDistrict = selectedDistrict === 'all' || farmer.district === selectedDistrict;
-    return matchesSearch && matchesStage && matchesDistrict;
+    const matchesBlock = selectedBlock === 'all' || farmer.block === selectedBlock;
+    const matchesStuck =
+      stuckFilter === 'all'
+        ? true
+        : stuckFilter === 'stuck'
+        ? farmer.daysStuck > 30
+        : farmer.daysStuck <= 30;
+    return matchesSearch && matchesStage && matchesDistrict && matchesBlock && matchesStuck;
   });
 
   // CSV Export logic
   const handleExport = () => {
-    const headers = ['Name', 'Phone', 'District', 'Block', 'Current Stage', 'Days Stuck'];
+    const headers = ['Name', 'Phone', 'District', 'Block', 'Current Stage', 'Days Stuck', 'Status'];
     
     const escapeCSV = (val: any): string => {
       if (val === null || val === undefined) return '';
@@ -508,7 +674,7 @@ function FarmersPageInner() {
     };
 
     const rows = filteredFarmers.map((f) => [
-      f.name, f.phone, f.district, f.block, f.stage, f.daysStuck
+      f.name, f.phone, f.district, f.block, f.stage, `${f.daysStuck} days`, f.daysStuck > 30 ? 'Stuck' : 'On Track'
     ].map(escapeCSV));
 
     const csvContent = [headers.map(escapeCSV), ...rows].map((r) => r.join(',')).join('\n');
@@ -521,6 +687,18 @@ function FarmersPageInner() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  // Open stage directory link and smooth scroll down
+  const handleOpenInDirectory = (stageName: string) => {
+    setSelectedStage(stageName);
+    setSelectedFunnelStage(null);
+    setTimeout(() => {
+      const el = document.getElementById('farmers-directory-card');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   return (
@@ -610,27 +788,40 @@ function FarmersPageInner() {
         </GlassCard>
 
         {/* Directory & Filters */}
-        <GlassCard className="p-5 lg:col-span-2">
+        <GlassCard id="farmers-directory-card" className="p-5 lg:col-span-2">
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted" />
-              <input
-                type="text"
-                placeholder="Search name, phone, block..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-canvas-950/80 border border-glass-border focus:border-teal-500/50 rounded-lg pl-9 pr-4 py-2 text-sm text-ink-primary placeholder-ink-muted outline-none transition-colors"
-              />
+          <div className="flex flex-col gap-3 mb-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted" />
+                <input
+                  type="text"
+                  placeholder="Search name, phone, block..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-canvas-950/80 border border-glass-border focus:border-teal-500/50 rounded-lg pl-9 pr-4 py-2 text-sm text-ink-primary placeholder-ink-muted outline-none transition-colors"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <button
+                onClick={handleExport}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/30 transition-all hover:bg-white hover:text-slate-950 hover:border-white active:scale-95 duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)]"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export CSV
+              </button>
             </div>
-            {/* Filters */}
-            <div className="flex gap-2">
+
+            {/* Select Dropdowns */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {/* Stage Filter */}
               <div className="relative">
                 <select
                   value={selectedStage}
                   onChange={(e) => setSelectedStage(e.target.value)}
-                  className="appearance-none bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
+                  className="appearance-none w-full bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
                 >
                   <option value="all">All Stages</option>
                   <option value="Registered">Registered</option>
@@ -642,11 +833,12 @@ function FarmersPageInner() {
                 <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-ink-muted" />
               </div>
 
+              {/* District Filter */}
               <div className="relative">
                 <select
                   value={selectedDistrict}
                   onChange={(e) => setSelectedDistrict(e.target.value)}
-                  className="appearance-none bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
+                  className="appearance-none w-full bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
                 >
                   <option value="all">All Districts</option>
                   <option value="Patna">Patna</option>
@@ -655,6 +847,39 @@ function FarmersPageInner() {
                   <option value="Muzaffarpur">Muzaffarpur</option>
                   <option value="Darbhanga">Darbhanga</option>
                   <option value="Bhagalpur">Bhagalpur</option>
+                </select>
+                <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-ink-muted" />
+              </div>
+
+              {/* Block Filter */}
+              <div className="relative">
+                <select
+                  value={selectedBlock}
+                  onChange={(e) => setSelectedBlock(e.target.value)}
+                  disabled={selectedDistrict === 'all'}
+                  className="appearance-none w-full bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <option value="all">All Blocks</option>
+                  {selectedDistrict !== 'all' &&
+                    (DISTRICT_BLOCKS[selectedDistrict] || []).map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                </select>
+                <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-ink-muted" />
+              </div>
+
+              {/* Stuck Filter */}
+              <div className="relative">
+                <select
+                  value={stuckFilter}
+                  onChange={(e) => setStuckFilter(e.target.value)}
+                  className="appearance-none w-full bg-canvas-950/80 border border-glass-border text-ink-secondary text-xs rounded-lg pl-3 pr-8 py-2.5 outline-none focus:border-teal-500/50 transition-colors"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="stuck">Stuck (&gt;30 days)</option>
+                  <option value="on-track">On Track</option>
                 </select>
                 <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-ink-muted" />
               </div>
@@ -741,6 +966,7 @@ function FarmersPageInner() {
           stage={selectedFunnelStage}
           onClose={() => setSelectedFunnelStage(null)}
           onFarmerClick={(farmer) => setSelectedFarmer(farmer)}
+          onOpenInDirectory={handleOpenInDirectory}
         />
       )}
     </div>
