@@ -79,7 +79,16 @@ interface Scheme {
   milestones: string[];
 }
 
-const SCHEMES: Scheme[] = [
+interface Scheme {
+  code: string;
+  name: string;
+  subsidy: string;
+  description: string;
+  milestones: string[];
+  requiredDocumentsRaw?: string[];
+}
+
+const FALLBACK_SCHEMES: Scheme[] = [
   {
     code: 'JKSY',
     name: 'Jalkrishi Saurikaran (Solar Pump)',
@@ -90,6 +99,7 @@ const SCHEMES: Scheme[] = [
       'Solar panel & pump mount (40%)',
       'Post-Stocking validation (20%)',
     ],
+    requiredDocumentsRaw: ['AADHAAR', 'LAND_DEED', 'BANK_PASSBOOK', 'POWER_PROOF', 'POND_PHOTO']
   },
   {
     code: 'TMVSY',
@@ -100,6 +110,7 @@ const SCHEMES: Scheme[] = [
       'Excavation & Dykes Renovation (50%)',
       'Water filling & Seed stocking (50%)',
     ],
+    requiredDocumentsRaw: ['AADHAAR', 'CASTE_CERT', 'LAND_DEED', 'BANK_PASSBOOK', 'PASSPORT_PHOTO', 'POND_PHOTO']
   },
   {
     code: 'MPVY',
@@ -110,6 +121,7 @@ const SCHEMES: Scheme[] = [
       'Initial Infrastructure Setup (50%)',
       'Stocking & Input Validation (50%)',
     ],
+    requiredDocumentsRaw: ['AADHAAR', 'LAND_DEED', 'BANK_PASSBOOK', 'TRAINING_CERT', 'POND_PHOTO']
   },
 ];
 
@@ -132,6 +144,7 @@ export default function YojanaApplicationsScreen() {
   const [ponds, setPonds] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirmingTxId, setConfirmingTxId] = useState<string | null>(null);
+  const [schemes, setSchemes] = useState<Scheme[]>(FALLBACK_SCHEMES);
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
 
@@ -145,6 +158,28 @@ export default function YojanaApplicationsScreen() {
 
       const localPonds = await database.get<any>('ponds').query().fetch();
       setPonds(localPonds);
+
+      // Fetch schemes dynamically from the server
+      try {
+        const schemesRes = await yojanaService.listSchemes();
+        if (schemesRes.success && schemesRes.data && schemesRes.data.length > 0) {
+          const mapped: Scheme[] = schemesRes.data.map((item: any) => {
+            const maxSubsidy = Math.max(...Object.values(item.subsidyByCategory || {}).map(v => typeof v === 'number' ? v : 0));
+            return {
+              code: item.code,
+              name: item.nameEn,
+              description: item.description || '',
+              subsidy: `${maxSubsidy}% Subsidy (Up to ₹${item.maxSubsidyLakh}L)`,
+              milestones: (item.milestones || []).map((m: any) => `${m.name} (${m.pct}%)`),
+              requiredDocumentsRaw: item.requiredDocuments
+            };
+          });
+          setSchemes(mapped);
+        }
+      } catch (schemesErr) {
+        console.warn('[Yojana] Failed to fetch schemes, using fallback:', schemesErr);
+      }
+
     } catch (err) {
       console.warn('[Yojana] Failed to fetch data:', err);
     } finally {
@@ -178,6 +213,7 @@ export default function YojanaApplicationsScreen() {
   };
 
   const handleEditApplication = (app: Application) => {
+    const matchingScheme = schemes.find(s => s.code === app.yojana_code);
     Alert.alert(
       'Edit Application',
       'Editing your application details will require the block officer to re-review it. Do you want to proceed?',
@@ -191,6 +227,7 @@ export default function YojanaApplicationsScreen() {
               schemeName: app.yojana_name,
               editMode: true,
               applicationData: app,
+              requiredDocuments: matchingScheme ? matchingScheme.requiredDocumentsRaw : undefined
             });
           }
         }
@@ -548,6 +585,7 @@ export default function YojanaApplicationsScreen() {
             navigation.navigate('YojanaApplicationForm', {
               schemeCode: item.code,
               schemeName: item.name,
+              requiredDocuments: item.requiredDocumentsRaw,
             });
           }}
         >
@@ -618,7 +656,7 @@ export default function YojanaApplicationsScreen() {
         />
       ) : (
         <FlatList
-          data={SCHEMES}
+          data={schemes}
           keyExtractor={item => item.code}
           renderItem={renderSchemeCard}
           contentContainerStyle={styles.listContent}

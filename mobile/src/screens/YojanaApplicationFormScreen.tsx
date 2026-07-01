@@ -41,7 +41,7 @@ interface DocumentConfig {
   acceptType: 'pdf' | 'image';
 }
 
-// Map scheme codes to required/optional documents
+// Map scheme codes to required/optional documents (Fallback cache)
 const SCHEME_DOCUMENTS: Record<string, DocumentConfig[]> = {
   JKSY: [
     { docType: 'AADHAAR', label: 'Aadhaar Card', required: true, acceptType: 'pdf' },
@@ -67,6 +67,20 @@ const SCHEME_DOCUMENTS: Record<string, DocumentConfig[]> = {
   ]
 };
 
+const ALL_DOCUMENTS_META: Record<string, { label: string; required: boolean; acceptType: 'pdf' | 'image' }> = {
+  AADHAAR: { label: 'Aadhaar Card', required: true, acceptType: 'pdf' },
+  CASTE_CERT: { label: 'Caste Certificate (SC/ST/EBC)', required: true, acceptType: 'pdf' },
+  LAND_DEED: { label: 'Land Deed or Lease Agreement', required: true, acceptType: 'pdf' },
+  BANK_PASSBOOK: { label: 'Bank Passbook (Aadhaar Seeded)', required: true, acceptType: 'pdf' },
+  PASSPORT_PHOTO: { label: 'Passport Size Photograph', required: true, acceptType: 'image' },
+  POND_PHOTO: { label: 'Geo-tagged Pond Photos (4)', required: true, acceptType: 'image' },
+  POWER_PROOF: { label: 'Electricity Bill / Power Proof', required: true, acceptType: 'pdf' },
+  TRAINING_CERT: { label: 'Aquaculture Training Certificate', required: true, acceptType: 'pdf' },
+  CROP_RECORD: { label: 'Crop Cycle / Production Records', required: true, acceptType: 'pdf' },
+  DIVERSIFICATION_PLAN: { label: 'Species Diversification Plan', required: true, acceptType: 'pdf' },
+  INCOME_CERT: { label: 'Income Certificate', required: true, acceptType: 'pdf' },
+};
+
 export default function YojanaApplicationFormScreen() {
   const { theme, isDark } = useTheme();
   const { t } = useTranslation();
@@ -74,7 +88,7 @@ export default function YojanaApplicationFormScreen() {
   const route = useRoute<any>();
   const styles = getStyles(theme, isDark);
 
-  const { schemeCode, schemeName, editMode, applicationData } = route.params || {};
+  const { schemeCode, schemeName, editMode, applicationData, requiredDocuments } = route.params || {};
 
   const [step, setStep] = useState(1);
   const [ponds, setPonds] = useState<any[]>([]);
@@ -97,7 +111,20 @@ export default function YojanaApplicationFormScreen() {
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, { filePath: string; fileName: string }>>({});
   const [uploadingDocs, setUploadingDocs] = useState<Record<string, boolean>>({});
 
-  const documentConfigList = SCHEME_DOCUMENTS[schemeCode] || SCHEME_DOCUMENTS.JKSY;
+  const documentConfigList = (() => {
+    if (Array.isArray(requiredDocuments) && requiredDocuments.length > 0) {
+      return requiredDocuments.map((code: string) => {
+        const meta = ALL_DOCUMENTS_META[code] || { label: code, required: true, acceptType: 'pdf' as const };
+        return {
+          docType: code,
+          label: meta.label,
+          required: meta.required,
+          acceptType: meta.acceptType
+        };
+      });
+    }
+    return SCHEME_DOCUMENTS[schemeCode] || SCHEME_DOCUMENTS.JKSY;
+  })();
 
   useEffect(() => {
     loadInitialData();

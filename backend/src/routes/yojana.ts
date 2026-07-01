@@ -52,6 +52,38 @@ const appRejectSchema = z.object({
   rejectionReason: z.string().min(10).max(500),
 });
 
+const schemeSchema = z.object({
+  code: z.string().min(2).max(20).regex(/^[A-Z0-9_]+$/, 'Code must be uppercase alphanumeric'),
+  nameEn: z.string().min(3).max(150),
+  nameHi: z.string().min(3).max(150),
+  tagline: z.string().max(250).optional().nullable(),
+  description: z.string().optional().nullable(),
+  subsidyByCategory: z.object({
+    general: z.number().min(0).max(100),
+    ebc: z.number().min(0).max(100),
+    sc: z.number().min(0).max(100),
+    st: z.number().min(0).max(100)
+  }),
+  unitCostCapLakh: z.number().positive(),
+  maxSubsidyLakh: z.number().positive(),
+  eligibility: z.array(z.string()),
+  requiredDocuments: z.array(z.string()),
+  geofence: z.string().max(150).optional().nullable(),
+  classification: z.string().max(80).optional().nullable(),
+  accentColor: z.string().max(30).optional().default('teal'),
+  milestones: z.array(
+    z.object({
+      name: z.string().min(2),
+      pct: z.number().min(1).max(100)
+    })
+  ).min(1),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional().default('ACTIVE')
+});
+
+const schemeUpdateSchema = schemeSchema.omit({ code: true }).extend({
+  changeSummary: z.string().min(10).max(500)
+});
+
 // Param validators — reject non-UUID ids with a clean 400 instead of letting
 // the query layer return an opaque 500 ("invalid input syntax for uuid").
 const uuidParam = z.string().uuid('Invalid UUID');
@@ -113,6 +145,8 @@ router.get('/applications', requireAuth, async (req, res, next) => {
              ya.approved_subsidy_amount, ya.milestones, ya.created_at, ya.updated_at,
              ya.applicant_name, ya.applicant_district, ya.applicant_category,
              ya.applicant_land_area, ya.project_description, ya.rejection_reason as application_rejection_reason,
+             COALESCE(p.district_code, 'BR-MADHUBANI') as district_code,
+             ys.name_en AS db_yojana_name,
              (
                SELECT COALESCE(json_agg(dt_row), '[]'::json)
                FROM (
@@ -134,6 +168,7 @@ router.get('/applications', requireAuth, async (req, res, next) => {
              ) as documents
       FROM yojana_applications ya
       JOIN ponds p ON p.id = ya.pond_id
+      LEFT JOIN yojana_schemes ys ON ys.code = ya.yojana_code
       WHERE ya.user_id = $1
       ORDER BY ya.created_at DESC
     `, [userId]);
@@ -143,7 +178,7 @@ router.get('/applications', requireAuth, async (req, res, next) => {
       count: result.rows.length,
       data: result.rows.map(row => ({
         ...row,
-        yojana_name: getYojanaName(row.yojana_code),
+        yojana_name: row.db_yojana_name || row.yojana_code,
         approved_subsidy_amount: parseFloat(row.approved_subsidy_amount),
         applicant_land_area: parseFloat(row.applicant_land_area || '0')
       }))
@@ -194,29 +229,25 @@ router.post('/apply', requireAuth, async (req, res, next) => {
       });
     }
 
-    // Setup approved subsidy values and default milestones
-    let approvedSubsidy = 300000.00;
-    let milestones: any[] = [];
+    // Setup approved subsidy values and default milestones dynamically from DB
+    const schemeCheck = await query(`
+      SELECT max_subsidy_lakh, milestones FROM yojana_schemes WHERE code = $1 AND status = 'ACTIVE'
+    `, [yojanaCode]);
 
-    if (yojanaCode === 'JKSY') {
-      approvedSubsidy = 433600.00;
-      milestones = [
-        { name: 'Borewell & Foundation', pct: 40, verified: false, photoUrl: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=400&q=80' },
-        { name: 'Solar panel & pump mount', pct: 40, verified: false },
-        { name: 'Post-Stocking validation', pct: 20, verified: false }
-      ];
-    } else if (yojanaCode === 'TMVSY') {
-      approvedSubsidy = 565600.00;
-      milestones = [
-        { name: 'Excavation & Dykes Renovation', pct: 50, verified: false },
-        { name: 'Water filling & Seed stocking', pct: 50, verified: false }
-      ];
-    } else {
-      milestones = [
-        { name: 'Initial Infrastructure setup', pct: 50, verified: false },
-        { name: 'Stocking & input validation', pct: 50, verified: false }
-      ];
+    if (schemeCheck.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'The requested scheme does not exist or has been discontinued.'
+      });
     }
+
+    const dbScheme = schemeCheck.rows[0];
+    const approvedSubsidy = parseFloat(dbScheme.max_subsidy_lakh) * 100000;
+    const milestones = dbScheme.milestones.map((m: any) => ({
+      name: m.name,
+      pct: m.pct,
+      verified: false
+    }));
 
     // Insert Yojana application
     const insertResult = await query(`
@@ -567,7 +598,7 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
         appNum: `APP-2026-${row.yojana_code}-${row.id.substring(0, 3).toUpperCase()}`,
         farmerName: row.applicant_name || row.farmer_name,
         caste: casteDisplay,
-        yojanaName: getYojanaName(row.yojana_code),
+        yojanaName: row.db_yojana_name || row.yojana_code,
         district: row.applicant_district || (districtDisplay.charAt(0).toUpperCase() + districtDisplay.slice(1).toLowerCase()),
         landArea: row.applicant_land_area ? `${parseFloat(row.applicant_land_area).toFixed(1)} Acres` : `${(parseFloat(row.area_hectares) * 2.471).toFixed(1)} Acres`,
         documents: dashboardDocs,
@@ -957,10 +988,12 @@ router.get('/admin/stats', requireAdmin, async (req, res, next) => {
     // 5. Direct Benefit Transfer Logs (database transactions)
     const txnsResult = await query(`
       SELECT dt.id, dt.utr_number as utr, u.name as farmer_name, ya.yojana_code,
-             dt.amount, dt.status, dt.farmer_confirmed, dt.processed_at::date::text as date
+             dt.amount, dt.status, dt.farmer_confirmed, dt.processed_at::date::text as date,
+             ys.name_en AS db_yojana_name
       FROM dbt_transactions dt
       JOIN yojana_applications ya ON ya.id = dt.application_id
       JOIN users u ON u.id = ya.user_id
+      LEFT JOIN yojana_schemes ys ON ys.code = ya.yojana_code
       ORDER BY dt.processed_at DESC
       LIMIT 20
     `);
@@ -969,7 +1002,7 @@ router.get('/admin/stats', requireAdmin, async (req, res, next) => {
       id: row.id,
       utr: row.utr,
       farmerName: row.farmer_name,
-      yojana: getYojanaName(row.yojana_code),
+      yojana: row.db_yojana_name || row.yojana_code,
       bankSeeding: row.farmer_confirmed ? ('Seeded & Verified' as const) : ('Processing' as const),
       amount: `₹${parseFloat(row.amount).toLocaleString('en-IN')}`,
       status: row.status === 'SUCCESS' ? ('Success' as const) : row.status === 'FAILED' ? ('Failed' as const) : ('Processing' as const),
@@ -985,6 +1018,215 @@ router.get('/admin/stats', requireAdmin, async (req, res, next) => {
         utilizationRate: `${utilizationRate}%`,
         transactions: mappedTxns
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/schemes
+// Public list of active schemes for mobile app
+router.get('/schemes', async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT code, name_en, name_hi, tagline, description, subsidy_by_category, 
+             unit_cost_cap_lakh, max_subsidy_lakh, eligibility, required_documents, 
+             geofence, classification, accent_color, milestones, status
+      FROM yojana_schemes
+      WHERE status = 'ACTIVE'
+      ORDER BY code
+    `);
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        code: row.code,
+        nameEn: row.name_en,
+        nameHi: row.name_hi,
+        tagline: row.tagline,
+        description: row.description,
+        subsidyByCategory: row.subsidy_by_category,
+        unitCostCapLakh: parseFloat(row.unit_cost_cap_lakh),
+        maxSubsidyLakh: parseFloat(row.max_subsidy_lakh),
+        eligibility: row.eligibility,
+        requiredDocuments: row.required_documents,
+        geofence: row.geofence,
+        classification: row.classification,
+        accentColor: row.accent_color,
+        milestones: row.milestones,
+        status: row.status
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/admin/schemes
+// Admin list of all schemes (including Inactive and Archived)
+router.get('/admin/schemes', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT code, name_en, name_hi, tagline, description, subsidy_by_category, 
+             unit_cost_cap_lakh, max_subsidy_lakh, eligibility, required_documents, 
+             geofence, classification, accent_color, milestones, status
+      FROM yojana_schemes
+      ORDER BY status = 'ACTIVE' DESC, code ASC
+    `);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        code: row.code,
+        nameEn: row.name_en,
+        nameHi: row.name_hi,
+        tagline: row.tagline,
+        description: row.description,
+        subsidyByCategory: row.subsidy_by_category,
+        unitCostCapLakh: parseFloat(row.unit_cost_cap_lakh),
+        maxSubsidyLakh: parseFloat(row.max_subsidy_lakh),
+        eligibility: row.eligibility,
+        requiredDocuments: row.required_documents,
+        geofence: row.geofence,
+        classification: row.classification,
+        accentColor: row.accent_color,
+        milestones: row.milestones,
+        status: row.status
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v1/yojana/admin/schemes
+// Create a new yojana scheme config
+router.post('/admin/schemes', requireAdmin, async (req, res, next) => {
+  try {
+    const body = schemeSchema.parse(req.body);
+    const existing = await query(`SELECT code FROM yojana_schemes WHERE code = $1`, [body.code]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ success: false, error: 'Scheme code already exists' });
+    }
+
+    await query(`
+      INSERT INTO yojana_schemes (
+        code, name_en, name_hi, tagline, description, subsidy_by_category, 
+        unit_cost_cap_lakh, max_subsidy_lakh, eligibility, required_documents, 
+        geofence, classification, accent_color, milestones, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    `, [
+      body.code, body.nameEn, body.nameHi, body.tagline || null, body.description || null,
+      JSON.stringify(body.subsidyByCategory), body.unitCostCapLakh, body.maxSubsidyLakh,
+      JSON.stringify(body.eligibility), JSON.stringify(body.requiredDocuments),
+      body.geofence || null, body.classification || null, body.accentColor,
+      JSON.stringify(body.milestones), body.status || 'ACTIVE'
+    ]);
+
+    // Insert into admin audit log
+    await query(`
+      INSERT INTO admin_audit_log (admin_user_id, action, resource_type, resource_id, metadata)
+      VALUES ($1, 'scheme.create', 'scheme', NULL, $2)
+    `, [req.admin!.adminId, JSON.stringify({ code: body.code })]);
+
+    res.json({ success: true, message: 'Yojana scheme created successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/v1/yojana/admin/schemes/:code
+// Edit yojana scheme details with mandatory audit trail log
+router.put('/admin/schemes/:code', requireAdmin, async (req, res, next) => {
+  try {
+    const { code } = req.params;
+    const body = schemeUpdateSchema.parse(req.body);
+
+    const selectRes = await query(`SELECT * FROM yojana_schemes WHERE code = $1`, [code]);
+    if (selectRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Scheme not found' });
+    }
+    const previous = selectRes.rows[0];
+
+    // Begin Transaction
+    await query('BEGIN');
+
+    await query(`
+      UPDATE yojana_schemes SET
+        name_en = $1, name_hi = $2, tagline = $3, description = $4,
+        subsidy_by_category = $5, unit_cost_cap_lakh = $6, max_subsidy_lakh = $7,
+        eligibility = $8, required_documents = $9, geofence = $10,
+        classification = $11, accent_color = $12, milestones = $13,
+        status = $14, updated_at = NOW()
+      WHERE code = $15
+    `, [
+      body.nameEn, body.nameHi, body.tagline || null, body.description || null,
+      JSON.stringify(body.subsidyByCategory), body.unitCostCapLakh, body.maxSubsidyLakh,
+      JSON.stringify(body.eligibility), JSON.stringify(body.requiredDocuments),
+      body.geofence || null, body.classification || null, body.accentColor,
+      JSON.stringify(body.milestones), body.status, code
+    ]);
+
+    // Insert Audit trail amendment
+    await query(`
+      INSERT INTO yojana_scheme_amendments (scheme_code, amended_by, change_summary, previous_data, new_data)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [
+      code,
+      req.admin!.adminId,
+      body.changeSummary,
+      JSON.stringify(previous),
+      JSON.stringify({
+        name_en: body.nameEn, name_hi: body.nameHi, tagline: body.tagline, description: body.description,
+        subsidy_by_category: body.subsidyByCategory, unit_cost_cap_lakh: body.unitCostCapLakh,
+        max_subsidy_lakh: body.maxSubsidyLakh, eligibility: body.eligibility,
+        required_documents: body.requiredDocuments, geofence: body.geofence,
+        classification: body.classification, accent_color: body.accentColor,
+        milestones: body.milestones, status: body.status
+      })
+    ]);
+
+    // Insert general admin audit log
+    await query(`
+      INSERT INTO admin_audit_log (admin_user_id, action, resource_type, resource_id, metadata)
+      VALUES ($1, 'scheme.amend', 'scheme', NULL, $2)
+    `, [req.admin!.adminId, JSON.stringify({ code, changeSummary: body.changeSummary })]);
+
+    await query('COMMIT');
+
+    res.json({ success: true, message: 'Yojana guidelines amended and logged successfully' });
+  } catch (error) {
+    await query('ROLLBACK');
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/admin/schemes/:code/amendments
+// Retrieve guidelines amendment audit timeline history
+router.get('/admin/schemes/:code/amendments', requireAdmin, async (req, res, next) => {
+  try {
+    const { code } = req.params;
+    const result = await query(`
+      SELECT ysa.id, ysa.scheme_code, ysa.change_summary, ysa.previous_data, ysa.new_data, ysa.created_at,
+             au.full_name AS admin_name, au.email AS admin_email
+      FROM yojana_scheme_amendments ysa
+      LEFT JOIN admin_users au ON au.id = ysa.amended_by
+      WHERE ysa.scheme_code = $1
+      ORDER BY ysa.created_at DESC
+    `, [code]);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        id: row.id,
+        schemeCode: row.scheme_code,
+        changeSummary: row.change_summary,
+        previousData: row.previous_data,
+        newData: row.new_data,
+        createdAt: row.created_at,
+        adminName: row.admin_name || 'System Operator',
+        adminEmail: row.admin_email || 'admin@matsyamitra.gov.in'
+      }))
     });
   } catch (error) {
     next(error);

@@ -86,12 +86,7 @@ const STATUS_META: Record<string, { colorClass: string; label: string }> = {
   'Rejected':        { colorClass: 'text-red-400 bg-red-500/10 border-red-500/30',         label: 'Rejected' },
 };
 
-const SCHEMES = [
-  { code: 'PMMSY', name: 'Pradhan Mantri Matsya Sampada Yojana' },
-  { code: 'TMVSY', name: 'Talab Matsyiki Vishesh Sahayata' },
-  { code: 'JKSY', name: 'Jalkrishi Saurikaran (Solar Pump)' },
-  { code: 'MPVY', name: 'Species Diversification Hatchery' },
-];
+
 
 function StatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status] ?? { colorClass: 'text-gray-400 bg-gray-500/10 border-gray-500/30', label: status };
@@ -151,17 +146,22 @@ export default function ApplicationsPage() {
   const [rejectionAppReason, setRejectionAppReason] = useState('');
   const [submittingAppRejection, setSubmittingAppRejection] = useState(false);
 
+  const [schemes, setSchemes] = useState<{ code: string; nameEn: string }[]>([]);
+
   // Load static/initial dropdown values
   useEffect(() => {
-    const loadDistricts = async () => {
+    const loadInitialData = async () => {
       try {
         const res = await api.get<ApiEnvelope<LocationItem[]>>('/api/v1/yojana/admin/locations/districts');
         if (res.success) setDistricts(res.data);
+
+        const schemesRes = await api.get<ApiEnvelope<{ code: string; nameEn: string }[]>>('/api/v1/yojana/admin/schemes');
+        if (schemesRes.success) setSchemes(schemesRes.data);
       } catch (err) {
-        console.error('Failed to load districts:', err);
+        console.error('Failed to load initial dropdowns:', err);
       }
     };
-    void loadDistricts();
+    void loadInitialData();
   }, []);
 
   // Cascading blocks load
@@ -489,7 +489,7 @@ export default function ApplicationsPage() {
                 className="text-xs p-2.5 rounded-xl bg-canvas-950/50 border border-glass-border text-ink-primary focus:outline-none focus:border-teal-500/50"
               >
                 <option value="">All Yojanas</option>
-                {SCHEMES.map(s => <option key={s.code} value={s.code}>{s.code}</option>)}
+                {schemes.map(s => <option key={s.code} value={s.code}>{s.code}</option>)}
               </select>
 
               {/* Status */}

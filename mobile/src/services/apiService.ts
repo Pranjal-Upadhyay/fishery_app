@@ -1261,6 +1261,10 @@ export const farmAssetService = {
 };
 
 export const yojanaService = {
+    listSchemes: async () => {
+        const response = await api.get('/api/v1/yojana/schemes');
+        return response.data;
+    },
     listApplications: async () => {
         const response = await api.get('/api/v1/yojana/applications');
         return response.data;
