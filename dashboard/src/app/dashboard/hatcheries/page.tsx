@@ -22,6 +22,7 @@ import {
   Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { ExportButton } from '@/components/ui/export-button';
 
 // Types
 interface Batch {
@@ -502,22 +503,13 @@ export default function HatcheriesPage() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {activeHatchModal === 'hatcheries' && (
-                <button onClick={exportHatcheriesCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95">
-                  <Download className="h-3.5 w-3.5" /> Export CSV
-                </button>
+                <ExportButton onClick={exportHatcheriesCSV} />
               )}
               {activeHatchModal === 'batches' && (
-                <button onClick={exportBatchesCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95">
-                  <Download className="h-3.5 w-3.5" /> Export CSV
-                </button>
+                <ExportButton onClick={exportBatchesCSV} />
               )}
               {activeHatchModal === 'seedYield' && (
-                <button onClick={exportAvailableSeedYieldCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95">
-                  <Download className="h-3.5 w-3.5" /> Export CSV
-                </button>
+                <ExportButton onClick={exportAvailableSeedYieldCSV} />
               )}
               <button onClick={() => setActiveHatchModal(null)}
                 className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">

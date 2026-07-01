@@ -25,6 +25,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { ExportButton } from '@/components/ui/export-button';
 import { api } from '@/lib/api';
 import { ApiEnvelope } from '@/lib/types';
 
@@ -968,13 +969,7 @@ export default function ApplicationsPage() {
 
               {/* Export Button */}
               <div className="flex items-end self-stretch pt-5 md:pt-0">
-                <button
-                  onClick={exportMisToCsv}
-                  className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-teal-500/10 text-teal-300 border border-teal-500/30 hover:bg-teal-500/20 transition-all shadow-glow flex-shrink-0"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Export CSV Report
-                </button>
+                <ExportButton onClick={exportMisToCsv} label="Export CSV Report" />
               </div>
             </div>
           </GlassCard>

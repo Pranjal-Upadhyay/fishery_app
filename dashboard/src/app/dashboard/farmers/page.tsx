@@ -18,6 +18,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { ExportButton } from '@/components/ui/export-button';
 import { api } from '@/lib/api';
 import { ApiEnvelope } from '@/lib/types';
 
@@ -530,10 +531,7 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick, onOpenInDirecto
             <h2 className="text-lg font-bold text-ink-primary mt-1">{stage} — Stage Analysis</h2>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={exportStageCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] active:scale-95">
-              <Download className="h-3.5 w-3.5" /> Export Stage CSV
-            </button>
+            <ExportButton onClick={exportStageCSV} label="Export Stage CSV" />
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
               <X className="h-5 w-5" />
             </button>
@@ -851,14 +849,7 @@ function FarmersPageInner() {
                 />
               </div>
 
-              {/* Action Buttons */}
-              <button
-                onClick={handleExport}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/30 transition-all hover:bg-white hover:text-slate-950 hover:border-white active:scale-95 duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)]"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Export CSV
-              </button>
+              <ExportButton onClick={handleExport} />
             </div>
 
             {/* Select Dropdowns */}

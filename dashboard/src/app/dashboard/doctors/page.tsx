@@ -24,6 +24,7 @@ import {
   Navigation,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { ExportButton } from '@/components/ui/export-button';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -498,22 +499,13 @@ function KpiModal({ type, onClose, onDoctorClick, onRxClick, assignedIds, onAssi
           </div>
           <div className="flex items-center gap-2">
             {type === 'registered' && (
-              <button onClick={exportDoctorsCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95">
-                <Download className="h-3.5 w-3.5" /> Export CSV
-              </button>
+              <ExportButton onClick={exportDoctorsCSV} />
             )}
             {type === 'onField' && (
-              <button onClick={exportOnFieldDoctorsCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95">
-                <Download className="h-3.5 w-3.5" /> Export CSV
-              </button>
+              <ExportButton onClick={exportOnFieldDoctorsCSV} />
             )}
             {type === 'prescriptions' && (
-              <button onClick={exportPrescriptionsCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/25 text-xs font-bold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95">
-                <Download className="h-3.5 w-3.5" /> Export CSV
-              </button>
+              <ExportButton onClick={exportPrescriptionsCSV} />
             )}
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
               <X className="h-5 w-5" />

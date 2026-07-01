@@ -18,6 +18,7 @@ import {
   Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { ExportButton } from '@/components/ui/export-button';
 import { api } from '@/lib/api';
 
 function exportAlertsToCSV(alerts: AlertItem[]) {
@@ -234,13 +235,7 @@ export default function AlertsPage() {
           </div>
           <h1 className="text-2xl font-bold text-ink-primary">Outbreaks & Alerts Management</h1>
         </div>
-        <button
-          onClick={() => exportAlertsToCSV(alerts)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/20 text-xs font-semibold hover:bg-white hover:text-slate-950 hover:border-white transition-all duration-200 mt-1 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)] active:scale-95"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export CSV
-        </button>
+        <ExportButton onClick={() => exportAlertsToCSV(alerts)} className="mt-1" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

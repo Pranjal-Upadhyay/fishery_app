@@ -17,6 +17,7 @@ import {
   Download,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { ExportButton } from '@/components/ui/export-button';
 import { api } from '@/lib/api';
 import { ApiEnvelope } from '@/lib/types';
 
@@ -206,13 +207,7 @@ function BreakdownModal({ type, onClose, stats, apps, targets }: {
             <h2 className="text-lg font-bold text-ink-primary mt-1">{titles[type]}</h2>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleExportModalData}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/20 transition-all text-xs font-semibold"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export CSV
-            </button>
+            <ExportButton onClick={handleExportModalData} />
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-glass border border-transparent hover:border-glass-border text-ink-secondary transition-all">
               <X className="h-5 w-5" />
             </button>
@@ -600,13 +595,7 @@ export default function SubsidiesPage() {
                   Direct Benefit Transfer Logs
                 </h3>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleExportDbtLogs}
-                    className="flex items-center gap-1.5 px-3 py-1.2 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/20 transition-all text-xs font-semibold"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Export CSV
-                  </button>
+                  <ExportButton onClick={handleExportDbtLogs} />
                   <span className="text-[10px] font-mono font-bold bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded">
                     Live Bank Feed
                   </span>
