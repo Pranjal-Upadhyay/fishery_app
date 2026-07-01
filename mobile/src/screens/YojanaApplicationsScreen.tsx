@@ -86,6 +86,7 @@ interface Scheme {
   description: string;
   milestones: string[];
   requiredDocumentsRaw?: string[];
+  formFields?: any[];
 }
 
 const FALLBACK_SCHEMES: Scheme[] = [
@@ -586,6 +587,7 @@ export default function YojanaApplicationsScreen() {
               schemeCode: item.code,
               schemeName: item.name,
               requiredDocuments: item.requiredDocumentsRaw,
+              formFields: (item as any).formFields,
             });
           }}
         >

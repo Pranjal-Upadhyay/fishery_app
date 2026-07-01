@@ -1289,6 +1289,7 @@ export const yojanaService = {
             fileName: string;
             mimeType?: string;
         }>;
+        dynamicFields?: Record<string, any>;
     }) => {
         const response = await api.post('/api/v1/yojana/apply', data);
         return response.data;
@@ -1301,6 +1302,7 @@ export const yojanaService = {
             applicantCategory?: string;
             applicantLandArea?: number;
             projectDescription?: string;
+            dynamicFields?: Record<string, any>;
         }
     ) => {
         const response = await api.patch(`/api/v1/yojana/applications/${id}/edit`, data);

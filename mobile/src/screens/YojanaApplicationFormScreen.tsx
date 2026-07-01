@@ -88,7 +88,7 @@ export default function YojanaApplicationFormScreen() {
   const route = useRoute<any>();
   const styles = getStyles(theme, isDark);
 
-  const { schemeCode, schemeName, editMode, applicationData, requiredDocuments } = route.params || {};
+  const { schemeCode, schemeName, editMode, applicationData, requiredDocuments, formFields } = route.params || {};
 
   const [step, setStep] = useState(1);
   const [ponds, setPonds] = useState<any[]>([]);
@@ -102,10 +102,12 @@ export default function YojanaApplicationFormScreen() {
   const [applicantLandArea, setApplicantLandArea] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [selectedPondId, setSelectedPondId] = useState('');
+  const [dynamicValues, setDynamicValues] = useState<Record<string, any>>({});
 
   // Dropdown options visibility
   const [showDistrictDropdown, setShowDistrictDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [activeDropdownField, setActiveDropdownField] = useState<string | null>(null);
 
   // Document Uploads State
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, { filePath: string; fileName: string }>>({});
@@ -141,9 +143,10 @@ export default function YojanaApplicationFormScreen() {
         setApplicantName(applicationData.applicantName || '');
         setApplicantDistrict(applicationData.district || 'Madhubani');
         setApplicantCategory(applicationData.caste || 'GENERAL');
-        setApplicantLandArea(applicationData.landArea ? applicationData.landArea.replace(/[^0-9.]/g, '') : '');
+        setApplicantLandArea(applicationData.landArea ? String(applicationData.landArea).replace(/[^0-9.]/g, '') : '');
         setProjectDescription(applicationData.projectDescription || '');
         setSelectedPondId(applicationData.pond_id || '');
+        setDynamicValues(applicationData.dynamicFields || applicationData.dynamic_fields || {});
         
         // Match existing documents mapping
         const docsMap: Record<string, { filePath: string; fileName: string }> = {};
@@ -260,6 +263,19 @@ export default function YojanaApplicationFormScreen() {
         Alert.alert('Validation Error', 'Please enter a valid land area in acres.');
         return;
       }
+      // Validate dynamic fields
+      if (Array.isArray(formFields)) {
+        for (const field of formFields) {
+          if (field.required) {
+            const val = dynamicValues[field.name];
+            if (val === undefined || val === null || String(val).trim() === '') {
+              Alert.alert('Validation Error', `Please fill in: ${field.label || field.name}`);
+              return;
+            }
+          }
+        }
+      }
+
       setStep(2);
     } else if (step === 2) {
       if (!selectedPondId) {
@@ -302,6 +318,7 @@ export default function YojanaApplicationFormScreen() {
         applicantLandArea: parseFloat(applicantLandArea),
         projectDescription,
         documents: docsArray,
+        dynamicFields: Object.keys(dynamicValues).length > 0 ? dynamicValues : undefined,
       };
 
       let res;
@@ -313,6 +330,7 @@ export default function YojanaApplicationFormScreen() {
           applicantCategory,
           applicantLandArea: parseFloat(applicantLandArea),
           projectDescription,
+          dynamicFields: Object.keys(dynamicValues).length > 0 ? dynamicValues : undefined,
         });
 
         if (res.success) {
@@ -481,6 +499,88 @@ export default function YojanaApplicationFormScreen() {
                 numberOfLines={4}
               />
             </View>
+
+            {/* ── Dynamic form fields from server-driven schema ─────────────── */}
+            {Array.isArray(formFields) && formFields.length > 0 && (
+              <View style={{ marginTop: 4 }}>
+                <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                  Scheme-Specific Details
+                </Text>
+                {formFields.map((field: any) => {
+                  const fieldKey = field.name || field.key;
+                  const label = `${(field.label || fieldKey).toUpperCase()}${field.required ? ' *' : ''}`;
+                  const currentVal = dynamicValues[fieldKey] !== undefined ? String(dynamicValues[fieldKey]) : '';
+
+                  if (field.type === 'select' && Array.isArray(field.options)) {
+                    const isOpen = activeDropdownField === fieldKey;
+                    return (
+                      <View key={fieldKey} style={styles.fieldWrap}>
+                        <Text style={styles.fieldLabel}>{label}</Text>
+                        <TouchableOpacity
+                          style={styles.dropdownSelector}
+                          onPress={() => {
+                            setActiveDropdownField(isOpen ? null : fieldKey);
+                            setShowDistrictDropdown(false);
+                            setShowCategoryDropdown(false);
+                          }}
+                        >
+                          <Text style={styles.dropdownSelectorText}>
+                            {currentVal || field.placeholder || 'Select...'}
+                          </Text>
+                          <Ionicons
+                            name={isOpen ? 'chevron-up' : 'chevron-down'}
+                            size={18}
+                            color={theme.colors.textPrimary}
+                          />
+                        </TouchableOpacity>
+                        {isOpen && (
+                          <View style={styles.dropdownList}>
+                            <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+                              {field.options.map((opt: any) => {
+                                const optValue = typeof opt === 'object' ? opt.value : opt;
+                                const optLabel = typeof opt === 'object' ? opt.label : opt;
+                                return (
+                                  <TouchableOpacity
+                                    key={String(optValue)}
+                                    style={styles.dropdownItem}
+                                    onPress={() => {
+                                      setDynamicValues(prev => ({ ...prev, [fieldKey]: optValue }));
+                                      setActiveDropdownField(null);
+                                    }}
+                                  >
+                                    <Text style={styles.dropdownItemText}>{optLabel}</Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </ScrollView>
+                          </View>
+                        )}
+                        {field.hint ? <Text style={styles.fieldHint}>{field.hint}</Text> : null}
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <View key={fieldKey} style={styles.fieldWrap}>
+                      <Text style={styles.fieldLabel}>{label}</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={currentVal}
+                        onChangeText={text =>
+                          setDynamicValues(prev => ({ ...prev, [fieldKey]: text }))
+                        }
+                        keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'}
+                        placeholder={field.placeholder || `Enter ${field.label || fieldKey}`}
+                        placeholderTextColor={theme.colors.textMuted}
+                        multiline={field.type === 'textarea'}
+                        numberOfLines={field.type === 'textarea' ? 3 : 1}
+                      />
+                      {field.hint ? <Text style={styles.fieldHint}>{field.hint}</Text> : null}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 

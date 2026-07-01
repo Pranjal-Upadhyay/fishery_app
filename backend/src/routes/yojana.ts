@@ -25,6 +25,7 @@ const applySchema = z.object({
       mimeType: z.string().optional(),
     })
   ).min(1),
+  dynamicFields: z.record(z.string(), z.any()).optional().default({})
 });
 
 const editSchema = z.object({
@@ -33,6 +34,7 @@ const editSchema = z.object({
   applicantCategory: z.string().min(2).max(20).optional(),
   applicantLandArea: z.number().positive().optional(),
   projectDescription: z.string().optional(),
+  dynamicFields: z.record(z.string(), z.any()).optional()
 });
 
 const updateStatusSchema = z.object({
@@ -77,7 +79,8 @@ const schemeSchema = z.object({
       pct: z.number().min(1).max(100)
     })
   ).min(1),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional().default('ACTIVE')
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional().default('ACTIVE'),
+  formFields: z.array(z.any()).optional().default([])
 });
 
 const schemeUpdateSchema = schemeSchema.omit({ code: true }).extend({
@@ -145,6 +148,7 @@ router.get('/applications', requireAuth, async (req, res, next) => {
              ya.approved_subsidy_amount, ya.milestones, ya.created_at, ya.updated_at,
              ya.applicant_name, ya.applicant_district, ya.applicant_category,
              ya.applicant_land_area, ya.project_description, ya.rejection_reason as application_rejection_reason,
+             ya.dynamic_fields,
              COALESCE(p.district_code, 'BR-MADHUBANI') as district_code,
              ys.name_en AS db_yojana_name,
              (
@@ -180,7 +184,8 @@ router.get('/applications', requireAuth, async (req, res, next) => {
         ...row,
         yojana_name: row.db_yojana_name || row.yojana_code,
         approved_subsidy_amount: parseFloat(row.approved_subsidy_amount),
-        applicant_land_area: parseFloat(row.applicant_land_area || '0')
+        applicant_land_area: parseFloat(row.applicant_land_area || '0'),
+        dynamicFields: row.dynamic_fields || {}
       }))
     });
   } catch (error) {
@@ -201,7 +206,8 @@ router.post('/apply', requireAuth, async (req, res, next) => {
       applicantCategory,
       applicantLandArea,
       projectDescription,
-      documents
+      documents,
+      dynamicFields
     } = applySchema.parse(req.body);
 
     // Verify pond belongs to user
@@ -254,14 +260,14 @@ router.post('/apply', requireAuth, async (req, res, next) => {
       INSERT INTO yojana_applications (
         user_id, pond_id, yojana_code, status, approved_subsidy_amount, milestones,
         applicant_name, applicant_district, applicant_category, applicant_land_area,
-        project_description, form_submitted_at
+        project_description, form_submitted_at, dynamic_fields
       )
-      VALUES ($1, $2, $3, 'AWAITING_REVIEW', $4, $5, $6, $7, $8, $9, $10, NOW())
+      VALUES ($1, $2, $3, 'AWAITING_REVIEW', $4, $5, $6, $7, $8, $9, $10, NOW(), $11)
       RETURNING *
     `, [
       userId, pondId, yojanaCode, approvedSubsidy, JSON.stringify(milestones),
       applicantName, applicantDistrict, applicantCategory, applicantLandArea,
-      projectDescription
+      projectDescription, JSON.stringify(dynamicFields || {})
     ]);
 
     const application = insertResult.rows[0];
@@ -328,11 +334,12 @@ router.patch('/applications/:id/edit', requireAuth, async (req, res, next) => {
         key === 'applicantDistrict' ? 'applicant_district' :
         key === 'applicantCategory' ? 'applicant_category' :
         key === 'applicantLandArea' ? 'applicant_land_area' :
-        key === 'projectDescription' ? 'project_description' : null;
+        key === 'projectDescription' ? 'project_description' :
+        key === 'dynamicFields' ? 'dynamic_fields' : null;
 
       if (dbCol && val !== undefined) {
         setFields.push(`${dbCol} = $${valIdx}`);
-        values.push(val);
+        values.push(key === 'dynamicFields' ? JSON.stringify(val) : val);
         valIdx++;
       }
     });
@@ -1031,7 +1038,7 @@ router.get('/schemes', async (req, res, next) => {
     const result = await query(`
       SELECT code, name_en, name_hi, tagline, description, subsidy_by_category, 
              unit_cost_cap_lakh, max_subsidy_lakh, eligibility, required_documents, 
-             geofence, classification, accent_color, milestones, status
+             geofence, classification, accent_color, milestones, status, form_fields
       FROM yojana_schemes
       WHERE status = 'ACTIVE'
       ORDER BY code
@@ -1054,7 +1061,8 @@ router.get('/schemes', async (req, res, next) => {
         classification: row.classification,
         accentColor: row.accent_color,
         milestones: row.milestones,
-        status: row.status
+        status: row.status,
+        formFields: row.form_fields || []
       }))
     });
   } catch (error) {
@@ -1069,7 +1077,7 @@ router.get('/admin/schemes', requireAdmin, async (req, res, next) => {
     const result = await query(`
       SELECT code, name_en, name_hi, tagline, description, subsidy_by_category, 
              unit_cost_cap_lakh, max_subsidy_lakh, eligibility, required_documents, 
-             geofence, classification, accent_color, milestones, status
+             geofence, classification, accent_color, milestones, status, form_fields
       FROM yojana_schemes
       ORDER BY status = 'ACTIVE' DESC, code ASC
     `);
@@ -1091,7 +1099,8 @@ router.get('/admin/schemes', requireAdmin, async (req, res, next) => {
         classification: row.classification,
         accentColor: row.accent_color,
         milestones: row.milestones,
-        status: row.status
+        status: row.status,
+        formFields: row.form_fields || []
       }))
     });
   } catch (error) {
@@ -1113,14 +1122,14 @@ router.post('/admin/schemes', requireAdmin, async (req, res, next) => {
       INSERT INTO yojana_schemes (
         code, name_en, name_hi, tagline, description, subsidy_by_category, 
         unit_cost_cap_lakh, max_subsidy_lakh, eligibility, required_documents, 
-        geofence, classification, accent_color, milestones, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        geofence, classification, accent_color, milestones, status, form_fields
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     `, [
       body.code, body.nameEn, body.nameHi, body.tagline || null, body.description || null,
       JSON.stringify(body.subsidyByCategory), body.unitCostCapLakh, body.maxSubsidyLakh,
       JSON.stringify(body.eligibility), JSON.stringify(body.requiredDocuments),
       body.geofence || null, body.classification || null, body.accentColor,
-      JSON.stringify(body.milestones), body.status || 'ACTIVE'
+      JSON.stringify(body.milestones), body.status || 'ACTIVE', JSON.stringify(body.formFields || [])
     ]);
 
     // Insert into admin audit log
@@ -1157,14 +1166,14 @@ router.put('/admin/schemes/:code', requireAdmin, async (req, res, next) => {
         subsidy_by_category = $5, unit_cost_cap_lakh = $6, max_subsidy_lakh = $7,
         eligibility = $8, required_documents = $9, geofence = $10,
         classification = $11, accent_color = $12, milestones = $13,
-        status = $14, updated_at = NOW()
-      WHERE code = $15
+        status = $14, form_fields = $15, updated_at = NOW()
+      WHERE code = $16
     `, [
       body.nameEn, body.nameHi, body.tagline || null, body.description || null,
       JSON.stringify(body.subsidyByCategory), body.unitCostCapLakh, body.maxSubsidyLakh,
       JSON.stringify(body.eligibility), JSON.stringify(body.requiredDocuments),
       body.geofence || null, body.classification || null, body.accentColor,
-      JSON.stringify(body.milestones), body.status, code
+      JSON.stringify(body.milestones), body.status, JSON.stringify(body.formFields || []), code
     ]);
 
     // Insert Audit trail amendment

@@ -259,6 +259,95 @@ router.get('/me', requireAdmin, async (req, res, next) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/admin/farmers
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/farmers', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query<any>(`
+      SELECT 
+        u.id,
+        u.name,
+        u.phone_number AS phone,
+        COALESCE(d.name, u.district_code, 'Unknown') AS district,
+        COALESCE(b.name, u.block_code, 'Unknown') AS block,
+        CASE 
+          WHEN u.farmer_category IS NULL THEN 'Registered'
+          WHEN NOT EXISTS (SELECT 1 FROM ponds p WHERE p.user_id = u.id) THEN 'Profile Complete'
+          WHEN NOT EXISTS (SELECT 1 FROM crop_cycles c WHERE c.user_id = u.id) THEN 'First Pond Added'
+          WHEN NOT EXISTS (SELECT 1 FROM water_quality_logs w WHERE w.user_id = u.id) THEN 'Active Cycle'
+          ELSE 'Water Logging'
+        END AS stage,
+        COALESCE(
+          (
+            SELECT MAX(EXTRACT(EPOCH FROM (NOW() - COALESCE(w.timestamp, c.start_date, u.created_at))) / 86400)::int
+            FROM users u2
+            LEFT JOIN ponds p ON p.user_id = u2.id
+            LEFT JOIN crop_cycles c ON c.user_id = u2.id
+            LEFT JOIN water_quality_logs w ON w.user_id = u2.id AND w.pond_id = p.id
+            WHERE u2.id = u.id
+          ),
+          0
+        ) AS days_stuck
+      FROM users u
+      LEFT JOIN loc_districts d ON d.code = u.district_code
+      LEFT JOIN loc_blocks b ON b.code = u.block_code
+      WHERE u.role = 'FARMER'
+      ORDER BY u.created_at DESC
+    `);
+
+    const userIds = result.rows.map((row: any) => row.id);
+    let ponds: any[] = [];
+    if (userIds.length > 0) {
+      const pondsRes = await query<any>(`
+        SELECT 
+          p.id,
+          p.user_id,
+          p.name,
+          p.area_hectares AS "areaHa",
+          p.water_source_type AS "waterSource",
+          p.system_type AS "system",
+          ST_Y(p.location::geometry) AS "lat",
+          ST_X(p.location::geometry) AS "lng"
+        FROM ponds p
+        WHERE p.user_id = ANY($1)
+      `, [userIds]);
+      ponds = pondsRes.rows;
+    }
+
+    const farmers = result.rows.map((row: any) => {
+      const userPonds = ponds
+        .filter((p: any) => p.user_id === row.id)
+        .map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          type: p.system?.includes('Nursery') ? 'Nursery' : 'Grow-out',
+          areaHa: parseFloat(p.areaHa) || 0,
+          system: p.system || 'Earthen',
+          species: 'Monosex Tilapia',
+          waterSource: p.waterSource || 'BOREWELL',
+          lat: p.lat ? parseFloat(p.lat) : null,
+          lng: p.lng ? parseFloat(p.lng) : null,
+        }));
+
+      return {
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        district: toTitleCase(row.district),
+        block: toTitleCase(row.block),
+        stage: row.stage,
+        daysStuck: row.days_stuck || 0,
+        ponds: userPonds,
+      };
+    });
+
+    res.json({ success: true, data: farmers });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Helper function to format district names to Title Case for frontend map lookup
 function toTitleCase(str: string | null | undefined): string {
   if (!str) return 'Unknown';

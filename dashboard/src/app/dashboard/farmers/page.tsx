@@ -18,6 +18,8 @@ import {
   Activity,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
+import { api } from '@/lib/api';
+import { ApiEnvelope } from '@/lib/types';
 
 // Types
 interface Pond {
@@ -27,6 +29,8 @@ interface Pond {
   system: string;
   species: string;
   waterSource: string;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 interface Farmer {
@@ -288,17 +292,17 @@ function FarmerProfileDrawer({ farmer, onClose }: { farmer: Farmer; onClose: () 
             </div>
           </div>
           {farmer.daysStuck > 30 && (
-            <div className="text-amber-400 text-[11px] bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 space-y-1.5">
-              <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider text-amber-300">
-                <AlertTriangle className="h-3.5 w-3.5" />
+            <div className="bg-amber-100/70 border border-amber-300 text-amber-900 dark:bg-amber-500/5 dark:border-amber-500/20 dark:text-amber-300 text-[11px] rounded-lg p-2.5 space-y-1.5">
+              <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                 Stuck &gt; 30 Days Explanation
               </div>
-              <p className="leading-relaxed">
+              <p className="leading-relaxed font-medium">
                 {STUCK_REASONS[farmer.stage]?.definition || `This farmer has been stuck at this stage for ${farmer.daysStuck} days.`}
               </p>
               {STUCK_REASONS[farmer.stage]?.action && (
-                <div className="text-[10px] bg-amber-500/10 text-amber-200 rounded p-1.5 font-medium border border-amber-500/10">
-                  <span className="font-bold">Next Action:</span> {STUCK_REASONS[farmer.stage].action}
+                <div className="text-[10px] bg-amber-200/50 text-amber-950 rounded p-1.5 font-bold border border-amber-300 dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/10">
+                  <span>Next Action:</span> {STUCK_REASONS[farmer.stage].action}
                 </div>
               )}
             </div>
@@ -327,20 +331,31 @@ function FarmerProfileDrawer({ farmer, onClose }: { farmer: Farmer; onClose: () 
                     {pond.type}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center font-mono text-[10px] bg-canvas-950/40 rounded-lg p-2 border border-glass-border/20">
+                <div className="grid grid-cols-4 gap-1 text-center font-mono text-[9px] bg-canvas-950/40 rounded-lg p-2 border border-glass-border/20">
                   <div>
-                    <div className="text-ink-muted uppercase text-[9px]">Area</div>
+                    <div className="text-ink-muted uppercase text-[8px]">Area</div>
                     <div className="font-bold text-ink-primary mt-0.5">{pond.areaHa} ha</div>
                   </div>
                   <div>
-                    <div className="text-ink-muted uppercase text-[9px]">System</div>
+                    <div className="text-ink-muted uppercase text-[8px]">System</div>
                     <div className="font-bold text-ink-primary mt-0.5">{pond.system}</div>
                   </div>
                   <div>
-                    <div className="text-ink-muted uppercase text-[9px]">Water</div>
+                    <div className="text-ink-muted uppercase text-[8px]">Water</div>
                     <div className="font-bold text-ink-primary mt-0.5">{pond.waterSource}</div>
                   </div>
+                  <div>
+                    <div className="text-ink-muted uppercase text-[8px]">Pond ID</div>
+                    <div className="font-bold text-ink-primary mt-0.5 truncate" title={(pond as any).id || 'Mock'}>
+                      {((pond as any).id || 'Mock').substring(0, 6)}
+                    </div>
+                  </div>
                 </div>
+                {pond.lat && pond.lng && (
+                  <div className="text-[10px] text-ink-muted font-mono text-center bg-canvas-950/20 py-1 rounded border border-glass-border/10">
+                    Location: {pond.lat.toFixed(6)}° N, {pond.lng.toFixed(6)}° E
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -374,17 +389,12 @@ interface FunnelStageDetailModalProps {
   stage: string;
   onClose: () => void;
   onFarmerClick: (farmer: Farmer) => void;
-}
-
-interface FunnelStageDetailModalProps {
-  stage: string;
-  onClose: () => void;
-  onFarmerClick: (farmer: Farmer) => void;
   onOpenInDirectory: (stage: string) => void;
+  farmers: Farmer[];
 }
 
-function FunnelStageDetailModal({ stage, onClose, onFarmerClick, onOpenInDirectory }: FunnelStageDetailModalProps) {
-  const farmersList = MOCK_FARMERS.filter((f) => f.stage === stage);
+function FunnelStageDetailModal({ stage, onClose, onFarmerClick, onOpenInDirectory, farmers }: FunnelStageDetailModalProps) {
+  const farmersList = farmers.filter((f) => f.stage === stage);
   const stuckCount = farmersList.filter((f) => f.daysStuck > 30).length;
 
   const displayFarmers = [...farmersList]
@@ -399,30 +409,36 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick, onOpenInDirecto
     'Water Logging': 'These farmers actively log water parameters (pH, DO, temperature, ammonia) at least once weekly.',
   };
 
+  const getStageIndex = (s: string) => ['Registered', 'Profile Complete', 'First Pond Added', 'Active Cycle', 'Water Logging'].indexOf(s);
+  const currentIdx = getStageIndex(stage);
+  const countThisStage = farmers.filter((f) => getStageIndex(f.stage) >= currentIdx).length;
+  const totalRegistered = farmers.length;
+  const progressPct = totalRegistered > 0 ? Math.round((countThisStage / totalRegistered) * 100) : 0;
+
   const stageKpis: Record<string, { label: string; value: string; color: string }[]> = {
     'Registered': [
-      { label: 'Total Registered', value: '1,240', color: 'text-teal-400' },
+      { label: 'Total Registered', value: farmers.length <= 25 ? '1,240' : countThisStage.toLocaleString(), color: 'text-teal-400' },
       { label: 'Conversion Rate', value: '100%', color: 'text-sky-400' },
       { label: 'Stuck >30 Days', value: `${stuckCount} farmers`, color: 'text-rose-400' },
     ],
     'Profile Complete': [
-      { label: 'Profiles Completed', value: '980', color: 'text-sky-400' },
-      { label: 'Funnel Progress', value: '79%', color: 'text-indigo-400' },
+      { label: 'Profiles Completed', value: farmers.length <= 25 ? '980' : countThisStage.toLocaleString(), color: 'text-sky-400' },
+      { label: 'Funnel Progress', value: farmers.length <= 25 ? '79%' : `${progressPct}%`, color: 'text-indigo-400' },
       { label: 'Avg Experience', value: '5.8 Years', color: 'text-teal-400' },
     ],
     'First Pond Added': [
-      { label: 'Ponds Registered', value: '640', color: 'text-indigo-400' },
-      { label: 'Funnel Progress', value: '51%', color: 'text-teal-400' },
+      { label: 'Ponds Registered', value: farmers.length <= 25 ? '640' : countThisStage.toLocaleString(), color: 'text-indigo-400' },
+      { label: 'Funnel Progress', value: farmers.length <= 25 ? '51%' : `${progressPct}%`, color: 'text-teal-400' },
       { label: 'Avg Pond Area', value: '1.24 Ha', color: 'text-sky-400' },
     ],
     'Active Cycle': [
-      { label: 'Active Cycles', value: '420', color: 'text-purple-400' },
-      { label: 'Funnel Progress', value: '33%', color: 'text-sky-400' },
+      { label: 'Active Cycles', value: farmers.length <= 25 ? '420' : countThisStage.toLocaleString(), color: 'text-purple-400' },
+      { label: 'Funnel Progress', value: farmers.length <= 25 ? '33%' : `${progressPct}%`, color: 'text-sky-400' },
       { label: 'Avg Stock Density', value: '15,000/ha', color: 'text-teal-400' },
     ],
     'Water Logging': [
-      { label: 'Active Logging', value: '180', color: 'text-fuchsia-400' },
-      { label: 'Funnel Progress', value: '14%', color: 'text-teal-400' },
+      { label: 'Active Logging', value: farmers.length <= 25 ? '180' : countThisStage.toLocaleString(), color: 'text-fuchsia-400' },
+      { label: 'Funnel Progress', value: farmers.length <= 25 ? '14%' : `${progressPct}%`, color: 'text-teal-400' },
       { label: 'Alert Trigger Rate', value: '4.8%', color: 'text-rose-400' },
     ],
   };
@@ -531,16 +547,16 @@ function FunnelStageDetailModal({ stage, onClose, onFarmerClick, onOpenInDirecto
 
         {/* Bottleneck Definition */}
         {STUCK_REASONS[stage] && (
-          <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/25 text-xs text-amber-400 space-y-1.5 shrink-0">
-            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[9px] text-amber-300">
-              <AlertTriangle className="h-3.5 w-3.5" />
+          <div className="p-3.5 rounded-xl bg-amber-100/70 border border-amber-300 text-amber-900 dark:bg-amber-500/5 dark:border-amber-500/25 dark:text-amber-300 space-y-1.5 shrink-0 text-xs">
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[9px] text-amber-800 dark:text-amber-200">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
               Stage Bottleneck Definition
             </div>
-            <p className="leading-relaxed text-[11px]">
+            <p className="leading-relaxed text-[11px] font-medium">
               {STUCK_REASONS[stage].definition}
             </p>
-            <div className="text-[10px] bg-amber-500/10 text-amber-200 rounded p-1.5 font-medium border border-amber-500/10">
-              <span className="font-bold text-amber-100">Next Action:</span> {STUCK_REASONS[stage].action}
+            <div className="text-[10px] bg-amber-200/50 text-amber-950 rounded p-1.5 font-bold border border-amber-300 dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/10">
+              <span>Next Action:</span> {STUCK_REASONS[stage].action}
             </div>
           </div>
         )}
@@ -617,6 +633,7 @@ function FarmersPageInner() {
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get('search') ?? '';
 
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [searchTerm, setSearchTerm] = useState(urlSearch);
   const [selectedStage, setSelectedStage] = useState<string>('all');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
@@ -625,17 +642,35 @@ function FarmersPageInner() {
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
   const [selectedFunnelStage, setSelectedFunnelStage] = useState<string | null>(null);
 
+  // Load dynamic farmers from backend, fallback to mock list if offline or empty
+  useEffect(() => {
+    const fetchFarmers = async () => {
+      try {
+        const res = await api.get<ApiEnvelope<Farmer[]>>('/api/v1/admin/farmers');
+        if (res.success && res.data && res.data.length > 0) {
+          setFarmers(res.data);
+        } else {
+          setFarmers(MOCK_FARMERS);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch dynamic farmers, falling back to mock:', err);
+        setFarmers(MOCK_FARMERS);
+      }
+    };
+    void fetchFarmers();
+  }, []);
+
   // Auto-open the profile if a matching farmer is found from the URL search
   useEffect(() => {
-    if (urlSearch) {
+    if (urlSearch && farmers.length > 0) {
       setSearchTerm(urlSearch);
-      const match = MOCK_FARMERS.find(
+      const match = farmers.find(
         (f) => f.name.toLowerCase() === urlSearch.toLowerCase() ||
                f.name.toLowerCase().includes(urlSearch.toLowerCase())
       );
       if (match) setSelectedFarmer(match);
     }
-  }, [urlSearch]);
+  }, [urlSearch, farmers]);
 
   // Reset block filter when district changes
   useEffect(() => {
@@ -643,7 +678,7 @@ function FarmersPageInner() {
   }, [selectedDistrict]);
 
   // Filter logic
-  const filteredFarmers = MOCK_FARMERS.filter((farmer) => {
+  const filteredFarmers = farmers.filter((farmer) => {
     const matchesSearch =
       farmer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       farmer.phone.includes(searchTerm) ||
@@ -701,6 +736,25 @@ function FarmersPageInner() {
     }, 100);
   };
 
+  // Calculate dynamic funnel data based on farmers
+  const dynamicFunnelData = (() => {
+    if (farmers.length <= 25) {
+      return FUNNEL_DATA;
+    }
+    const funnelStages = ['Registered', 'Profile Complete', 'First Pond Added', 'Active Cycle', 'Water Logging'];
+    const counts = funnelStages.map((stageName, idx) => {
+      const getStageIndex = (s: string) => funnelStages.indexOf(s);
+      return farmers.filter((f) => getStageIndex(f.stage) >= idx).length;
+    });
+    const totalRegistered = counts[0] || 0;
+    return funnelStages.map((stageName, idx) => ({
+      name: stageName,
+      count: counts[idx],
+      color: FUNNEL_DATA[idx].color,
+      pct: totalRegistered > 0 ? Math.round((counts[idx] / totalRegistered) * 100) : 0,
+    }));
+  })();
+
   return (
     <div className="flex flex-col gap-6 p-6 h-full overflow-y-auto">
       {/* Header */}
@@ -711,20 +765,13 @@ function FarmersPageInner() {
           </div>
           <h1 className="text-2xl font-bold text-ink-primary">Farmer Onboarding</h1>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-teal-500/10 text-teal-300 border border-teal-500/30 transition-all hover:bg-white hover:text-slate-950 hover:border-white active:scale-95 duration-200 shadow-[0_2px_12px_rgba(20,184,166,0.30)] hover:shadow-[0_4px_20px_rgba(255,255,255,0.45)]"
-        >
-          <Download className="h-4 w-4" />
-          Export CSV
-        </button>
       </div>
 
       {/* Funnel Visual Container */}
       <GlassCard className="p-6">
         <h2 className="text-base font-bold text-ink-primary mb-6">Onboarding Funnel</h2>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {FUNNEL_DATA.map((stage, idx) => (
+          {dynamicFunnelData.map((stage, idx) => (
             <div
               key={stage.name}
               onClick={() => setSelectedFunnelStage(stage.name)}
@@ -967,6 +1014,7 @@ function FarmersPageInner() {
           onClose={() => setSelectedFunnelStage(null)}
           onFarmerClick={(farmer) => setSelectedFarmer(farmer)}
           onOpenInDirectory={handleOpenInDirectory}
+          farmers={farmers}
         />
       )}
     </div>
