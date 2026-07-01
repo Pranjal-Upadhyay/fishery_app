@@ -430,9 +430,72 @@ router.post('/transactions/:id/confirm', requireAuth, async (req, res, next) => 
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/v1/yojana/admin/applications
-// List all applications with farmer profiles and georeferenced coordinates
+// List applications with pagination, search, and geographical filtering
 router.get('/admin/applications', requireAdmin, async (req, res, next) => {
   try {
+    const page = parseInt(req.query.page as string || '1', 10);
+    const limit = parseInt(req.query.limit as string || '25', 10);
+    const offset = (page - 1) * limit;
+
+    const search = req.query.search as string || '';
+    const districtCode = req.query.districtCode as string || '';
+    const blockCode = req.query.blockCode as string || '';
+    const panchayatCode = req.query.panchayatCode as string || '';
+    const status = req.query.status as string || '';
+    const yojanaCode = req.query.yojanaCode as string || '';
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(ya.applicant_name ILIKE $${params.length} OR u.name ILIKE $${params.length} OR ya.id::text ILIKE $${params.length})`);
+    }
+    if (districtCode) {
+      params.push(districtCode);
+      conditions.push(`p.district_code = $${params.length}`);
+    }
+    if (blockCode) {
+      params.push(blockCode);
+      conditions.push(`p.block_code = $${params.length}`);
+    }
+    if (panchayatCode) {
+      params.push(panchayatCode);
+      conditions.push(`p.panchayat_code = $${params.length}`);
+    }
+    if (status) {
+      let dbStatus = status;
+      if (status === 'Awaiting Review') dbStatus = 'AWAITING_REVIEW';
+      else if (status === 'DLC Queue') dbStatus = 'DLC_QUEUE';
+      else if (status === 'Approved') dbStatus = 'APPROVED';
+      else if (status === 'Milestone 1 Met') dbStatus = 'MILESTONE_1_MET';
+      else if (status === 'Milestone 2 Met') dbStatus = 'MILESTONE_2_MET';
+      else if (status === 'Rejected') dbStatus = 'REJECTED';
+      params.push(dbStatus);
+      conditions.push(`ya.status = $${params.length}`);
+    }
+    if (yojanaCode) {
+      params.push(yojanaCode);
+      conditions.push(`ya.yojana_code = $${params.length}`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRes = await query(`
+      SELECT COUNT(*) as count
+      FROM yojana_applications ya
+      JOIN users u ON u.id = ya.user_id
+      JOIN ponds p ON p.id = ya.pond_id
+      ${whereClause}
+    `, params);
+    const totalCount = parseInt(countRes.rows[0].count, 10);
+
+    const paginatedParams = [...params];
+    paginatedParams.push(limit);
+    const limitParamIndex = paginatedParams.length;
+    paginatedParams.push(offset);
+    const offsetParamIndex = paginatedParams.length;
+
     const result = await query(`
       SELECT ya.id, ya.yojana_code, ya.status, ya.approved_subsidy_amount, ya.milestones, ya.created_at,
              ya.applicant_name, ya.applicant_district, ya.applicant_category, ya.applicant_land_area,
@@ -454,19 +517,18 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
       FROM yojana_applications ya
       JOIN users u ON u.id = ya.user_id
       JOIN ponds p ON p.id = ya.pond_id
+      ${whereClause}
       ORDER BY ya.created_at DESC
-    `);
+      LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
+    `, paginatedParams);
 
-    // Map database models into frontend-compatible dashboard schemas
     const mappedApplications = result.rows.map(row => {
-      // Map caste code
       let casteDisplay = 'General';
       const rowCaste = row.applicant_category || row.caste;
       if (rowCaste === 'SC') casteDisplay = 'SC';
       else if (rowCaste === 'ST') casteDisplay = 'ST';
       else if (rowCaste === 'EBC' || rowCaste === 'WOMEN') casteDisplay = 'EBC';
 
-      // Map status
       let statusDisplay = 'Awaiting Review';
       if (row.status === 'DLC_QUEUE') statusDisplay = 'DLC Queue';
       else if (row.status === 'APPROVED') statusDisplay = 'Approved';
@@ -474,11 +536,9 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
       else if (row.status === 'MILESTONE_2_MET') statusDisplay = 'Milestone 2 Met';
       else if (row.status === 'REJECTED') statusDisplay = 'Rejected';
 
-      // Map district code to display name
       const distParts = row.district_code.split('-');
       const districtDisplay = distParts[distParts.length - 1];
 
-      // Convert DB documents list to dashboard compatibility
       const dashboardDocs = row.documents.map((d: any) => {
         let name = d.doc_type;
         if (d.doc_type === 'AADHAAR') name = 'Aadhaar Card';
@@ -497,7 +557,7 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
           doc_type: d.doc_type,
           filePath: d.file_path,
           fileName: d.file_name,
-          status: d.verification_status.toLowerCase(), // 'verified', 'pending', 'rejected'
+          status: d.verification_status.toLowerCase(),
           rejectionReason: d.rejection_reason
         };
       });
@@ -523,8 +583,148 @@ router.get('/admin/applications', requireAdmin, async (req, res, next) => {
 
     res.json({
       success: true,
-      count: mappedApplications.length,
-      data: mappedApplications
+      data: mappedApplications,
+      pagination: {
+        total: totalCount,
+        page,
+        limit,
+        pages: Math.ceil(totalCount / limit)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/admin/locations/districts
+router.get('/admin/locations/districts', requireAdmin, async (req, res, next) => {
+  try {
+    const districts = await query(`
+      SELECT code, name FROM loc_districts ORDER BY name ASC
+    `);
+    res.json({
+      success: true,
+      data: districts.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/admin/locations/blocks
+router.get('/admin/locations/blocks', requireAdmin, async (req, res, next) => {
+  try {
+    const districtCode = req.query.districtCode as string || '';
+    let result;
+    if (districtCode) {
+      result = await query(`
+        SELECT code, name FROM loc_blocks WHERE district_code = $1 ORDER BY name ASC
+      `, [districtCode]);
+    } else {
+      result = await query(`
+        SELECT code, name FROM loc_blocks ORDER BY name ASC
+      `);
+    }
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/admin/locations/panchayats
+router.get('/admin/locations/panchayats', requireAdmin, async (req, res, next) => {
+  try {
+    const blockCode = req.query.blockCode as string || '';
+    let result;
+    if (blockCode) {
+      result = await query(`
+        SELECT code, name FROM loc_panchayats WHERE block_code = $1 ORDER BY name ASC
+      `, [blockCode]);
+    } else {
+      result = await query(`
+        SELECT code, name FROM loc_panchayats ORDER BY name ASC
+      `);
+    }
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/yojana/admin/applications/mis-stats
+router.get('/admin/applications/mis-stats', requireAdmin, async (req, res, next) => {
+  try {
+    const groupBy = req.query.groupBy as string || 'district'; // 'district' | 'block' | 'panchayat'
+    const districtCode = req.query.districtCode as string || '';
+    const blockCode = req.query.blockCode as string || '';
+
+    let selectCol = 'p.district_code as code, ld.name as name';
+    let joinTable = 'JOIN loc_districts ld ON ld.code = p.district_code';
+    let groupCol = 'p.district_code, ld.name';
+    let whereClause = '';
+    const queryParams: any[] = [];
+
+    if (groupBy === 'block') {
+      selectCol = 'p.block_code as code, lb.name as name, p.district_code';
+      joinTable = 'JOIN loc_blocks lb ON lb.code = p.block_code';
+      groupCol = 'p.block_code, lb.name, p.district_code';
+      if (districtCode) {
+        queryParams.push(districtCode);
+        whereClause = `WHERE p.district_code = $${queryParams.length}`;
+      }
+    } else if (groupBy === 'panchayat') {
+      selectCol = 'p.panchayat_code as code, lp.name as name, p.block_code';
+      joinTable = 'JOIN loc_panchayats lp ON lp.code = p.panchayat_code';
+      groupCol = 'p.panchayat_code, lp.name, p.block_code';
+      if (blockCode) {
+        queryParams.push(blockCode);
+        whereClause = `WHERE p.block_code = $${queryParams.length}`;
+      } else if (districtCode) {
+        queryParams.push(districtCode);
+        whereClause = `WHERE p.district_code = $${queryParams.length}`;
+      }
+    }
+
+    const statsRes = await query(`
+      SELECT 
+        ${selectCol},
+        COUNT(*) FILTER (WHERE ya.status = 'AWAITING_REVIEW') as awaiting_review_count,
+        COUNT(*) FILTER (WHERE ya.status = 'DLC_QUEUE') as dlc_queue_count,
+        COUNT(*) FILTER (WHERE ya.status = 'APPROVED') as approved_count,
+        COUNT(*) FILTER (WHERE ya.status = 'MILESTONE_1_MET') as milestone_1_count,
+        COUNT(*) FILTER (WHERE ya.status = 'MILESTONE_2_MET') as completed_count,
+        COUNT(*) FILTER (WHERE ya.status = 'REJECTED') as rejected_count,
+        COUNT(*) as total_count,
+        COALESCE(SUM(ya.approved_subsidy_amount), 0) as total_subsidy_amount
+      FROM yojana_applications ya
+      JOIN ponds p ON p.id = ya.pond_id
+      ${joinTable}
+      ${whereClause}
+      GROUP BY ${groupCol}
+      ORDER BY name ASC
+    `, queryParams);
+
+    res.json({
+      success: true,
+      data: statsRes.rows.map(row => ({
+        code: row.code,
+        name: row.name,
+        parentCode: row.district_code || row.block_code || null,
+        awaiting_review: parseInt(row.awaiting_review_count, 10),
+        dlc_queue: parseInt(row.dlc_queue_count, 10),
+        approved: parseInt(row.approved_count, 10),
+        milestone_1: parseInt(row.milestone_1_count, 10),
+        completed: parseInt(row.completed_count, 10),
+        rejected: parseInt(row.rejected_count, 10),
+        total: parseInt(row.total_count, 10),
+        totalSubsidy: parseFloat(row.total_subsidy_amount)
+      }))
     });
   } catch (error) {
     next(error);

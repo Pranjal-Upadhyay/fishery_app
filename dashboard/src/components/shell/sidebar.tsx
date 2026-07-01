@@ -14,6 +14,7 @@ import {
   Settings2,
   Waves,
   Store,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -26,6 +27,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: '/dashboard',             label: 'Map',           icon: MapIcon },
   { href: '/dashboard/alerts',      label: 'Alerts',        icon: BellRing },
+  { href: '/dashboard/applications', label: 'Applications',  icon: ClipboardCheck },
   { href: '/dashboard/schemes',     label: 'Schemes',       icon: ScrollText },
   { href: '/dashboard/subsidies',   label: 'Subsidies',     icon: TrendingUp },
   { href: '/dashboard/water',       label: 'Water Quality', icon: Activity },

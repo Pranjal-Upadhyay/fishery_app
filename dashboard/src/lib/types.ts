@@ -23,6 +23,12 @@ export interface ApiEnvelope<T> {
   success: boolean;
   data: T;
   error?: string;
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
 }
 
 export interface LoginResponse {
