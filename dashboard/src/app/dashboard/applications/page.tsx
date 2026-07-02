@@ -753,7 +753,7 @@ export default function ApplicationsPage() {
                                 <button
                                   disabled={!allDocsVerified || isProcessing}
                                   onClick={() => handleStatusChange(app.id, 'DLC_QUEUE')}
-                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500 hover:text-slate-950 hover:border-sky-400 disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95 duration-200"
                                 >
                                   {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
                                   Send to DLC Queue
@@ -764,7 +764,7 @@ export default function ApplicationsPage() {
                                 <button
                                   disabled={isProcessing}
                                   onClick={() => handleStatusChange(app.id, 'APPROVED')}
-                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-violet-500/10 text-violet-300 border border-violet-500/30 hover:bg-violet-500/20 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-violet-500/10 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-slate-950 hover:border-violet-400 disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95 duration-200"
                                 >
                                   {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                                   DLC — Approve Application
@@ -775,7 +775,7 @@ export default function ApplicationsPage() {
                                 <button
                                   disabled={isProcessing}
                                   onClick={() => handleStatusChange(app.id, 'MILESTONE_1_MET')}
-                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/30 hover:bg-rose-500/20 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/30 hover:bg-rose-500 hover:text-slate-950 hover:border-rose-400 disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95 duration-200"
                                 >
                                   {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
                                   Verify & Release Milestone 1
@@ -786,7 +786,7 @@ export default function ApplicationsPage() {
                                 <button
                                   disabled={isProcessing}
                                   onClick={() => handleStatusChange(app.id, 'MILESTONE_2_MET')}
-                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-teal-500/10 text-teal-300 border border-teal-500/30 hover:bg-teal-500/20 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold bg-teal-500/10 text-teal-300 border border-teal-500/30 hover:bg-teal-500 hover:text-slate-950 hover:border-teal-400 disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95 duration-200"
                                 >
                                   {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
                                   Verify & Release Final Payment
