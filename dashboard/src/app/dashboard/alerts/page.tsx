@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { AlertItem, MOCK_ALERTS } from '@/lib/alerts-data';
 import {
   BellRing,
   AlertTriangle,
@@ -73,93 +75,35 @@ function exportAlertsToCSV(alerts: AlertItem[]) {
   URL.revokeObjectURL(url);
 }
 
-// Types
-interface AlertItem {
-  id: string;
-  type: 'Water Parameter' | 'Disease Outbreak';
-  severity: 'critical' | 'warning';
-  title: string;
-  description: string;
-  farmerName: string;
-  phone: string;
-  location: string;
-  coords: string;
-  time: string;
-  resolved: boolean;
-  recommendation: string;
-}
-
-// Mock Data
-const MOCK_ALERTS: AlertItem[] = [
-  {
-    id: '1',
-    type: 'Water Parameter',
-    severity: 'critical',
-    title: 'Critical Dissolved Oxygen Deficit',
-    description: 'DO level measured at 2.4 mg/L (Minimum threshold: 3.5 mg/L). Fish starvation risk high.',
-    farmerName: 'Hari Har Paswan',
-    phone: '9512345678',
-    location: 'Gaya, Sherghati block',
-    coords: '24.7801° N, 84.9902° E',
-    time: '10 mins ago',
-    resolved: false,
-    recommendation: 'Start paddle aerator immediately. Add agricultural lime (CaO) at 200 kg/ha. Check for algal bloom at surface. Re-measure DO in 2 hours.',
-  },
-  {
-    id: '2',
-    type: 'Disease Outbreak',
-    severity: 'critical',
-    title: 'EUS Disease Symptoms Detected',
-    description: 'Red spot lesions reported on standard Rohu crop. Gill discoloration observed.',
-    farmerName: 'Ramesh Prasad Singh',
-    phone: '9845012345',
-    location: 'Patna, Phulwari Sharif block',
-    coords: '25.5800° N, 85.1200° E',
-    time: '1 hr ago',
-    resolved: false,
-    recommendation: 'Isolate affected fish immediately. Apply Potassium Permanganate (KMnO₄) bath at 2–4 ppm for 30 mins. Contact veterinary authority for official outbreak reporting.',
-  },
-  {
-    id: '3',
-    type: 'Water Parameter',
-    severity: 'warning',
-    title: 'High Ammonia Concentration',
-    description: 'Ammonia level measured at 0.08 ppm (Borderline threshold: 0.05 ppm).',
-    farmerName: 'Sanjay Kumar Yadav',
-    phone: '9744123456',
-    location: 'Madhubani, Benipatti block',
-    coords: '26.3650° N, 86.0850° E',
-    time: '2 hrs ago',
-    resolved: false,
-    recommendation: 'Reduce feed by 30% for 48 hours. Apply zeolite at 500 kg/ha. Improve water exchange. Avoid overfeeding. Aerate heavily at dawn and dusk.',
-  },
-  {
-    id: '4',
-    type: 'Water Parameter',
-    severity: 'warning',
-    title: 'pH Alkaline Spike',
-    description: 'pH level spiked to 9.2 (Normal range: 6.5 - 8.5). Algal bloom suspected.',
-    farmerName: 'Gopal Dev Prasad',
-    phone: '9602481357',
-    location: 'Patna, Mokama block',
-    coords: '25.4020° N, 85.9070° E',
-    time: '1 day ago',
-    resolved: true,
-    recommendation: 'Remove surface algae manually. Apply alum (aluminum sulfate) at 15–20 ppm to flocculate algae. Shade 30% of pond surface if possible.',
-  },
-];
+// Doctors Data
 
 const MOCK_DOCTORS = [
   { id: 'd1', name: 'Dr. Akhilesh Kumar', specialty: 'Vet Pathologist', phone: '9876543210' },
   { id: 'd2', name: 'Dr. Manoj Mishra', specialty: 'Water Biologist', phone: '9988776655' },
 ];
 
-export default function AlertsPage() {
+function AlertsPageInner() {
+  const searchParams = useSearchParams();
+  const alertIdFromUrl = searchParams.get('id');
+
   const [alerts, setAlerts] = useState<AlertItem[]>(MOCK_ALERTS);
   const [dispatchTarget, setDispatchTarget] = useState<AlertItem | null>(null);
   const [selectedDocId, setSelectedDocId] = useState('');
-  const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
+  const [expandedAlertId, setExpandedAlertId] = useState<string | null>(alertIdFromUrl);
   const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
+
+  // When arriving via a ticker link, auto-expand and scroll to the alert.
+  useEffect(() => {
+    if (!alertIdFromUrl) return;
+    setExpandedAlertId(alertIdFromUrl);
+    const timer = setTimeout(() => {
+      document.getElementById(`alert-card-${alertIdFromUrl}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [alertIdFromUrl]);
 
   const handleSendSms = async (alertId: string) => {
     const alertItem = alerts.find(a => a.id === alertId);
@@ -254,11 +198,12 @@ export default function AlertsPage() {
               return (
                 <GlassCard
                   key={alertItem.id}
+                  id={`alert-card-${alertItem.id}`}
                   className={`border transition-all ${
                     alertItem.severity === 'critical'
                       ? 'border-rose-500/30 bg-rose-500/5'
                       : 'border-amber-500/30 bg-amber-500/5'
-                  }`}
+                  } ${expandedAlertId === alertItem.id ? 'ring-2 ring-teal-500/40' : ''}`}
                 >
                   {/* Card header — always visible */}
                   <div
@@ -459,5 +404,19 @@ export default function AlertsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Public export with Suspense wrapper (required for useSearchParams) ───────
+export default function AlertsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col gap-6 p-6 h-full overflow-y-auto">
+        <div className="h-8 w-48 rounded bg-glass-strong animate-pulse" />
+        <div className="h-48 rounded-xl bg-glass-subtle animate-pulse" />
+      </div>
+    }>
+      <AlertsPageInner />
+    </Suspense>
   );
 }

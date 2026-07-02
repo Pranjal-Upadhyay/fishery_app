@@ -1,37 +1,40 @@
 'use client';
 
+import Link from 'next/link';
 import { AlertTriangle, Activity, Bell, ShieldAlert } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { cn } from '@/lib/cn';
+import { MOCK_ALERTS, AlertItem } from '@/lib/alerts-data';
 
 /**
  * Alert ticker — the always-on banner sliding across the top of the dashboard.
  *
- * Phase L0: shows placeholder alerts so the visual treatment lands. Phase L2
- * swaps the `alerts` prop for live data from `/api/v1/admin/alerts/stream`.
- *
- * Design notes:
- *   - The marquee duplicates its content twice so the loop is seamless.
- *   - Hovering pauses the animation (`hover:[animation-play-state:paused]`)
- *     so an officer can read a specific alert.
- *   - Severity tag uses a colored dot + uppercase chip — easy to scan at speed.
+ * - Derives its content from the same MOCK_ALERTS array used by /dashboard/alerts,
+ *   so the ticker always reflects what is actually in the alert section.
+ * - Only shows UNRESOLVED alerts (resolved ones are archived on the alerts page).
+ * - Clicking any ticker item navigates to /dashboard/alerts?id=<alertId>, which
+ *   auto-expands and scrolls to that specific alert card.
+ * - Hovering pauses the animation so an officer can read a specific alert.
  */
 
-export interface TickerAlert {
+interface TickerAlert {
   id: string;
   severity: 'critical' | 'warning' | 'info';
   label: string;
   message: string;
-  scope?: string; // e.g. "Madhubani · Block 4"
+  scope?: string;
 }
 
-const PLACEHOLDER_ALERTS: TickerAlert[] = [
-  { id: '1', severity: 'critical', label: 'DO Crash',     message: 'Dissolved oxygen below 2 ppm in pond cluster',  scope: 'Madhubani · Pandaul' },
-  { id: '2', severity: 'warning',  label: 'Ammonia Drift',message: 'NH₃ rising across 4 ponds — possible source contamination', scope: 'Vaishali · Hajipur' },
-  { id: '3', severity: 'info',     label: 'Scheme Live',  message: 'Jalkrishi Saurikaran applications opened for Q3', scope: 'Statewide' },
-  { id: '4', severity: 'warning',  label: 'Doctor Gap',   message: '12 farmers in Sherghati block have no assigned doctor', scope: 'Gaya · Sherghati' },
-  { id: '5', severity: 'critical', label: 'Disease Flag', message: 'EUS-like lesion reports clustering — investigate',  scope: 'Begusarai · Mansurchak' },
-];
+/** Map an AlertItem to the compact TickerAlert shape shown in the banner. */
+function toTickerAlert(a: AlertItem): TickerAlert {
+  return {
+    id: a.id,
+    severity: a.severity, // 'critical' | 'warning' — both valid TickerAlert severities
+    label: a.type === 'Disease Outbreak' ? 'Disease Flag' : 'Water Alert',
+    message: a.title,
+    scope: a.location,
+  };
+}
 
 const severityClasses: Record<TickerAlert['severity'], { dot: string; chip: string }> = {
   critical: {
@@ -54,13 +57,17 @@ const severityIcons: Record<TickerAlert['severity'], typeof AlertTriangle> = {
   info:     Activity,
 };
 
-function AlertItem({ alert }: { alert: TickerAlert }) {
+function AlertTickerItem({ alert }: { alert: TickerAlert }) {
   const sev = severityClasses[alert.severity];
   const Icon = severityIcons[alert.severity];
   return (
-    <span className="inline-flex shrink-0 items-center gap-3 px-5">
+    <Link
+      href={`/dashboard/alerts?id=${alert.id}`}
+      className="inline-flex shrink-0 items-center gap-3 px-5 cursor-pointer group"
+      title={`Click to view: ${alert.message}`}
+    >
       <span className={cn('h-2 w-2 rounded-full', sev.dot)} aria-hidden />
-      <Icon className="h-3.5 w-3.5 text-ink-secondary" aria-hidden />
+      <Icon className="h-3.5 w-3.5 text-ink-secondary group-hover:text-ink-primary transition-colors" aria-hidden />
       <span
         className={cn(
           'rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
@@ -69,18 +76,25 @@ function AlertItem({ alert }: { alert: TickerAlert }) {
       >
         {alert.label}
       </span>
-      <span className="text-sm text-ink-primary">{alert.message}</span>
+      <span className="text-sm text-ink-primary group-hover:text-teal-300 transition-colors underline-offset-2 group-hover:underline">
+        {alert.message}
+      </span>
       {alert.scope ? (
         <span className="font-mono text-[11px] text-ink-muted">· {alert.scope}</span>
       ) : null}
       <span className="mx-3 h-3 w-px bg-glass-border" aria-hidden />
-    </span>
+    </Link>
   );
 }
 
-export function AlertTicker({ alerts = PLACEHOLDER_ALERTS }: { alerts?: TickerAlert[] }) {
+export function AlertTicker() {
+  // Only show active (unresolved) alerts in the banner — same as the alert section.
+  const activeAlerts = MOCK_ALERTS.filter((a) => !a.resolved).map(toTickerAlert);
+
   // Duplicate once so the translate3d(-50%, 0, 0) loop has no visible seam.
-  const doubled = [...alerts, ...alerts];
+  const doubled = [...activeAlerts, ...activeAlerts];
+
+  if (activeAlerts.length === 0) return null;
 
   return (
     <GlassCard
@@ -100,11 +114,11 @@ export function AlertTicker({ alerts = PLACEHOLDER_ALERTS }: { alerts?: TickerAl
       <div className="relative flex-1 overflow-hidden py-2">
         <div className="flex w-max animate-ticker hover:[animation-play-state:paused]">
           {doubled.map((a, i) => (
-            <AlertItem key={`${a.id}-${i}`} alert={a} />
+            <AlertTickerItem key={`${a.id}-${i}`} alert={a} />
           ))}
         </div>
 
-        {/* Edge fade — softens the entry/exit so text doesn't pop on hard borders */}
+        {/* Edge fade */}
         <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-canvas-900/85 to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-canvas-900/85 to-transparent" />
       </div>
